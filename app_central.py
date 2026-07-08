@@ -139,13 +139,35 @@ class CentralAutomacaoMRV:
         """Executa a função e garante que os botões voltem ao normal no final."""
         try:
             funcao_processo()
+            
+            # Opcional: Mostra um popup de SUCESSO quando o robô termina sem erros
+            self.root.after(0, lambda: messagebox.showinfo(
+                "Sucesso", 
+                "A automação foi concluída com sucesso!"
+            ))
+            
         except Exception as e:
-            print(f"\n❌ [ERRO CRÍTICO]: {e}")
+            # 1. Salvamos o erro em formato de texto ANTES do bloco terminar
+            mensagem_erro = str(e)
+            texto_popup = f"O processo foi interrompido devido a um erro.\n\nMotivo:\n{mensagem_erro}"
+            
+            print(f"\n❌ [ERRO CRÍTICO]: {mensagem_erro}")
+            
+            # 2. Passamos o texto salvo para dentro do lambda (msg=texto_popup)
+            self.root.after(0, lambda msg=texto_popup: messagebox.showerror(
+                "Erro na Automação", 
+                msg
+            ))
+            
         finally:
             print("-" * 60)
-            for btn in self.todos_botoes:
-                btn.state(['!disabled'])
+            # Reabilita os botões de forma segura na thread principal
+            self.root.after(0, self._reativar_botoes)
 
+    def _reativar_botoes(self):
+        """Função auxiliar para reativar os botões na interface"""
+        for btn in self.todos_botoes:
+            btn.state(['!disabled'])
     # ======================================================================
     # FUNÇÕES DOS PROCESSOS (Aqui você chama seus scripts importados)
     # ======================================================================

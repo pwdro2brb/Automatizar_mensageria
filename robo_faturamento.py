@@ -116,57 +116,54 @@ def criar_rascunhos_correios():
 # ==============================================================================
 # 2. FUNÇÃO: GERAR PLANILHA DE RATEIO
 # ==============================================================================
-def preparar_e_gerar_rateio():
-    pasta_trabalho = Path(PASTA_ARQUIVOS_RATEIO) / "testar_edicao"
-    print(f"\n🔍 Lendo planilhas na pasta: {pasta_trabalho}")
-    
-    # 1. Verifica se a pasta realmente existe
-    if not pasta_trabalho.exists():
-        print("❌ ERRO CRÍTICO: O Python não conseguiu achar essa pasta no seu computador!")
-        print("Verifique se o caminho no config.py está correto.")
-        return
 
-    # 2. Mostra todos os arquivos que estão lá dentro
-    arquivos_na_pasta = list(pasta_trabalho.glob('*'))
-    nomes_arquivos = [a.name for a in arquivos_na_pasta]
-    print(f"📂 Arquivos que o Python enxergou lá dentro: {nomes_arquivos}")
+def preparar_e_gerar_rateio():
+    print("Lendo planilhas na pasta testar_edicao...")
+    pasta_trabalho = Path(PASTA_ARQUIVOS_RATEIO) / "testar_edicao"
+    
+    # ❌ ERRO 2: Se a pasta testar_edicao não existir
+    if not pasta_trabalho.exists():
+        raise FileNotFoundError(f"A pasta 'testar_edicao' não foi encontrada dentro de:\n{PASTA_ARQUIVOS_RATEIO}")
     
     caminho_rr = None
     caminho_correios = None
     
     for ficheiro in pasta_trabalho.glob('*.xlsx'):
         nome_ficheiro = ficheiro.name.upper()
-        
-        # Ignora arquivos temporários abertos
-        if nome_ficheiro.startswith('~$') or nome_ficheiro == 'RATEIO PAG.XLSX': 
-            continue
-            
-        if 'RATEIO RECEBIDO' in nome_ficheiro: 
-            caminho_rr = ficheiro
-            print(f"✔️ Planilha Rateio Recebido identificada: {ficheiro.name}")
-            
-        elif re.match(r'^\d{7}\.XLSX$', nome_ficheiro): 
-            caminho_correios = ficheiro
-            print(f"✔️ Planilha Correios identificada: {ficheiro.name}")
+        if nome_ficheiro.startswith('~$') or nome_ficheiro == 'RATEIO PAG.XLSX': continue
+        if 'RATEIO RECEBIDO' in nome_ficheiro: caminho_rr = ficheiro
+        elif re.match(r'^\d{7}\.XLSX$', nome_ficheiro): caminho_correios = ficheiro
 
-    # 3. Diz exatamente qual arquivo está faltando
-    if not caminho_rr:
-        print("❌ ERRO: Não achei nenhuma planilha com 'RATEIO RECEBIDO' no nome.")
-    if not caminho_correios:
-        print("❌ ERRO: Não achei a planilha dos Correios.")
-        print("   ⚠️ ATENÇÃO: O nome dela DEVE ter exatamente 7 números (Ex: 1234567.xlsx). Se tiver letras ou espaços, ele ignora!")
+    # ❌ ERRO 3: Se faltar a planilha Rateio Recebido ou a dos Correios
+    if not caminho_rr and not caminho_correios:
+        raise FileNotFoundError("Faltam as DUAS planilhas (Rateio Recebido e a dos Correios) na pasta 'testar_edicao'.")
+    elif not caminho_rr:
+        raise FileNotFoundError("Falta a planilha 'RATEIO RECEBIDO' na pasta 'testar_edicao'.")
+    elif not caminho_correios:
+        raise FileNotFoundError("Falta a planilha numérica dos Correios (ex: 1234567.xlsx) na pasta 'testar_edicao'.")
 
-    if not caminho_rr or not caminho_correios:
-        print("ERRO: Faltam planilhas na pasta testar_edicao! Processo cancelado.")
-        return
-
-    print(f">> Iniciando processamento matemático...")
-    caminho_saida = pasta_trabalho / "RATEIO PAG.xlsx"
+    print(f">> Iniciando processamento...")
     
+    # =================================================================
+    # NOVIDADE: Direcionando o salvamento direto para a pasta exemplos
+    # =================================================================
+    pasta_exemplos = Path(PASTA_ARQUIVOS_RATEIO) / "exemplos"
+    
+    # Se a pasta exemplos não existir, o robô cria ela automaticamente
+    if not pasta_exemplos.exists():
+        pasta_exemplos.mkdir(parents=True, exist_ok=True)
+        print(f"📁 Pasta 'exemplos' criada automaticamente.")
+        
+    # Define que o arquivo final vai ser salvo DENTRO da pasta exemplos
+    caminho_saida = pasta_exemplos / "RATEIO PAG.xlsx"
+    
+    # Gera a planilha
     final = gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_saida)
     
     print(f"Total de linhas geradas no final: {len(final)}")
-    print("✅ Arquivo RATEIO PAG.xlsx gerado com sucesso!")
+    print(f"✅ Arquivo RATEIO PAG.xlsx gerado e salvo direto na pasta 'exemplos'!")
+
+
 # ==============================================================================
 # 3. FUNÇÃO: LANÇAR NOTA FISCAL
 # ==============================================================================
@@ -174,19 +171,23 @@ def lancar_nota_fiscal():
     print("Iniciando robô de lançamento...")
     
     PASTA_BASE = Path(PASTA_ARQUIVOS_RATEIO) / "exemplos"
+    
+    # ❌ ERRO 4: Se a pasta exemplos não existir
+    if not PASTA_BASE.exists():
+        raise FileNotFoundError(f"A pasta 'exemplos' não foi encontrada dentro de:\n{PASTA_ARQUIVOS_RATEIO}")
+
+    # ❌ ERRO 5 (Parte A): Se a planilha RATEIO PAG não estiver na pasta
     planilhas_encontradas = list(PASTA_BASE.glob("RATEIO PAG.xlsx"))
     if not planilhas_encontradas:
-        print("⚠️ Planilha RATEIO PAG não encontrada na pasta!")
-        return
+        raise FileNotFoundError("A planilha 'RATEIO PAG.xlsx' não foi encontrada na pasta 'exemplos'.\nVocê esqueceu de rodar a Etapa 2?")
     caminho_planilha_rateio = str(planilhas_encontradas[0].resolve())
 
+    # ❌ ERRO 5 (Parte B): Se o boleto PDF não estiver na pasta
     pdfs_encontrados = [arq for arq in PASTA_BASE.glob("*") if arq.suffix.lower() == ".pdf"]
     if not pdfs_encontrados:
-        print("⚠️ Nenhum boleto PDF encontrado na pasta!")
-        return
+        raise FileNotFoundError("Nenhum boleto em PDF foi encontrado na pasta 'exemplos'.")
     elif len(pdfs_encontrados) > 1:
-        print(f"⚠️ Atenção! Foram encontrados {len(pdfs_encontrados)} PDFs. Deixe apenas UM boleto na pasta!")
-        return
+        raise FileNotFoundError(f"Foram encontrados {len(pdfs_encontrados)} PDFs na pasta 'exemplos'.\nDeixe apenas UM boleto na pasta para o robô não se confundir!")
     caminho_boleto_pdf = str(pdfs_encontrados[0].resolve())
 
     print(f"✅ Planilha de Upload carregada: {caminho_planilha_rateio}")
@@ -203,12 +204,15 @@ def lancar_nota_fiscal():
     emissao_proc  = campos["data_processamento"]
 
     if not cnpj_mrv or not valor_boleto:
-        print("⚠️ Não foi possível localizar o CNPJ da MRV ou o Valor no boleto.")
-        return
+        # Aqui também trocamos o print por raise
+        raise ValueError("Não foi possível localizar o CNPJ da MRV ou o Valor no boleto PDF.")
 
     print(f"📌 Dados extraídos: CNPJ MRV: {cnpj_mrv} | Valor: R$ {valor_boleto} | Nº Doc: {num_doc}")
 
+    # ❌ ERRO 1: Se a planilha de regras (dados_puxados) não existir
     ARQUIVO_REGRAS_XLSX = Path(PASTA_ARQUIVOS_RATEIO) / "dados_puxados_preenchimento.xlsx"
+    if not ARQUIVO_REGRAS_XLSX.exists():
+        raise FileNotFoundError(f"A planilha de regras 'dados_puxados_preenchimento.xlsx' não foi encontrada no caminho:\n{ARQUIVO_REGRAS_XLSX}")
 
     df = pd.read_excel(ARQUIVO_REGRAS_XLSX, engine="openpyxl")
 

@@ -1,0 +1,9 @@
+config
+__pycache__/
+*.pyc
+config.py
+testar_edicao/
+dados_puxados_preenchimento.xlsx
+exemplos/
+
+

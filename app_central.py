@@ -10,6 +10,7 @@ import time
 import Processos_simples.robo_relatorio_correios as robo_relatorio_correios
 import Processos_simples.robo_juridico as robo_juridico
 import robo_faturamento
+from produtividade import executar_robo_produtividade_setor as robo_produtividade_setor
 # ==============================================================================
 
 class PrintRedirector:
@@ -84,6 +85,9 @@ class CentralAutomacaoMRV:
         self.btn_produtividade = ttk.Button(frame_agilis, text="Gerar relatório de envio para Correios", command=lambda: self.rodar_thread(self._proc_produtividade))
         self.btn_produtividade.pack(fill=tk.X, padx=10, pady=5)
 
+        self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", command=lambda: self.rodar_thread(robo_produtividade_setor))
+        self.btn_produtividade_setor.pack(fill=tk.X, padx=10, pady=5)
+
         self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", command=lambda: self.rodar_thread(self._proc_fechar_chamados))
         self.btn_fechar_chamados.pack(fill=tk.X, padx=10, pady=5)
 
@@ -117,7 +121,7 @@ class CentralAutomacaoMRV:
         # Lista de todos os botões para facilitar habilitar/desabilitar
         self.todos_botoes = [
             self.btn_enc_dia, self.btn_rateio_malote, self.btn_fat_1, self.btn_fat_2, self.btn_fat_3,
-            self.btn_juridico, self.btn_incluir_podio, self.btn_produtividade, self.btn_fechar_chamados,
+            self.btn_juridico, self.btn_incluir_podio, self.btn_produtividade, self.btn_fechar_chamados,self.btn_produtividade_setor,
             self.btn_uber, self.btn_zmm180
         ]
 
@@ -190,7 +194,7 @@ class CentralAutomacaoMRV:
         # Mude de processar_relatorio_email() para executar_relatorio_completo()
         robo_relatorio_correios.executar_relatorio_completo() 
         time.sleep(1)
-        print("✅ Planilha de produtividade gerada e preenchida!")
+        print("✅ Planilha dos correios gerada e preenchida!")
 
     def _proc_incluir_podio(self):
         print(">>> Iniciando: Inclusão rápida de correspondências no Podio...")

@@ -23,6 +23,7 @@ Automatizar tarefas repetitivas e manuais, como:
 - Arquivos_rateio_regionais/: pasta utilizada como base para arquivos de rateio e exemplos de entrada/saída.
 - config.py: configurações locais, como e-mail, senha e caminhos de pasta.
 - config_exemplo.py: modelo de configuração para ser copiado para o arquivo real.
+- produtividade.py: automação de extração de dados de produtividade (Podio, Agilis, Bússola/SAP) e geração de relatório preenchido.
 
 ## Pré-requisitos
 
@@ -55,7 +56,7 @@ copy config_exemplo.py config.py
 
 - e-mail corporativo;
 - senha ou credenciais de acesso;
-- caminhos das pastas utilizadas pelo projeto.
+- caminhos das pastas utilizadas pelo projeto, incluindo a nova `PASTA_PRODUTIVIDADE` para relatório de produtividade.
 
 > Importante: mantenha o arquivo config.py com as credenciais seguras e não compartilhe esse conteúdo publicamente.
 
@@ -87,6 +88,7 @@ A interface gráfica será aberta com os processos disponíveis. Ao clicar em um
 ### Agilis e produtividade
 
 - Gerar relatório de envio para Correios
+- Gerar Produtividade (Podio/Agilis/SAP) — executa extração de dados e preenche o relatório final na pasta `Produtividade`
 - Fechar chamados a vencer
 
 ### Outros sistemas

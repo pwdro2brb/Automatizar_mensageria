@@ -29,7 +29,31 @@ import pyperclip
 import subprocess
 from PIL import Image
 
+import win32gui
+import win32con
+import win32api
+import win32process
+import ctypes
+
+
+# ==============================================================================
+# 🚀 O PULO DO GATO: FORÇAR O WINDOWS A RECONHECER TODOS OS MONITORES
+# ==============================================================================
+try:
+    # Diz ao Windows para usar a resolução real de múltiplos monitores (Per-Monitor DPI Aware)
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    try:
+        # Fallback para versões mais antigas do Windows
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+# ==============================================================================
+
+
+
 from config import EMAIL_MRV, SENHA_MRV, PASTA_DOWNLOADS, PASTA_PRODUTIVIDADE
+
 
 # --- CONFIGURAÇÃO ---
 WAIT_TIME = 10
@@ -118,24 +142,143 @@ def extrair_dados_sistemas():
         wait.until(EC.element_to_be_clickable((By.XPATH, "//li[@data-id='created_on']"))).click() 
         wait.until(EC.element_to_be_clickable((By.XPATH, "//li[@data-id='-1mr:-1mr']"))).click() 
 
-        print("Ajustando visualização...")
-        elementos_menu = wait.until(lambda d: d.find_elements(By.CSS_SELECTOR, ".app-header__app-menu"))
-        if len(elementos_menu) >= 1: elementos_menu[0].click()
-        time.sleep(2)
-        elementos_menu = driver.find_elements(By.CSS_SELECTOR, ".app-header__app-menu") 
-        if len(elementos_menu) > 1: elementos_menu[1].click()
-        time.sleep(2)
+        # --- ETAPA 8 ---
 
-        print("Exportando Excel...")
-        wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.app-box-supermenu-v2__link.app-export-excel"))).click()
-        wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "li.navigation-link.inbox"))).click()
-        time.sleep(30)
+        try:
+            # 1. Define o seletor.
+            #  Usar CSS_SELECTOR é mais fácil para classes.
+            #  O ponto (.) significa "classe".
+            seletor_css = ".app-header__app-menu"
         
-        wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.PodioUI__Notifications__NotificationGroup"))).click()
-        wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(@class, 'field-type-text')]"))) 
-        wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Mensageria - Última vista usada.xlsx"))).click()
+            print(f"Procurando todos os elementos com a classe: {seletor_css}")
+            # 2. Espera até que PELO MENOS 2 elementos estejam presentes
+            #  (Você pode mudar o '2' para quantos você espera)
+            WebDriverWait(driver, 10).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, seletor_css)) >= 2)
+
+            # 3. Pega a LISTA de todos os elementos
+            elementos = driver.find_elements(By.CSS_SELECTOR, seletor_css)
+        
+            print(f"Encontrados {len(elementos)} elementos.")
+
+            # 4. Clica no primeiro elemento (índice 0)
+            if len(elementos) > 0:
+                print("Clicando no primeiro elemento (índice 0)...")
+                elementos[0].click()
+        
+            # 5. Espera a página reagir
+            #  (MUITO IMPORTANTE: Clicar em algo pode mudar a página)
+            print("Aguardando 2 segundos para a página/menu reagir...")
+            time.sleep(2)
+
+            # 6. RE-ENCONTRA a lista de elementos
+            #  (É a forma mais segura, caso o primeiro clique tenha
+            #  recarregado os elementos - evita o erro 'stale element')
+        
+            print("Re-encontrando os elementos (para segurança)...")
+            elementos = driver.find_elements(By.CSS_SELECTOR, seletor_css)
+
+            # 7. Clica no segundo elemento (índice 1)
+            if len(elementos) > 1:
+                print("Clicando no segundo elemento (índice 1)...")
+                elementos[1].click()
+            else:
+                print("Erro: Não foi possível encontrar o segundo elemento após o primeiro clique.")
+        
+            print("Ações nos dois elementos concluídas!")
+            time.sleep(3)
+
+        except Exception as e:
+            print(f"Ocorreu um erro: {e}")
+            # driver.save_screenshot("erro_multiplos.png")
+
+        # --- ETAPA 9 ---
+        print("Etapa 9: Aguardando o menu dropdown abrir...")
+        
+        # Usando o seletor CSS (mais limpo) que discutimos
+        exportar_excel_selector = "a.app-box-supermenu-v2__link.app-export-excel"
+        
+        exportar_link = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, exportar_excel_selector))
+        )
+        
+        print("Link 'Exportar Excel' encontrado. Clicando...")
+        exportar_link.click()
+        # --- FIM DA ETAPA 9 ---
+
+        time.sleep(3)
+
+        # --- ETAPA 10 ---
+        try:
+            print("Procurando o ícone de 'Notificação' (Inbox)...")
+        
+            # Usando o Seletor CSS (recomendado por ser mais limpo)
+            notificacao_selector = "li.navigation-link.inbox"
+        
+            # Espera o ícone estar presente e ser clicável
+            notificacao_icon = WebDriverWait(driver, 5).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, notificacao_selector))
+            )
+        
+            print("Ícone de 'Notificação' encontrado. Clicando...")
+            notificacao_icon.click()
+        
+            time.sleep(1) # Espera o menu de notificação abrir
+
+        except Exception as e:
+            print(f"Erro ao tentar clicar no ícone de Notificação: {e}")
+            driver.save_screenshot("erro_notificacao.png")
+        # --- FIM DA ETAPA 10 ---
+
+
+        # --- ETAPA 11 ---
+        css_corrigido = "a.PodioUI__Notifications__NotificationGroup"
+        item_notificacao = WebDriverWait(driver, 3).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, css_corrigido))
+        )
+        item_notificacao.click()
+        # --- FIM DA ETAPA 11 ---
+
+        print("Aguardando processamento do Excel (até 3 minutos)...")
+
+        tempo_espera = 0
+        sucesso_exportacao = False
+        nome_do_arquivo = "Mensageria - Última vista usada.xlsx"
+
+        # LOOP DE VERIFICAÇÃO COM REFRESH: Tenta até dar 180s (3 minutos)
+        while tempo_espera < 180:
+            try:            
+                if EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Mensageria - Última vista usada.xlsx")):
+
+                    print("Exportação 'Completado'!")
+ 
+                    link_download = WebDriverWait(driver, 3).until(
+                        EC.element_to_be_clickable((By.LINK_TEXT, nome_do_arquivo))
+                    )
+                    
+                    print("Link encontrado! Clicando para baixar...")
+                    link_download.click()
+
+                    sucesso_exportacao = True
+                    break # Sai do loop pois deu certo!
+
+                    
+            except Exception:
+                # Se não achou, espera um pouco e ATUALIZA A PÁGINA
+                print(f"Aguardando Podio... ({tempo_espera}s / 180s) - Atualizando a página (F5)...")
+                time.sleep(10) # Espera 10 segundos antes de atualizar
+                tempo_espera += 10
+                
+                driver.refresh() # Dá o F5 na página
+                time.sleep(5) # Espera a página recarregar
+                tempo_espera += 5
+                
+
+            
+        if not sucesso_exportacao:
+            raise Exception("Tempo limite de 3 minutos excedido aguardando a exportação do Podio.")
+            
         print("Download Podio iniciado!")
-        time.sleep(5) 
+        time.sleep(1) 
         
         # --- PARTE 2: AGILIS ---
         print("\n=== INICIANDO PARTE 2: AGILIS ===")
@@ -252,120 +395,7 @@ def extrair_dados_sistemas():
         time.sleep(15) 
         print("Download do Bússola finalizado!")
 
-        # --- PARTE 4: TRANSAÇÃO MIR5 (SAP) ---
-        print("\n=== INICIANDO PARTE 4: SAP MIR5 ===")
-        
-        def focar_sap():
-            """Traz a janela do SAP para frente de forma silenciosa e rápida."""
-            try:
-                # Usa o win32com que já está importado no topo do seu código
-                shell = win32com.client.Dispatch("WScript.Shell")
-                nomes = ["SAP Easy Access", "Cockpit NF", "SAP"]
-                for nome in nomes:
-                    shell.AppActivate(nome)
-                    time.sleep(0.2)
-            except Exception as e: 
-                print(f"Aviso ao focar SAP: {e}")
 
-        def clicar_e_digitar(posicao, texto):
-            pyautogui.click(x=posicao[0], y=posicao[1])
-            time.sleep(0.3)
-            pyautogui.hotkey('ctrl', 'a')
-            time.sleep(0.2)
-            pyautogui.press('delete')
-            time.sleep(0.3)
-            
-            # Como as datas (01.06.2026) e usuários (MS0069532) não têm barra (/),
-            # o write funciona perfeitamente para eles!
-            pyautogui.write(texto, interval=0.05)
-            time.sleep(0.1)
-
-        def clicar(posicao, espera=0.3):
-            pyautogui.click(x=posicao[0], y=posicao[1])
-            time.sleep(espera)
-
-        CAMPO_COMANDO = (3050, 77)
-
-        CAMPO_COMANDO = (3050, 77)
-        MIR5_BOTAO_MULTIPLO_USER = (3941, 300)
-        MIR5_USER_1 = (3044, 418)
-        MIR5_USER_2 = (3065, 452)
-        MIR5_USER_3 = (3116, 485)
-        MIR5_DATA_BTN_1 = (3940, 477)
-        MIR5_DATA_BTN_2 = (3354, 315)
-        MIR5_INPUT_DATA_INICIO = (3056, 419)
-        MIR5_INPUT_DATA_FIM = (3206, 422)
-        MIR5_MENU_1 = (2958, 31)
-        MIR5_MENU_2 = (3032, 136)
-        MIR5_MENU_3 = (3354, 173)
-        MIR5_MENU_4 = (3747, 474)
-        MIR5_POPUP_SAP_1 = (3107, 537)
-        MIR5_POPUP_SAP_2 = (3120, 428)
-
-        # ============================================================
-        # PASSO 32: FOCAR E ABRIR TRANSAÇÃO
-        # ============================================================
-        # ⏳ Damos 2 segundos para o Tkinter "respirar" após você clicar no botão
-        time.sleep(2) 
-        
-        focar_sap()
-        time.sleep(1)
-        
-        # 1º Clique: O Windows consome esse clique para trazer o SAP para frente
-        pyautogui.click(x=CAMPO_COMANDO[0], y=CAMPO_COMANDO[1])
-        time.sleep(0.5) 
-        
-        # 2º Clique: Agora sim o clique acontece DENTRO do SAP
-        clicar(CAMPO_COMANDO)
-        
-        # Limpa o campo
-        pyautogui.hotkey('ctrl', 'a')
-        time.sleep(0.2)
-        pyautogui.press('delete')
-        time.sleep(0.2)
-        
-        # O TRUQUE DE MESTRE: Digita a barra usando o teclado numérico
-        pyautogui.press('divide') 
-        
-        # Digita o resto da transação normalmente
-        pyautogui.write('nMIR5', interval=0.05)
-        time.sleep(0.5)
-        
-        pyautogui.press('enter')
-        time.sleep(3)
-
-        clicar(MIR5_BOTAO_MULTIPLO_USER, espera=1)
-        clicar_e_digitar(MIR5_USER_1, 'MS0069532')
-        clicar_e_digitar(MIR5_USER_2, 'MS0073814')
-        clicar_e_digitar(MIR5_USER_3, 'MS0075116')
-        pyautogui.press('f8')
-        time.sleep(1)
-
-        data_inicio_str_sap = primeiro_dia_mes_passado.strftime("%d.%m.%Y")
-        data_fim_str_sap = ultimo_dia_mes_passado.strftime("%d.%m.%Y")
-
-        clicar(MIR5_DATA_BTN_1, espera=1)
-        clicar(MIR5_DATA_BTN_2, espera=1)
-        clicar_e_digitar(MIR5_INPUT_DATA_INICIO, data_inicio_str_sap)
-        clicar_e_digitar(MIR5_INPUT_DATA_FIM, data_fim_str_sap)
-        pyautogui.press('f8')
-        time.sleep(1)
-
-        pyautogui.press('f8')
-        time.sleep(7)
-
-        clicar(MIR5_MENU_1, espera=0.5)
-        clicar(MIR5_MENU_2, espera=0.5)
-        clicar(MIR5_MENU_3, espera=0.5)
-        clicar(MIR5_MENU_4, espera=1.5)
-        pyautogui.press('enter')
-        time.sleep(2)
-
-        clicar(MIR5_POPUP_SAP_1, espera=1)
-        clicar(MIR5_POPUP_SAP_2, espera=1)
-        time.sleep(8)
-        pyautogui.hotkey('alt', 'f4')
-        print("✅ SAP MIR5 Finalizado!")
 
         # --- MOVER ARQUIVOS ---
         time.sleep(5)

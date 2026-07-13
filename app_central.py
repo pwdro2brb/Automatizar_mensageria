@@ -1,16 +1,30 @@
+import ctypes
+
+# ==============================================================================
+# 🚀 FORÇAR O WINDOWS A RECONHECER TODOS OS MONITORES (ANTES DO TKINTER NASCER)
+# ==============================================================================
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+# ==============================================================================
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import sys
 import time
-
+import subprocess
 # ==============================================================================
 # IMPORTAÇÃO DOS SEUS MÓDULOS (SCRIPTS SEPARADOS)
 # Exemplo de como você vai importar seus códigos:
 import Processos_simples.robo_relatorio_correios as robo_relatorio_correios
 import Processos_simples.robo_juridico as robo_juridico
 import robo_faturamento
-from produtividade import executar_robo_produtividade_setor as robo_produtividade_setor
+
 # ==============================================================================
 
 class PrintRedirector:
@@ -85,7 +99,7 @@ class CentralAutomacaoMRV:
         self.btn_produtividade = ttk.Button(frame_agilis, text="Gerar relatório de envio para Correios", command=lambda: self.rodar_thread(self._proc_produtividade))
         self.btn_produtividade.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", command=lambda: self.rodar_thread(robo_produtividade_setor))
+        self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", command=self.executar_produtividade)
         self.btn_produtividade_setor.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", command=lambda: self.rodar_thread(self._proc_fechar_chamados))
@@ -188,6 +202,58 @@ class CentralAutomacaoMRV:
         robo_juridico.executar_juridico()
         time.sleep(2)
         print("✅ E-mail do Jurídico enviado com sucesso!")
+
+    # Procure a função que o botão do Agilis chama (ex: executar_produtividade)
+    # ======================================================================
+    # PROCESSO ISOLADO (SUBPROCESS) - FOGE DO BUG DO TKINTER
+    # ======================================================================
+    def executar_produtividade(self):
+        # Desabilita os botões para o usuário não clicar duas vezes
+        for btn in self.todos_botoes:
+            btn.state(['disabled'])
+            
+        print(">>> Iniciando Robô de Produtividade em processo isolado (Anti-Tkinter)...")
+        
+        # Cria uma thread apenas para não travar a tela do Hub enquanto o robô roda
+        threading.Thread(target=self._rodar_processo_isolado, daemon=True).start()
+
+    def _rodar_processo_isolado(self):
+        try:
+            # Pega o caminho exato onde está o produtividade.py
+            diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+            caminho_script = os.path.join(diretorio_atual, "produtividade.py")
+            
+            # Manda o Windows rodar o script de forma totalmente independente e FORÇA O UTF-8
+            processo = subprocess.Popen(
+                [sys.executable, "-X", "utf8", caminho_script], # <-- "-X", "utf8" ensina o Python a ler emojis
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8', # <-- Garante que o Hub Central vai receber os emojis corretamente
+                bufsize=1,
+                creationflags=subprocess.CREATE_NO_WINDOW # Evita piscar tela preta do CMD
+            )
+            
+            # Lê o que o robô está printando e joga no console do Hub Central em tempo real!
+            for linha in processo.stdout:
+                print(linha, end="") # O PrintRedirector vai jogar isso na tela preta
+                
+            processo.wait() # Espera o robô terminar
+            
+            if processo.returncode == 0:
+                print("\n✅ Processo finalizado com sucesso!")
+                self.root.after(0, lambda: messagebox.showinfo("Sucesso", "A automação foi concluída com sucesso!"))
+            else:
+                print(f"\n❌ O processo terminou com erro (Código {processo.returncode}).")
+                self.root.after(0, lambda: messagebox.showerror("Erro", "O processo foi interrompido devido a um erro."))
+            
+        except Exception as e:
+            print(f"\n❌ Erro ao iniciar o processo: {e}")
+            self.root.after(0, lambda e=e: messagebox.showerror("Erro", f"Erro ao iniciar o processo:\n{e}"))
+        finally:
+            print("-" * 60)
+            # Reativa os botões
+            self.root.after(0, self._reativar_botoes)
 
     def _proc_produtividade(self):
         print(">>> Iniciando: Gerar relatório de envio para Correios...")

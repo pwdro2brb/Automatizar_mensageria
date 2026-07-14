@@ -114,7 +114,7 @@ class CentralAutomacaoMRV:
         self.btn_produtividade_setor.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", 
-            command=lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python=cmd_placeholder))
+            command=lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
         self.btn_fechar_chamados.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 4: OUTROS SISTEMAS ---

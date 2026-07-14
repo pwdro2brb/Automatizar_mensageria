@@ -98,7 +98,7 @@ class CentralAutomacaoMRV:
         self.btn_juridico.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_incluir_podio = ttk.Button(frame_podio, text="Incluir Correspondências Rápidas", 
-            command=lambda: self.executar_processo_cancelavel("Incluir Correspondências", comando_python=cmd_placeholder))
+            command=lambda: self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robo_incluir_encomendas as rie; rie.executar_inclusao()"))
         self.btn_incluir_podio.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 3: AGILIS & PRODUTIVIDADE ---

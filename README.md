@@ -72,9 +72,16 @@ A interface gráfica será aberta com os processos disponíveis. Ao clicar em um
 
 ### Cancelar processo ativo
 
-A central agora conta com um botão vermelho chamado "🛑 CANCELAR PROCESSO ATIVO" na parte superior da interface. Ele fica habilitado enquanto a automação de produtividade é executada em um processo isolado, permitindo interromper a execução de forma imediata.
+A central agora oferece suporte universal de cancelamento para **todos os processos**. Um botão vermelho chamado "🛑 CANCELAR PROCESSO ATIVO" fica localizado na parte superior da interface e se habilita automaticamente quando qualquer automação está em execução.
 
-Ao clicar no botão, o sistema exibe uma confirmação e, se confirmado, encerra o subprocesso ativo e os navegadores/janelas abertos por ele. Essa ação é indicada para parada de emergência e pode interromper o robô antes da conclusão do fluxo.
+**Características:**
+- Funciona com todos os robôs (Faturamento, Produtividade, Jurídico, Correios, etc.)
+- Ao clicar, exibe uma confirmação antes de interromper
+- Encerra o processo ativo e todos os navegadores/janelas abertos por ele
+- Ideal para parada de emergência ou ajustes rápidos
+- Pode interromper o fluxo antes da conclusão completa
+
+Cada processo é executado em um subprocesso isolado, garantindo que o cancelamento funcione de forma segura e responsiva, sem travar a interface central.
 
 ## Processos disponíveis
 

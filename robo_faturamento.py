@@ -19,6 +19,7 @@ from selenium.common.exceptions import (
 )
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.options import Options # <-- Importe o Options
 
 # --- Pywinauto Imports ---
 from pywinauto.application import Application
@@ -164,13 +165,19 @@ def preparar_e_gerar_rateio():
     print(f"✅ Arquivo RATEIO PAG.xlsx gerado e salvo direto na pasta 'exemplos'!")
 
 
+
 # ==============================================================================
 # 3. FUNÇÃO: LANÇAR NOTA FISCAL
 # ==============================================================================
 def lancar_nota_fiscal():
-    print("Iniciando robô de lançamento...")
-    
+
     PASTA_BASE = Path(PASTA_ARQUIVOS_RATEIO) / "exemplos"
+
+    # ❌ ERRO 1: Se a planilha de regras (dados_puxados) não existir
+    ARQUIVO_REGRAS_XLSX = Path(PASTA_ARQUIVOS_RATEIO) / "dados_puxados_preenchimento.xlsx"
+
+    if not ARQUIVO_REGRAS_XLSX.exists():
+        raise FileNotFoundError(f"A planilha de regras 'dados_puxados_preenchimento.xlsx' não foi encontrada no caminho:\n{ARQUIVO_REGRAS_XLSX}")
     
     # ❌ ERRO 4: Se a pasta exemplos não existir
     if not PASTA_BASE.exists():
@@ -190,6 +197,8 @@ def lancar_nota_fiscal():
         raise FileNotFoundError(f"Foram encontrados {len(pdfs_encontrados)} PDFs na pasta 'exemplos'.\nDeixe apenas UM boleto na pasta para o robô não se confundir!")
     caminho_boleto_pdf = str(pdfs_encontrados[0].resolve())
 
+    print("Iniciando robô de lançamento...")
+
     print(f"✅ Planilha de Upload carregada: {caminho_planilha_rateio}")
     print(f"✅ Boleto carregado: {caminho_boleto_pdf}")
 
@@ -204,15 +213,9 @@ def lancar_nota_fiscal():
     emissao_proc  = campos["data_processamento"]
 
     if not cnpj_mrv or not valor_boleto:
-        # Aqui também trocamos o print por raise
         raise ValueError("Não foi possível localizar o CNPJ da MRV ou o Valor no boleto PDF.")
 
     print(f"📌 Dados extraídos: CNPJ MRV: {cnpj_mrv} | Valor: R$ {valor_boleto} | Nº Doc: {num_doc}")
-
-    # ❌ ERRO 1: Se a planilha de regras (dados_puxados) não existir
-    ARQUIVO_REGRAS_XLSX = Path(PASTA_ARQUIVOS_RATEIO) / "dados_puxados_preenchimento.xlsx"
-    if not ARQUIVO_REGRAS_XLSX.exists():
-        raise FileNotFoundError(f"A planilha de regras 'dados_puxados_preenchimento.xlsx' não foi encontrada no caminho:\n{ARQUIVO_REGRAS_XLSX}")
 
     df = pd.read_excel(ARQUIVO_REGRAS_XLSX, engine="openpyxl")
 
@@ -248,11 +251,17 @@ def lancar_nota_fiscal():
 
     print(f"📋 Regional: {ID_REGIONAL} | Descrição: {descr} | Material: {material_cod}")
 
+    # ==========================================================================
+    # AQUI ESTÁ A CORREÇÃO: Criando o navegador UMA ÚNICA VEZ com o detach=True
+    # ==========================================================================
     try:
-        chrome_options = webdriver.ChromeOptions()
+        chrome_options = Options()
+        chrome_options.add_experimental_option("detach", True) # Mantém aberto no final
+        
         driver = webdriver.Chrome(options=chrome_options) 
         driver.get("https://mrvpag2.mrv.com.br/home")
         driver.maximize_window()
+        
         wait = WebDriverWait(driver, 15)
         wait_rapido = WebDriverWait(driver, 2)
     except Exception as e:

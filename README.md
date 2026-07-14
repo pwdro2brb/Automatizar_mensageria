@@ -70,6 +70,12 @@ python app_central.py
 
 A interface gráfica será aberta com os processos disponíveis. Ao clicar em um botão, o robô correspondente será executado em segundo plano.
 
+### Cancelar processo ativo
+
+A central agora conta com um botão vermelho chamado "🛑 CANCELAR PROCESSO ATIVO" na parte superior da interface. Ele fica habilitado enquanto a automação de produtividade é executada em um processo isolado, permitindo interromper a execução de forma imediata.
+
+Ao clicar no botão, o sistema exibe uma confirmação e, se confirmado, encerra o subprocesso ativo e os navegadores/janelas abertos por ele. Essa ação é indicada para parada de emergência e pode interromper o robô antes da conclusão do fluxo.
+
 ## Processos disponíveis
 
 ### Correios e Faturamento

@@ -16,15 +16,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
 import sys
-import time
 import subprocess
-
-# ==============================================================================
-# IMPORTAÇÃO DOS SEUS MÓDULOS (SCRIPTS SEPARADOS)
-# ==============================================================================
-import Processos_simples.robo_relatorio_correios as robo_relatorio_correios
-import Processos_simples.robo_juridico as robo_juridico
-import robo_faturamento
 
 class PrintRedirector:
     """Redireciona os prints do terminal para a caixa de texto da interface de forma segura (Thread-Safe)."""
@@ -66,56 +58,75 @@ class CentralAutomacaoMRV:
         frame_botoes = tk.Frame(root)
         frame_botoes.pack(fill=tk.X, pady=5)
 
+        # ======================================================================
+        # MAPEAMENTO DOS BOTÕES
+        # ======================================================================
+        
+        cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('✅ Concluído!')"
+
         # --- CATEGORIA 1: CORREIOS & FATURAMENTO ---
         frame_correios = ttk.LabelFrame(frame_botoes, text="📦 Correios & Faturamento")
         frame_correios.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-        self.btn_enc_dia = ttk.Button(frame_correios, text="Relatório Encomendas do Dia", command=lambda: self.rodar_thread(self._proc_encomendas_dia))
+        self.btn_enc_dia = ttk.Button(frame_correios, text="Relatório Encomendas do Dia", 
+            command=lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
         self.btn_enc_dia.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_rateio_malote = ttk.Button(frame_correios, text="Rateio de Malote (Centros de Custo)", command=lambda: self.rodar_thread(self._proc_rateio_malote))
+        self.btn_rateio_malote = ttk.Button(frame_correios, text="Rateio de Malote (Centros de Custo)", 
+            command=lambda: self.executar_processo_cancelavel("Rateio de Malote", comando_python=cmd_placeholder))
         self.btn_rateio_malote.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_fat_1 = ttk.Button(frame_correios, text="Faturamento 1: Gerar Rascunhos", command=lambda: self.rodar_thread(self._proc_fat_rascunhos))
+        self.btn_fat_1 = ttk.Button(frame_correios, text="Faturamento 1: Gerar Rascunhos", 
+            command=lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robo_faturamento as rf; rf.criar_rascunhos_correios()"))
         self.btn_fat_1.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_fat_2 = ttk.Button(frame_correios, text="Faturamento 2: Planilha Rateio Pag", command=lambda: self.rodar_thread(self._proc_fat_planilha))
+        self.btn_fat_2 = ttk.Button(frame_correios, text="Faturamento 2: Planilha Rateio Pag", 
+            command=lambda: self.executar_processo_cancelavel("Faturamento 2", comando_python="import robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
         self.btn_fat_2.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_fat_3 = ttk.Button(frame_correios, text="Faturamento 3: Lançar NF (Portal)", command=lambda: self.rodar_thread(self._proc_fat_lancamento))
+        self.btn_fat_3 = ttk.Button(frame_correios, text="Faturamento 3: Lançar NF (Portal)", 
+            command=lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robo_faturamento as rf; rf.lancar_nota_fiscal()"))
         self.btn_fat_3.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 2: PODIO & MENSAGERIA ---
         frame_podio = ttk.LabelFrame(frame_botoes, text="🏢 Podio & Mensageria")
         frame_podio.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
 
-        self.btn_juridico = ttk.Button(frame_podio, text="Relatório Jurídico Montreal", command=lambda: self.rodar_thread(self._proc_juridico_montreal))
+        self.btn_juridico = ttk.Button(frame_podio, text="Relatório Jurídico Montreal", 
+            command=lambda: self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import Processos_simples.robo_juridico as rj; rj.executar_juridico()"))
         self.btn_juridico.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_incluir_podio = ttk.Button(frame_podio, text="Incluir Correspondências Rápidas", command=lambda: self.rodar_thread(self._proc_incluir_podio))
+        self.btn_incluir_podio = ttk.Button(frame_podio, text="Incluir Correspondências Rápidas", 
+            command=lambda: self.executar_processo_cancelavel("Incluir Correspondências", comando_python=cmd_placeholder))
         self.btn_incluir_podio.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 3: AGILIS & PRODUTIVIDADE ---
         frame_agilis = ttk.LabelFrame(frame_botoes, text="🎧 Agilis & Chamados")
         frame_agilis.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
-        self.btn_produtividade = ttk.Button(frame_agilis, text="Gerar relatório de envio para Correios", command=lambda: self.rodar_thread(self._proc_produtividade))
+        self.btn_produtividade = ttk.Button(frame_agilis, text="Gerar relatório de envio para Correios", 
+            command=lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import Processos_simples.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
         self.btn_produtividade.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", command=self.executar_produtividade)
+        caminho_produtividade = os.path.join(os.path.dirname(os.path.abspath(__file__)), "produtividade.py")
+        self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", 
+            command=lambda: self.executar_processo_cancelavel("Produtividade Setorial", script_path=caminho_produtividade))
         self.btn_produtividade_setor.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", command=lambda: self.rodar_thread(self._proc_fechar_chamados))
+        self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", 
+            command=lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python=cmd_placeholder))
         self.btn_fechar_chamados.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 4: OUTROS SISTEMAS ---
         frame_outros = ttk.LabelFrame(frame_botoes, text="🚗 Outros (Uber / SAP)")
         frame_outros.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
-        self.btn_uber = ttk.Button(frame_outros, text="Relatório de Utilização Uber", command=lambda: self.rodar_thread(self._proc_uber))
+        self.btn_uber = ttk.Button(frame_outros, text="Relatório de Utilização Uber", 
+            command=lambda: self.executar_processo_cancelavel("Relatório Uber", comando_python=cmd_placeholder))
         self.btn_uber.pack(fill=tk.X, padx=10, pady=5)
 
-        self.btn_zmm180 = ttk.Button(frame_outros, text="Faturamento Transação ZMM180", command=lambda: self.rodar_thread(self._proc_zmm180))
+        self.btn_zmm180 = ttk.Button(frame_outros, text="Faturamento Transação ZMM180", 
+            command=lambda: self.executar_processo_cancelavel("Faturamento ZMM180", comando_python=cmd_placeholder))
         self.btn_zmm180.pack(fill=tk.X, padx=10, pady=5)
 
         frame_botoes.columnconfigure(0, weight=1)
@@ -144,52 +155,24 @@ class CentralAutomacaoMRV:
         print("Selecione o processo que deseja executar.\n" + "-"*60)
 
     # ======================================================================
-    # GERENCIADOR DE THREADS (Para os processos antigos)
+    # MOTOR UNIVERSAL DE PROCESSOS ISOLADOS (CANCELÁVEIS)
     # ======================================================================
-    def rodar_thread(self, funcao_processo):
-        for btn in self.todos_botoes:
-            btn.state(['disabled'])
-        threading.Thread(target=self._executor_seguro, args=(funcao_processo,), daemon=True).start()
-
-    def _executor_seguro(self, funcao_processo):
-        try:
-            funcao_processo()
-            self.root.after(0, lambda: messagebox.showinfo("Sucesso", "A automação foi concluída com sucesso!"))
-            
-        except BaseException as e: # Mudamos para BaseException para capturar sys.exit() também!
-            mensagem_erro = str(e)
-            if not mensagem_erro or mensagem_erro == "1": 
-                mensagem_erro = "Processo interrompido (Verifique o console para detalhes)."
-                
-            texto_popup = f"O processo foi interrompido devido a um erro.\n\nMotivo:\n{mensagem_erro}"
-            print(f"\n❌ [ERRO CRÍTICO]: {mensagem_erro}")
-            self.root.after(0, lambda msg=texto_popup: messagebox.showerror("Erro na Automação", msg))
-            
-        finally:
-            print("-" * 60)
-            self.root.after(0, self._reativar_botoes)
-
-    def _reativar_botoes(self):
-        for btn in self.todos_botoes:
-            btn.state(['!disabled'])
-
-    # ======================================================================
-    # PROCESSO ISOLADO (SUBPROCESS) - ONDE O CANCELAR FUNCIONA
-    # ======================================================================
-    def executar_produtividade(self):
+    def executar_processo_cancelavel(self, nome_processo, comando_python=None, script_path=None):
         for btn in self.todos_botoes:
             btn.state(['disabled'])
             
-        print(">>> Iniciando Robô de Produtividade em processo isolado...")
-        threading.Thread(target=self._rodar_processo_isolado, daemon=True).start()
+        print(f">>> Iniciando: {nome_processo}...")
+        threading.Thread(target=self._rodar_subprocesso, args=(comando_python, script_path), daemon=True).start()
 
-    def _rodar_processo_isolado(self):
+    def _rodar_subprocesso(self, comando_python, script_path):
         try:
-            diretorio_atual = os.path.dirname(os.path.abspath(__file__))
-            caminho_script = os.path.join(diretorio_atual, "produtividade.py")
-            
+            if script_path:
+                cmd = [sys.executable, "-X", "utf8", script_path]
+            else:
+                cmd = [sys.executable, "-X", "utf8", "-c", comando_python]
+
             processo = subprocess.Popen(
-                [sys.executable, "-X", "utf8", caminho_script],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -201,30 +184,63 @@ class CentralAutomacaoMRV:
             self.processo_ativo = processo
             self.root.after(0, lambda: self.btn_cancelar.config(state="normal"))
             
+            linhas_log = []
+
             for linha in processo.stdout:
                 print(linha, end="")
+                # IMPORTANTE: rstrip() remove a quebra de linha, mas MANTÉM os espaços no começo.
+                # Isso é essencial para o filtro saber o que é código técnico e o que é a sua mensagem.
+                linhas_log.append(linha.rstrip('\r\n')) 
                 
             processo.wait() 
             
             self.processo_ativo = None
             self.root.after(0, lambda: self.btn_cancelar.config(state="disabled"))
             
-            # --- AQUI ESTÁ A CORREÇÃO DOS POPUPS ---
             if processo.returncode == 0:
                 print("\n✅ Processo finalizado com sucesso!")
                 self.root.after(0, lambda: messagebox.showinfo("Sucesso", "A automação foi concluída com sucesso!"))
             
             elif processo.returncode == 1:
-                # Código 1 significa que o script deu erro (ex: arquivo não encontrado)
                 print(f"\n⚠️ O processo falhou (Código {processo.returncode}).")
-                self.root.after(0, lambda: messagebox.showerror("Erro na Automação", "O processo encontrou um erro e foi interrompido.\n\nVerifique o console preto para ler o motivo exato."))
+                
+                # =================================================================
+                # 🧠 FILTRO INTELIGENTE DE ERROS (Extrai apenas a sua mensagem)
+                # =================================================================
+                linhas_erro = [l for l in linhas_log if l.strip()]
+                texto_erro = ""
+                
+                for i in range(len(linhas_erro)):
+                    # Procura onde começa o erro técnico do Python
+                    if "Traceback (most recent call last):" in linhas_erro[i]:
+                        
+                        # A sua mensagem real é a primeira linha que NÃO começa com espaço
+                        for j in range(i + 1, len(linhas_erro)):
+                            if not linhas_erro[j].startswith(" "):
+                                # Pega a linha do erro e tudo que vier depois (caso você tenha usado \n no raise)
+                                texto_erro = "\n".join(linhas_erro[j:])
+                                
+                                # Remove o nome técnico (ex: "FileNotFoundError: ") para ficar perfeito
+                                linhas_texto = texto_erro.split("\n")
+                                if ":" in linhas_texto[0]:
+                                    msg_limpa = linhas_texto[0].split(":", 1)[1].strip()
+                                    resto = "\n".join(linhas_texto[1:])
+                                    texto_erro = msg_limpa + ("\n" + resto if resto else "")
+                                break
+                        break
+                
+                # Se por acaso não for um erro padrão do Python, pega a última linha
+                if not texto_erro:
+                    texto_erro = linhas_erro[-1] if linhas_erro else "Erro desconhecido."
+                
+                mensagem_popup = f"O processo foi interrompido pelo seguinte motivo:\n\n{texto_erro}"
+                
+                self.root.after(0, lambda: messagebox.showerror("Erro na Automação", mensagem_popup))
             
             else:
-                # Qualquer outro código (geralmente 15 ou 1) significa que foi morto pelo Taskkill (Botão Cancelar)
                 print(f"\n⚠️ O processo foi cancelado (Código {processo.returncode}).")
                 self.root.after(0, lambda: messagebox.showwarning("Cancelado", "O processo foi cancelado forçadamente pelo usuário."))
-            # ---------------------------------------
-            
+                
         except Exception as e:
             print(f"\n❌ Erro ao iniciar o processo: {e}")
             self.root.after(0, lambda msg=str(e): messagebox.showerror("Erro Crítico", msg))
@@ -245,66 +261,9 @@ class CentralAutomacaoMRV:
                 except Exception as e:
                     print(f"\n❌ Erro ao tentar cancelar: {e}")
 
-    # ======================================================================
-    # FUNÇÕES DOS OUTROS PROCESSOS
-    # ======================================================================
-    def _proc_encomendas_dia(self):
-        print(">>> Iniciando: Relatório de Encomendas do Dia (Correios)...")
-        time.sleep(2)
-        print("✅ Processo concluído!")
-
-    def _proc_juridico_montreal(self):
-        print(">>> Iniciando: Relatório Jurídico Montreal (Podio)...")
-        robo_juridico.executar_juridico()
-        time.sleep(2)
-        print("✅ E-mail do Jurídico enviado com sucesso!")
-
-    def _proc_produtividade(self):
-        print(">>> Iniciando: Gerar relatório de envio para Correios...")
-        robo_relatorio_correios.executar_relatorio_completo() 
-        time.sleep(1)
-        print("✅ Planilha dos correios gerada e preenchida!")
-
-    def _proc_incluir_podio(self):
-        print(">>> Iniciando: Inclusão rápida de correspondências no Podio...")
-        time.sleep(2)
-        print("✅ Correspondências incluídas!")
-
-    def _proc_fechar_chamados(self):
-        print(">>> Iniciando: Fechamento de chamados próximos de vencer...")
-        time.sleep(2)
-        print("✅ Chamados verificados e fechados!")
-
-    def _proc_rateio_malote(self):
-        print(">>> Iniciando: Rateio de Malote (Distribuição por Centro de Custo)...")
-        time.sleep(2)
-        print("✅ Rateio de malote concluído!")
-
-    def _proc_uber(self):
-        print(">>> Iniciando: Relatório de Utilização Uber...")
-        time.sleep(2)
-        print("✅ E-mails enviados aos responsáveis dos centros de custo!")
-
-    def _proc_zmm180(self):
-        print(">>> Iniciando: Faturamento Transação ZMM180 (SAP)...")
-        time.sleep(2)
-        print("✅ Conferência ZMM180 finalizada!")
-
-    def _proc_fat_rascunhos(self):
-        print(">>> Iniciando Faturamento Etapa 1: Gerar Rascunhos...")
-        robo_faturamento.criar_rascunhos_correios()
-        print("✅ Rascunhos gerados!")
-
-    def _proc_fat_planilha(self):
-        print(">>> Iniciando Faturamento Etapa 2: Gerar Planilha Rateio Pag...")
-        robo_faturamento.preparar_e_gerar_rateio()
-        print("✅ Planilha RATEIO PAG.xlsx gerada!")
-
-    def _proc_fat_lancamento(self):
-        print(">>> Iniciando Faturamento Etapa 3: Lançar Nota no Portal MRV...")
-        robo_faturamento.lancar_nota_fiscal()
-        time.sleep(2)
-        print("✅ Lançamento concluído!")
+    def _reativar_botoes(self):
+        for btn in self.todos_botoes:
+            btn.state(['!disabled'])
 
 if __name__ == "__main__":
     root = tk.Tk()

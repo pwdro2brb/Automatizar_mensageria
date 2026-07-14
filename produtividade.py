@@ -747,14 +747,22 @@ def fill_fsf_flags(ws, header_map):
 # ==============================================================================
 # FUNÇÃO PRINCIPAL DE PROCESSAMENTO DO EXCEL
 # ==============================================================================
-def main():
+def main(nome_arquivo_base, nome_arquivo_saida):
     # ATENÇÃO: Agora os caminhos apontam para a PASTA_PRODUTIVIDADE
-    PROD_PATH    = os.path.join(PASTA_PRODUTIVIDADE, "Produtividade 06 - 2026 (preenchido).xlsx")
+    PROD_PATH    = os.path.join(PASTA_PRODUTIVIDADE, nome_arquivo_base)
+    
+    # --- NOVA VERIFICAÇÃO AMIGÁVEL ---
+    if not os.path.exists(PROD_PATH):
+        raise Exception(f"O arquivo base não foi encontrado!\n\nCaminho procurado:\n{PROD_PATH}\n\nVerifique se a pasta existe e se o arquivo está lá com este nome exato.")
+    # ---------------------------------
+
+    # Agora os caminhos são dinâmicos!
+    OUT_PATH     = os.path.join(PASTA_PRODUTIVIDADE, nome_arquivo_saida)
+    
     AGILIS_PATH  = os.path.join(PASTA_PRODUTIVIDADE, "Relatório - Agilis.xlsx")
     SEDEX_PATH   = os.path.join(PASTA_PRODUTIVIDADE, "Relatório - Sedex.Malote.xlsx")
     LANCTOS_PATH = os.path.join(PASTA_PRODUTIVIDADE, "Relatório - Lançamentos.xlsx")
     SAP_PATH     = os.path.join(PASTA_PRODUTIVIDADE, "Relatório - SAP.xlsx")
-    OUT_PATH     = os.path.join(PASTA_PRODUTIVIDADE, "Produtividade 07 - 2026 (preenchido).xlsx")
 
     MAP_SEDEX = {
         "Alfredo Henrique Goncalves Pereira": "Alfredo.pereira MS0069532",
@@ -825,18 +833,59 @@ def main():
 # FUNÇÃO MESTRE (CHAMADA PELO HUB CENTRAL)
 # ============================================================================
 def executar_robo_produtividade_setor():
+    import sys # Garanta que o sys está importado para podermos parar o script
+    
     print("Iniciando Robô de Produtividade...")
     
-    # 1. Extrai tudo da Web e do SAP e move para a pasta
+    # --- 1. CÁLCULO DINÂMICO DOS MESES E VALIDAÇÃO ---
+    hoje = date.today()
+    
+    # Mês do relatório que estamos gerando (mês passado)
+    primeiro_dia_mes_atual = hoje.replace(day=1)
+    ultimo_dia_mes_passado = primeiro_dia_mes_atual - timedelta(days=1)
+    mes_relatorio = ultimo_dia_mes_passado.month
+    ano_relatorio = ultimo_dia_mes_passado.year
+    
+    # Mês do arquivo base (mês retrasado)
+    primeiro_dia_mes_passado = ultimo_dia_mes_passado.replace(day=1)
+    ultimo_dia_mes_retrasado = primeiro_dia_mes_passado - timedelta(days=1)
+    mes_base = ultimo_dia_mes_retrasado.month
+    ano_base = ultimo_dia_mes_retrasado.year
+    
+    # Monta os nomes exatos
+    nome_arquivo_base = f"Produtividade {mes_base:02d} - {ano_base} (preenchido).xlsx"
+    nome_arquivo_saida = f"Produtividade {mes_relatorio:02d} - {ano_relatorio} (preenchido).xlsx"
+    
+    caminho_base = os.path.join(PASTA_PRODUTIVIDADE, nome_arquivo_base)
+    
+    print("-" * 50)
+    print("🔍 VERIFICAÇÃO DE PRÉ-REQUISITOS")
+    print(f"Arquivo base esperado: {nome_arquivo_base}")
+    print(f"Arquivo que será gerado: {nome_arquivo_saida}")
+    
+    if not os.path.exists(PASTA_PRODUTIVIDADE):
+        print(f"\n❌ ERRO FATAL: A pasta '{PASTA_PRODUTIVIDADE}' não existe!")
+        print("Crie a pasta e tente novamente.")
+        sys.exit(1) # Mata o processo imediatamente
+        
+    if not os.path.exists(caminho_base):
+        print(f"\n❌ ERRO FATAL: O arquivo base '{nome_arquivo_base}' não foi encontrado!")
+        print("Coloque o arquivo do mês retrasado na pasta e tente novamente.")
+        sys.exit(1) # Mata o processo imediatamente
+        
+    print("✅ Pré-requisitos validados! Iniciando extração...\n")
+    print("-" * 50)
+    
+    # 2. Extrai tudo da Web e do SAP e move para a pasta
     extrair_dados_sistemas()
     
-    # 2. Renomeia e prepara os relatórios (apontando para a pasta certa)
+    # 3. Renomeia e prepara os relatórios
     print("--- Executando Etapa 1: Renomear Arquivos ---")
     step_1_prepare_and_rename_reports(PASTA_PRODUTIVIDADE)
     
-    # 3. Processa o Excel
+    # 4. Processa o Excel (passando os nomes dinâmicos)
     print("--- Executando Etapa 2: Processar Produtividade ---")
-    main()
+    main(nome_arquivo_base, nome_arquivo_saida)
     
     print("✅ Robô de Produtividade finalizado com sucesso!")
 

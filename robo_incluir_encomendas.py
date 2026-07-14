@@ -122,20 +122,26 @@ def executar_inclusao():
         raise FileNotFoundError(f"A planilha 'encomendas.xlsx' não foi encontrada!\nPor favor, coloque o arquivo dentro da pasta:\n{pasta_encomendas}")
 
     # ==========================================================================
-    # CORREÇÃO 1: VERIFICA SE A PLANILHA ESTÁ VAZIA ANTES DE ABRIR O CHROME
+    # VALIDAÇÕES DA PLANILHA (Vazia ou Aberta no Excel)
     # ==========================================================================
     try:
         tabela = pd.read_excel(caminho_planilha)
-        # Remove linhas que estão 100% vazias (caso o usuário tenha formatado a célula sem querer)
         tabela = tabela.dropna(how='all')
         
         if tabela.empty:
-            raise RuntimeError("A planilha 'encomendas.xlsx' está vazia!\nPreencha os dados a partir da linha 2 e tente novamente.")
+            # Abre o arquivo no Excel automaticamente para o usuário
+            os.startfile(caminho_planilha)
+            raise RuntimeError("A planilha 'encomendas.xlsx' está vazia!\n\nO arquivo foi aberto automaticamente para você. Preencha os dados, salve, feche o Excel e tente novamente.")
             
         print(f"✅ Excel carregado com {len(tabela)} encomendas.")
+        
+    except PermissionError:
+        # Captura o erro de "Access Denied" quando o arquivo está aberto
+        raise RuntimeError("O arquivo 'encomendas.xlsx' está aberto no Excel!\n\nPor favor, feche o arquivo e rode o processo novamente.")
+        
     except Exception as e:
         if isinstance(e, RuntimeError):
-            raise e # Repassa o erro de planilha vazia para o popup
+            raise e # Repassa o erro amigável para o popup
         raise RuntimeError(f"Erro ao ler a planilha encomendas.xlsx: {e}")
     
     print("\n--- INICIANDO ROBÔ DE ENCOMENDAS RÁPIDAS ---")
@@ -276,19 +282,14 @@ def executar_inclusao():
                 categoria_final = "Remessa manha"
             print(f" -> Categoria: {categoria_final} (Automático por Horário: {agora.hour}h)")
 
-        # ==========================================================================
-        # CORREÇÃO 2: LÓGICA DO MALOTE VS "SEM RASTREIO"
-        # ==========================================================================
         is_malote = False
         
-        # Verifica se as colunas D (Origem) ou E (Número) estão preenchidas
         tem_origem = pd.notna(linha.get('Origem do malote')) and str(linha.get('Origem do malote')).strip() != ""
         tem_numero = pd.notna(linha.get('Número do malote')) and str(linha.get('Número do malote')).strip() != ""
         
         if tem_origem or tem_numero:
             is_malote = True
         elif codigo_upper != "SEM RASTREIO" and (re.search(r'\s', codigo_rastreio) or codigo_rastreio.isdigit()):
-            # Só cai na regra do espaço/número se NÃO for "SEM RASTREIO"
             is_malote = True
 
         if is_malote:

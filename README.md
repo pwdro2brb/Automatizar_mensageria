@@ -68,6 +68,7 @@ Na pasta do projeto, execute:
 python app_central.py
 ```
 
+
 A interface gráfica será aberta com os processos disponíveis. Ao clicar em um botão, o robô correspondente será executado em segundo plano.
 
 ### Cancelar processo ativo
@@ -77,11 +78,24 @@ A central agora oferece suporte universal de cancelamento para **todos os proces
 **Características:**
 - Funciona com todos os robôs (Faturamento, Produtividade, Jurídico, Correios, etc.)
 - Ao clicar, exibe uma confirmação antes de interromper
-- Encerra o processo ativo e todos os navegadores/janelas abertos por ele
+- Encerra o processo ativo e todos os navegadores/janelas abertos por ele (usa `taskkill` no Windows)
 - Ideal para parada de emergência ou ajustes rápidos
 - Pode interromper o fluxo antes da conclusão completa
 
-Cada processo é executado em um subprocesso isolado, garantindo que o cancelamento funcione de forma segura e responsiva, sem travar a interface central.
+Cada processo é executado em um subprocesso isolado através do motor `executar_processo_cancelavel` presente em `app_central.py`. A saída do subprocesso é capturada e exibida no console da interface para facilitar depuração.
+
+## Novas funcionalidades
+
+- Motor universal de processos canceláveis: todos os robôs agora rodam em subprocessos isolados via `executar_processo_cancelavel` no `app_central.py`, permitindo cancelamento responsivo sem travar a UI.
+- Melhor tratamento de logs e erros: a saída dos subprocessos é mostrada no painel "Console" e mensagens de erro são extraídas e exibidas em popups mais amigáveis.
+- Novos scripts adicionados ao repositório:
+	- `robo_incluir_encomendas.py` — automação para inclusão de encomendas/envio (novo)
+	- `treinar_ia.py` — dicionários e mapeamentos usados para classificação/treinamento interno (arquivo de referência)
+
+**Recomendações de uso:**
+- Antes de cancelar, confirme a ação; o cancelamento finaliza processos e janelas abertas pelo robô.
+- Consulte o console da interface para detalhes de funcionamento e mensagens de erro.
+- Mantenha `config.py` atualizado com credenciais e caminhos (não compartilhe esse arquivo publicamente).
 
 ## Processos disponíveis
 

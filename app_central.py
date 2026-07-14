@@ -38,6 +38,7 @@ class PrintRedirector:
 class CentralAutomacaoMRV:
     def __init__(self, root):
         self.processo_ativo = None 
+        self.foi_cancelado = False 
         
         # Botão de Cancelar (Vermelho e chamativo)
         self.btn_cancelar = tk.Button(root, text="🛑 CANCELAR PROCESSO ATIVO", bg="#ff4d4d", fg="white", font=("Arial", 10, "bold"), command=self.cancelar_processo, state="disabled")
@@ -165,6 +166,8 @@ class CentralAutomacaoMRV:
         threading.Thread(target=self._rodar_subprocesso, args=(comando_python, script_path), daemon=True).start()
 
     def _rodar_subprocesso(self, comando_python, script_path):
+        self.foi_cancelado = False 
+        
         try:
             if script_path:
                 cmd = [sys.executable, "-X", "utf8", script_path]
@@ -186,41 +189,38 @@ class CentralAutomacaoMRV:
             
             linhas_log = []
 
-            for linha in processo.stdout:
-                print(linha, end="")
-                # IMPORTANTE: rstrip() remove a quebra de linha, mas MANTÉM os espaços no começo.
-                # Isso é essencial para o filtro saber o que é código técnico e o que é a sua mensagem.
-                linhas_log.append(linha.rstrip('\r\n')) 
+            # O try/except aqui impede que o fechamento forçado do tubo trave o código
+            try:
+                for linha in processo.stdout:
+                    print(linha, end="")
+                    linhas_log.append(linha.rstrip('\r\n')) 
+            except ValueError:
+                pass # Ignora o erro de "tubo fechado" gerado pelo botão cancelar
                 
             processo.wait() 
             
             self.processo_ativo = None
             self.root.after(0, lambda: self.btn_cancelar.config(state="disabled"))
             
-            if processo.returncode == 0:
+            if self.foi_cancelado:
+                print("\n⚠️ O processo foi cancelado pelo usuário.")
+                self.root.after(0, lambda: messagebox.showwarning("Cancelado", "O processo foi cancelado forçadamente pelo usuário."))
+            
+            elif processo.returncode == 0:
                 print("\n✅ Processo finalizado com sucesso!")
                 self.root.after(0, lambda: messagebox.showinfo("Sucesso", "A automação foi concluída com sucesso!"))
             
             elif processo.returncode == 1:
                 print(f"\n⚠️ O processo falhou (Código {processo.returncode}).")
                 
-                # =================================================================
-                # 🧠 FILTRO INTELIGENTE DE ERROS (Extrai apenas a sua mensagem)
-                # =================================================================
                 linhas_erro = [l for l in linhas_log if l.strip()]
                 texto_erro = ""
                 
                 for i in range(len(linhas_erro)):
-                    # Procura onde começa o erro técnico do Python
                     if "Traceback (most recent call last):" in linhas_erro[i]:
-                        
-                        # A sua mensagem real é a primeira linha que NÃO começa com espaço
                         for j in range(i + 1, len(linhas_erro)):
                             if not linhas_erro[j].startswith(" "):
-                                # Pega a linha do erro e tudo que vier depois (caso você tenha usado \n no raise)
                                 texto_erro = "\n".join(linhas_erro[j:])
-                                
-                                # Remove o nome técnico (ex: "FileNotFoundError: ") para ficar perfeito
                                 linhas_texto = texto_erro.split("\n")
                                 if ":" in linhas_texto[0]:
                                     msg_limpa = linhas_texto[0].split(":", 1)[1].strip()
@@ -229,17 +229,15 @@ class CentralAutomacaoMRV:
                                 break
                         break
                 
-                # Se por acaso não for um erro padrão do Python, pega a última linha
                 if not texto_erro:
                     texto_erro = linhas_erro[-1] if linhas_erro else "Erro desconhecido."
                 
                 mensagem_popup = f"O processo foi interrompido pelo seguinte motivo:\n\n{texto_erro}"
-                
                 self.root.after(0, lambda: messagebox.showerror("Erro na Automação", mensagem_popup))
             
             else:
-                print(f"\n⚠️ O processo foi cancelado (Código {processo.returncode}).")
-                self.root.after(0, lambda: messagebox.showwarning("Cancelado", "O processo foi cancelado forçadamente pelo usuário."))
+                print(f"\n⚠️ O processo foi encerrado (Código {processo.returncode}).")
+                self.root.after(0, lambda: messagebox.showwarning("Encerrado", "O processo foi encerrado."))
                 
         except Exception as e:
             print(f"\n❌ Erro ao iniciar o processo: {e}")
@@ -254,7 +252,13 @@ class CentralAutomacaoMRV:
             resposta = messagebox.askyesno("Atenção", "Tem certeza que deseja cancelar o robô?\nIsso fechará os navegadores abertos por ele.")
             if resposta:
                 try:
+                    self.foi_cancelado = True 
                     subprocess.run(['taskkill', '/F', '/T', '/PID', str(self.processo_ativo.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
+                    
+                    # CORREÇÃO 1: Corta o tubo de comunicação à força para destravar a interface na hora!
+                    if self.processo_ativo.stdout:
+                        self.processo_ativo.stdout.close()
+                        
                     print("\n" + "="*50)
                     print("🛑 PROCESSO CANCELADO FORÇADAMENTE PELO USUÁRIO!")
                     print("="*50 + "\n")

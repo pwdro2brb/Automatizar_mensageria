@@ -111,19 +111,21 @@ def fazer_login(driver, wait):
 
     print("Verificando se há tela intermediária de login...")
     try:
-        btn_saml = WebDriverWait(driver, 10).until(
+        # CORREÇÃO 2: Reduzido de 10 para 2 segundos. Se não aparecer rápido, segue a vida.
+        btn_saml = WebDriverWait(driver, 2).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "#saml-div a.sign-saml"))
         )
         btn_saml.click()
         print("Tela intermediária detectada. Cliquei em 'Login Integrado Microsoft' novamente.")
-        time.sleep(5)
+        time.sleep(3)
     except TimeoutException:
         print("Nenhuma tela intermediária. Seguindo normalmente.")
 
     print("Aguardando página principal do Agilis carregar...")
     try:
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "a[data-name='requests_due_today']"))
+        # CORREÇÃO 2: Em vez de procurar um botão que pode não existir, apenas espera a URL mudar. É instantâneo!
+        WebDriverWait(driver, 15).until(
+            lambda d: "agilis.mrv.com.br" in d.current_url and "login" not in d.current_url.lower()
         )
         print("Página principal carregada!")
     except TimeoutException:
@@ -420,9 +422,9 @@ def executar_fechamento():
             todos_chamados = buscar_chamados_vencem_hoje_api(driver, filter_id="3316")
 
             if not todos_chamados:
-                print("Nenhum chamado encontrado via API. Aguardando próximo ciclo...")
-                aguardar_proximo_ciclo(10)
-                continue
+                print("\n✅ Nenhum chamado para vencer hoje encontrado via API.")
+                print("🛑 Encerrando o robô automaticamente para liberar a central.")
+                break 
 
             proximos = filtrar_proximos_vencer(todos_chamados, minutos=60)
 
@@ -474,7 +476,7 @@ def executar_fechamento():
     except Exception as e:
         print(f"\n[ERRO FATAL] {e}")
         traceback.print_exc()
-        raise e # Repassa o erro para o app_central pegar e mostrar no popup
+        raise e 
 
     finally:
         print("\nFechando o navegador...")

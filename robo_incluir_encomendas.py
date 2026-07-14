@@ -107,13 +107,11 @@ def preencher_malote_iframe(driver, id_elemento, valor):
 # FUNÇÃO PRINCIPAL
 # ==============================================================================
 def executar_inclusao():
-    print("\n--- INICIANDO ROBÔ DE ENCOMENDAS RÁPIDAS ---")
     
     # 1. Lógica de Pastas
     pasta_base = Path(os.path.dirname(os.path.abspath(__file__)))
     pasta_encomendas = pasta_base / "arquivos_encomendas"
     
-    # Cria a pasta se ela não existir
     if not pasta_encomendas.exists():
         pasta_encomendas.mkdir(parents=True, exist_ok=True)
         print(f"📁 Pasta 'arquivos_encomendas' criada automaticamente.")
@@ -123,12 +121,25 @@ def executar_inclusao():
     if not caminho_planilha.exists():
         raise FileNotFoundError(f"A planilha 'encomendas.xlsx' não foi encontrada!\nPor favor, coloque o arquivo dentro da pasta:\n{pasta_encomendas}")
 
+    # ==========================================================================
+    # CORREÇÃO 1: VERIFICA SE A PLANILHA ESTÁ VAZIA ANTES DE ABRIR O CHROME
+    # ==========================================================================
     try:
         tabela = pd.read_excel(caminho_planilha)
+        # Remove linhas que estão 100% vazias (caso o usuário tenha formatado a célula sem querer)
+        tabela = tabela.dropna(how='all')
+        
+        if tabela.empty:
+            raise RuntimeError("A planilha 'encomendas.xlsx' está vazia!\nPreencha os dados a partir da linha 2 e tente novamente.")
+            
         print(f"✅ Excel carregado com {len(tabela)} encomendas.")
     except Exception as e:
+        if isinstance(e, RuntimeError):
+            raise e # Repassa o erro de planilha vazia para o popup
         raise RuntimeError(f"Erro ao ler a planilha encomendas.xlsx: {e}")
-
+    
+    print("\n--- INICIANDO ROBÔ DE ENCOMENDAS RÁPIDAS ---")
+    
     # 2. Configura o Chrome para não fechar no final
     chrome_options = Options()
     chrome_options.add_experimental_option("detach", True)
@@ -239,7 +250,8 @@ def executar_inclusao():
     driver.get(url_app)
 
     for i, linha in tabela.iterrows():
-        codigo_rastreio = str(linha['Codigo']).strip()
+        codigo_rastreio = str(linha.get('Codigo', '')).strip()
+        codigo_upper = codigo_rastreio.upper()
         print(f"\nLinha {i+2}: {codigo_rastreio}")
         
         if "items/new" not in driver.current_url: driver.get(url_app)
@@ -264,14 +276,27 @@ def executar_inclusao():
                 categoria_final = "Remessa manha"
             print(f" -> Categoria: {categoria_final} (Automático por Horário: {agora.hour}h)")
 
+        # ==========================================================================
+        # CORREÇÃO 2: LÓGICA DO MALOTE VS "SEM RASTREIO"
+        # ==========================================================================
         is_malote = False
-        if re.search(r'\s', codigo_rastreio) or codigo_rastreio.isdigit() :
+        
+        # Verifica se as colunas D (Origem) ou E (Número) estão preenchidas
+        tem_origem = pd.notna(linha.get('Origem do malote')) and str(linha.get('Origem do malote')).strip() != ""
+        tem_numero = pd.notna(linha.get('Número do malote')) and str(linha.get('Número do malote')).strip() != ""
+        
+        if tem_origem or tem_numero:
             is_malote = True
+        elif codigo_upper != "SEM RASTREIO" and (re.search(r'\s', codigo_rastreio) or codigo_rastreio.isdigit()):
+            # Só cai na regra do espaço/número se NÃO for "SEM RASTREIO"
+            is_malote = True
+
+        if is_malote:
             tipo_envio_calculado = "Malote"
-            
             responsavel_malote = "N/A"
-            origem_malote = descobrir_origem_malote(linha['Remetente'])
-            if not origem_malote: origem_malote = linha.get('Origem do malote')
+            origem_malote = descobrir_origem_malote(linha.get('Remetente'))
+            if not origem_malote: 
+                origem_malote = linha.get('Origem do malote')
                 
             print(f" -> MALOTE detectado. Origem: {origem_malote}")
         else:
@@ -285,11 +310,11 @@ def executar_inclusao():
         except: print(f"Erro ao clicar na categoria: {categoria_final}")
 
         preencher_codigo(driver, codigo_rastreio)
-        preencher_remetente_iframe(driver, linha['Remetente'])
+        preencher_remetente_iframe(driver, linha.get('Remetente'))
         
-        destino_calc = descobrir_destino(linha['Remetente'])
+        destino_calc = descobrir_destino(linha.get('Remetente'))
         if not destino_calc:
-            destino_calc = linha['Destinatario'] 
+            destino_calc = linha.get('Destinatario') 
         
         if destino_calc and not pd.isna(destino_calc):
             print(f" -> Destino: {destino_calc}")

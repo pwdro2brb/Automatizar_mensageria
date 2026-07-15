@@ -16,14 +16,21 @@ Automatizar tarefas repetitivas e manuais, como:
 
 ## Estrutura do projeto
 
-- app_central.py: interface principal em Tkinter com os botões de execução.
-- robo_faturamento.py: automações relacionadas a faturamento e correios.
-- Processos_simples/robo_juridico.py: automação para o processo jurídico no Podio.
-- Processos_simples/robo_relatorio_correios.py: automação para gerar/baixar relatórios de produtividade no Agilis.
-- Arquivos_rateio_regionais/: pasta utilizada como base para arquivos de rateio e exemplos de entrada/saída.
+- app_central.py: interface principal em Tkinter com os botões de execução e o controle dos robôs.
 - config.py: configurações locais, como e-mail, senha e caminhos de pasta.
 - config_exemplo.py: modelo de configuração para ser copiado para o arquivo real.
-- produtividade.py: automação de extração de dados de produtividade (Podio, Agilis, Bússola/SAP) e geração de relatório preenchido.
+- treinar_ia.py: referência com dicionários e mapeamentos usados para classificação/treinamento interno.
+- arquivos/: pasta central para arquivos de entrada e saída do projeto.
+  - arquivos/encomendas/: arquivos relacionados ao fluxo de encomendas.
+  - arquivos/faturamento/: arquivos de rateio, exemplos e pastas de teste para o processo de faturamento.
+  - arquivos/Produtividade/: arquivos utilizados e gerados para o relatório de produtividade.
+- robos/: scripts com as automações organizadas por tema.
+  - robos/produtividade.py: automação de extração de dados de produtividade (Podio, Agilis, Bússola/SAP) e geração do relatório preenchido.
+  - robos/robo_faturamento.py: automações relacionadas a faturamento e correios.
+  - robos/robo_incluir_encomendas.py: automação para inclusão de encomendas.
+  - robos/robo_juridico.py: automação para o processo jurídico no Podio.
+  - robos/robo_relatorio_correios.py: automação para gerar/baixar relatórios de produtividade ou envio no Agilis.
+  - robos/robo_fechar_chamados.py: automação para fechamento de chamados.
 
 ## Pré-requisitos
 
@@ -115,7 +122,7 @@ Cada processo é executado em um subprocesso isolado através do motor `executar
 ### Agilis e produtividade
 
 - Gerar relatório de envio para Correios
-- Gerar Produtividade (Podio/Agilis/SAP) — executa extração de dados e preenche o relatório final na pasta `Produtividade`
+- Gerar Produtividade (Podio/Agilis/SAP) — executa extração de dados e preenche o relatório final na pasta arquivos/Produtividade
 - Fechar chamados a vencer
 
 ### Outros sistemas
@@ -126,7 +133,7 @@ Cada processo é executado em um subprocesso isolado através do motor `executar
 ## Observações importantes
 
 - Alguns processos exigem arquivos específicos nas pastas de entrada, como planilhas Excel e boletos em PDF.
-- O fluxo de faturamento depende de arquivos organizados dentro da pasta Arquivos_rateio_regionais.
+- O fluxo de faturamento depende de arquivos organizados dentro da pasta arquivos/faturamento.
 - Alguns robôs usam autenticação com MFA, então pode ser necessário aprovar a ação manualmente no celular.
 - Em caso de erro, verifique o console da interface, pois os logs são exibidos ali durante a execução.
 

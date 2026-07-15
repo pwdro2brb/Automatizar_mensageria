@@ -34,26 +34,30 @@ import win32con
 import win32api
 import win32process
 import ctypes
+import sys
+from pathlib import Path
 
+# ==============================================================================
+# CONFIGURAÇÃO DE PASTAS DINÂMICAS
+# ==============================================================================
+# Garante que o robô ache o config.py na raiz do projeto
+sys.path.append(str(Path(__file__).parent.parent))
+from config import EMAIL_MRV, SENHA_MRV, PASTA_DOWNLOADS
+
+# Aponta dinamicamente para a nova pasta: AUTOMATIZAR_MENSAGERIA/arquivos/produtividade
+PASTA_PRODUTIVIDADE = str(Path(__file__).parent.parent / "arquivos" / "produtividade")
 
 # ==============================================================================
 # 🚀 O PULO DO GATO: FORÇAR O WINDOWS A RECONHECER TODOS OS MONITORES
 # ==============================================================================
 try:
-    # Diz ao Windows para usar a resolução real de múltiplos monitores (Per-Monitor DPI Aware)
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 except Exception:
     try:
-        # Fallback para versões mais antigas do Windows
         ctypes.windll.user32.SetProcessDPIAware()
     except Exception:
         pass
 # ==============================================================================
-
-
-
-from config import EMAIL_MRV, SENHA_MRV, PASTA_DOWNLOADS, PASTA_PRODUTIVIDADE
-
 
 # --- CONFIGURAÇÃO ---
 WAIT_TIME = 10
@@ -145,39 +149,25 @@ def extrair_dados_sistemas():
         # --- ETAPA 8 ---
 
         try:
-            # 1. Define o seletor.
-            #  Usar CSS_SELECTOR é mais fácil para classes.
-            #  O ponto (.) significa "classe".
             seletor_css = ".app-header__app-menu"
         
             print(f"Procurando todos os elementos com a classe: {seletor_css}")
-            # 2. Espera até que PELO MENOS 2 elementos estejam presentes
-            #  (Você pode mudar o '2' para quantos você espera)
             WebDriverWait(driver, 10).until(lambda d: len(d.find_elements(By.CSS_SELECTOR, seletor_css)) >= 2)
 
-            # 3. Pega a LISTA de todos os elementos
             elementos = driver.find_elements(By.CSS_SELECTOR, seletor_css)
         
             print(f"Encontrados {len(elementos)} elementos.")
 
-            # 4. Clica no primeiro elemento (índice 0)
             if len(elementos) > 0:
                 print("Clicando no primeiro elemento (índice 0)...")
                 elementos[0].click()
         
-            # 5. Espera a página reagir
-            #  (MUITO IMPORTANTE: Clicar em algo pode mudar a página)
-            print("Aguardando 2 segundos para a página/menu reagir...")
+            print("Aaguardando 2 segundos para a página/menu reagir...")
             time.sleep(2)
-
-            # 6. RE-ENCONTRA a lista de elementos
-            #  (É a forma mais segura, caso o primeiro clique tenha
-            #  recarregado os elementos - evita o erro 'stale element')
         
             print("Re-encontrando os elementos (para segurança)...")
             elementos = driver.find_elements(By.CSS_SELECTOR, seletor_css)
 
-            # 7. Clica no segundo elemento (índice 1)
             if len(elementos) > 1:
                 print("Clicando no segundo elemento (índice 1)...")
                 elementos[1].click()
@@ -189,12 +179,10 @@ def extrair_dados_sistemas():
 
         except Exception as e:
             print(f"Ocorreu um erro: {e}")
-            # driver.save_screenshot("erro_multiplos.png")
 
         # --- ETAPA 9 ---
         print("Etapa 9: Aguardando o menu dropdown abrir...")
         
-        # Usando o seletor CSS (mais limpo) que discutimos
         exportar_excel_selector = "a.app-box-supermenu-v2__link.app-export-excel"
         
         exportar_link = WebDriverWait(driver, 10).until(
@@ -203,7 +191,6 @@ def extrair_dados_sistemas():
         
         print("Link 'Exportar Excel' encontrado. Clicando...")
         exportar_link.click()
-        # --- FIM DA ETAPA 9 ---
 
         time.sleep(3)
 
@@ -211,10 +198,8 @@ def extrair_dados_sistemas():
         try:
             print("Procurando o ícone de 'Notificação' (Inbox)...")
         
-            # Usando o Seletor CSS (recomendado por ser mais limpo)
             notificacao_selector = "li.navigation-link.inbox"
         
-            # Espera o ícone estar presente e ser clicável
             notificacao_icon = WebDriverWait(driver, 5).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, notificacao_selector))
             )
@@ -222,13 +207,11 @@ def extrair_dados_sistemas():
             print("Ícone de 'Notificação' encontrado. Clicando...")
             notificacao_icon.click()
         
-            time.sleep(1) # Espera o menu de notificação abrir
+            time.sleep(1) 
 
         except Exception as e:
             print(f"Erro ao tentar clicar no ícone de Notificação: {e}")
             driver.save_screenshot("erro_notificacao.png")
-        # --- FIM DA ETAPA 10 ---
-
 
         # --- ETAPA 11 ---
         css_corrigido = "a.PodioUI__Notifications__NotificationGroup"
@@ -236,7 +219,6 @@ def extrair_dados_sistemas():
             EC.element_to_be_clickable((By.CSS_SELECTOR, css_corrigido))
         )
         item_notificacao.click()
-        # --- FIM DA ETAPA 11 ---
 
         print("Aguardando processamento do Excel (até 3 minutos)...")
 
@@ -244,7 +226,6 @@ def extrair_dados_sistemas():
         sucesso_exportacao = False
         nome_do_arquivo = "Mensageria - Última vista usada.xlsx"
 
-        # LOOP DE VERIFICAÇÃO COM REFRESH: Tenta até dar 180s (3 minutos)
         while tempo_espera < 180:
             try:            
                 if EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Mensageria - Última vista usada.xlsx")):
@@ -259,17 +240,16 @@ def extrair_dados_sistemas():
                     link_download.click()
 
                     sucesso_exportacao = True
-                    break # Sai do loop pois deu certo!
+                    break 
 
                     
             except Exception:
-                # Se não achou, espera um pouco e ATUALIZA A PÁGINA
                 print(f"Aguardando Podio... ({tempo_espera}s / 180s) - Atualizando a página (F5)...")
-                time.sleep(10) # Espera 10 segundos antes de atualizar
+                time.sleep(10) 
                 tempo_espera += 10
                 
-                driver.refresh() # Dá o F5 na página
-                time.sleep(5) # Espera a página recarregar
+                driver.refresh() 
+                time.sleep(5) 
                 tempo_espera += 5
                 
 
@@ -748,15 +728,11 @@ def fill_fsf_flags(ws, header_map):
 # FUNÇÃO PRINCIPAL DE PROCESSAMENTO DO EXCEL
 # ==============================================================================
 def main(nome_arquivo_base, nome_arquivo_saida):
-    # ATENÇÃO: Agora os caminhos apontam para a PASTA_PRODUTIVIDADE
     PROD_PATH    = os.path.join(PASTA_PRODUTIVIDADE, nome_arquivo_base)
     
-    # --- NOVA VERIFICAÇÃO AMIGÁVEL ---
     if not os.path.exists(PROD_PATH):
         raise Exception(f"O arquivo base não foi encontrado!\n\nCaminho procurado:\n{PROD_PATH}\n\nVerifique se a pasta existe e se o arquivo está lá com este nome exato.")
-    # ---------------------------------
 
-    # Agora os caminhos são dinâmicos!
     OUT_PATH     = os.path.join(PASTA_PRODUTIVIDADE, nome_arquivo_saida)
     
     AGILIS_PATH  = os.path.join(PASTA_PRODUTIVIDADE, "Relatório - Agilis.xlsx")
@@ -833,26 +809,22 @@ def main(nome_arquivo_base, nome_arquivo_saida):
 # FUNÇÃO MESTRE (CHAMADA PELO HUB CENTRAL)
 # ============================================================================
 def executar_robo_produtividade_setor():
-    import sys # Garanta que o sys está importado para podermos parar o script
+    import sys 
     
     print("Iniciando Robô de Produtividade...")
     
-    # --- 1. CÁLCULO DINÂMICO DOS MESES E VALIDAÇÃO ---
     hoje = date.today()
     
-    # Mês do relatório que estamos gerando (mês passado)
     primeiro_dia_mes_atual = hoje.replace(day=1)
     ultimo_dia_mes_passado = primeiro_dia_mes_atual - timedelta(days=1)
     mes_relatorio = ultimo_dia_mes_passado.month
     ano_relatorio = ultimo_dia_mes_passado.year
     
-    # Mês do arquivo base (mês retrasado)
     primeiro_dia_mes_passado = ultimo_dia_mes_passado.replace(day=1)
     ultimo_dia_mes_retrasado = primeiro_dia_mes_passado - timedelta(days=1)
     mes_base = ultimo_dia_mes_retrasado.month
     ano_base = ultimo_dia_mes_retrasado.year
     
-    # Monta os nomes exatos
     nome_arquivo_base = f"Produtividade {mes_base:02d} - {ano_base} (preenchido).xlsx"
     nome_arquivo_saida = f"Produtividade {mes_relatorio:02d} - {ano_relatorio} (preenchido).xlsx"
     
@@ -866,24 +838,21 @@ def executar_robo_produtividade_setor():
     if not os.path.exists(PASTA_PRODUTIVIDADE):
         print(f"\n❌ ERRO FATAL: A pasta '{PASTA_PRODUTIVIDADE}' não existe!")
         print("Crie a pasta e tente novamente.")
-        sys.exit(1) # Mata o processo imediatamente
+        sys.exit(1) 
         
     if not os.path.exists(caminho_base):
         print(f"\n❌ ERRO FATAL: O arquivo base '{nome_arquivo_base}' não foi encontrado!")
         print("Coloque o arquivo do mês retrasado na pasta e tente novamente.")
-        sys.exit(1) # Mata o processo imediatamente
+        sys.exit(1) 
         
     print("✅ Pré-requisitos validados! Iniciando extração...\n")
     print("-" * 50)
     
-    # 2. Extrai tudo da Web e do SAP e move para a pasta
     extrair_dados_sistemas()
     
-    # 3. Renomeia e prepara os relatórios
     print("--- Executando Etapa 1: Renomear Arquivos ---")
     step_1_prepare_and_rename_reports(PASTA_PRODUTIVIDADE)
     
-    # 4. Processa o Excel (passando os nomes dinâmicos)
     print("--- Executando Etapa 2: Processar Produtividade ---")
     main(nome_arquivo_base, nome_arquivo_saida)
     

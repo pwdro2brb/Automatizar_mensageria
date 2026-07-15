@@ -60,7 +60,7 @@ class CentralAutomacaoMRV:
         frame_botoes.pack(fill=tk.X, pady=5)
 
         # ======================================================================
-        # MAPEAMENTO DOS BOTÕES
+        # MAPEAMENTO DOS BOTÕES (ATUALIZADOS PARA A PASTA 'robos')
         # ======================================================================
         
         cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('✅ Concluído!')"
@@ -78,15 +78,15 @@ class CentralAutomacaoMRV:
         self.btn_rateio_malote.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fat_1 = ttk.Button(frame_correios, text="Faturamento 1: Gerar Rascunhos", 
-            command=lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robo_faturamento as rf; rf.criar_rascunhos_correios()"))
+            command=lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"))
         self.btn_fat_1.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fat_2 = ttk.Button(frame_correios, text="Faturamento 2: Planilha Rateio Pag", 
-            command=lambda: self.executar_processo_cancelavel("Faturamento 2", comando_python="import robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
+            command=lambda: self.executar_processo_cancelavel("Faturamento 2", comando_python="import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
         self.btn_fat_2.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fat_3 = ttk.Button(frame_correios, text="Faturamento 3: Lançar NF (Portal)", 
-            command=lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robo_faturamento as rf; rf.lancar_nota_fiscal()"))
+            command=lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()"))
         self.btn_fat_3.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 2: PODIO & MENSAGERIA ---
@@ -94,11 +94,11 @@ class CentralAutomacaoMRV:
         frame_podio.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
 
         self.btn_juridico = ttk.Button(frame_podio, text="Relatório Jurídico Montreal", 
-            command=lambda: self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import Processos_simples.robo_juridico as rj; rj.executar_juridico()"))
+            command=lambda: self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import robos.robo_juridico as rj; rj.executar_juridico()"))
         self.btn_juridico.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_incluir_podio = ttk.Button(frame_podio, text="Incluir Correspondências Rápidas", 
-            command=lambda: self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robo_incluir_encomendas as rie; rie.executar_inclusao()"))
+            command=lambda: self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()"))
         self.btn_incluir_podio.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 3: AGILIS & PRODUTIVIDADE ---
@@ -106,16 +106,15 @@ class CentralAutomacaoMRV:
         frame_agilis.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
         self.btn_produtividade = ttk.Button(frame_agilis, text="Gerar relatório de envio para Correios", 
-            command=lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import Processos_simples.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
+            command=lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
         self.btn_produtividade.pack(fill=tk.X, padx=10, pady=5)
 
-        caminho_produtividade = os.path.join(os.path.dirname(os.path.abspath(__file__)), "produtividade.py")
         self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", 
-            command=lambda: self.executar_processo_cancelavel("Produtividade Setorial", script_path=caminho_produtividade))
+            command=lambda: self.executar_processo_cancelavel("Produtividade Setorial", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor()"))
         self.btn_produtividade_setor.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", 
-            command=lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
+            command=lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
         self.btn_fechar_chamados.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 4: OUTROS SISTEMAS ---
@@ -189,13 +188,12 @@ class CentralAutomacaoMRV:
             
             linhas_log = []
 
-            # O try/except aqui impede que o fechamento forçado do tubo trave o código
             try:
                 for linha in processo.stdout:
                     print(linha, end="")
                     linhas_log.append(linha.rstrip('\r\n')) 
             except ValueError:
-                pass # Ignora o erro de "tubo fechado" gerado pelo botão cancelar
+                pass 
                 
             processo.wait() 
             
@@ -255,7 +253,6 @@ class CentralAutomacaoMRV:
                     self.foi_cancelado = True 
                     subprocess.run(['taskkill', '/F', '/T', '/PID', str(self.processo_ativo.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
                     
-                    # CORREÇÃO 1: Corta o tubo de comunicação à força para destravar a interface na hora!
                     if self.processo_ativo.stdout:
                         self.processo_ativo.stdout.close()
                         

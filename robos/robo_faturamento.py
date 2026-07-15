@@ -19,7 +19,7 @@ from selenium.common.exceptions import (
 )
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options # <-- Importe o Options
+from selenium.webdriver.chrome.options import Options 
 
 # --- Pywinauto Imports ---
 from pywinauto.application import Application
@@ -31,8 +31,17 @@ from datetime import datetime, timedelta
 from openpyxl import load_workbook
 from openpyxl.styles import numbers
 import traceback
+import sys
 
-from config import EMAIL_MRV, SENHA_MRV, PASTA_ARQUIVOS_RATEIO
+# ==============================================================================
+# CONFIGURAÇÃO DE PASTAS DINÂMICAS
+# ==============================================================================
+# Garante que o robô ache o config.py na raiz do projeto
+sys.path.append(str(Path(__file__).parent.parent))
+from config import EMAIL_MRV, SENHA_MRV
+
+# Aponta dinamicamente para a nova pasta: AUTOMATIZAR_MENSAGERIA/arquivos/faturamento
+PASTA_ARQUIVOS_RATEIO = Path(__file__).parent.parent / "arquivos" / "faturamento"
 
 # Constantes Globais
 CNPJ_CORREIOS_FIXO = "34028316001509"   
@@ -120,9 +129,8 @@ def criar_rascunhos_correios():
 
 def preparar_e_gerar_rateio():
     print("Lendo planilhas na pasta testar_edicao...")
-    pasta_trabalho = Path(PASTA_ARQUIVOS_RATEIO) / "testar_edicao"
+    pasta_trabalho = PASTA_ARQUIVOS_RATEIO / "testar_edicao"
     
-    # ❌ ERRO 2: Se a pasta testar_edicao não existir
     if not pasta_trabalho.exists():
         raise FileNotFoundError(f"A pasta 'testar_edicao' não foi encontrada dentro de:\n{PASTA_ARQUIVOS_RATEIO}")
     
@@ -135,7 +143,6 @@ def preparar_e_gerar_rateio():
         if 'RATEIO RECEBIDO' in nome_ficheiro: caminho_rr = ficheiro
         elif re.match(r'^\d{7}\.XLSX$', nome_ficheiro): caminho_correios = ficheiro
 
-    # ❌ ERRO 3: Se faltar a planilha Rateio Recebido ou a dos Correios
     if not caminho_rr and not caminho_correios:
         raise FileNotFoundError("Faltam as DUAS planilhas (Rateio Recebido e a dos Correios) na pasta 'testar_edicao'.")
     elif not caminho_rr:
@@ -145,20 +152,14 @@ def preparar_e_gerar_rateio():
 
     print(f">> Iniciando processamento...")
     
-    # =================================================================
-    # NOVIDADE: Direcionando o salvamento direto para a pasta exemplos
-    # =================================================================
-    pasta_exemplos = Path(PASTA_ARQUIVOS_RATEIO) / "exemplos"
+    pasta_exemplos = PASTA_ARQUIVOS_RATEIO / "exemplos"
     
-    # Se a pasta exemplos não existir, o robô cria ela automaticamente
     if not pasta_exemplos.exists():
         pasta_exemplos.mkdir(parents=True, exist_ok=True)
         print(f"📁 Pasta 'exemplos' criada automaticamente.")
         
-    # Define que o arquivo final vai ser salvo DENTRO da pasta exemplos
     caminho_saida = pasta_exemplos / "RATEIO PAG.xlsx"
     
-    # Gera a planilha
     final = gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_saida)
     
     print(f"Total de linhas geradas no final: {len(final)}")
@@ -171,25 +172,20 @@ def preparar_e_gerar_rateio():
 # ==============================================================================
 def lancar_nota_fiscal():
 
-    PASTA_BASE = Path(PASTA_ARQUIVOS_RATEIO) / "exemplos"
-
-    # ❌ ERRO 1: Se a planilha de regras (dados_puxados) não existir
-    ARQUIVO_REGRAS_XLSX = Path(PASTA_ARQUIVOS_RATEIO) / "dados_puxados_preenchimento.xlsx"
+    PASTA_BASE = PASTA_ARQUIVOS_RATEIO / "exemplos"
+    ARQUIVO_REGRAS_XLSX = PASTA_ARQUIVOS_RATEIO / "dados_puxados_preenchimento.xlsx"
 
     if not ARQUIVO_REGRAS_XLSX.exists():
         raise FileNotFoundError(f"A planilha de regras 'dados_puxados_preenchimento.xlsx' não foi encontrada no caminho:\n{ARQUIVO_REGRAS_XLSX}")
     
-    # ❌ ERRO 4: Se a pasta exemplos não existir
     if not PASTA_BASE.exists():
         raise FileNotFoundError(f"A pasta 'exemplos' não foi encontrada dentro de:\n{PASTA_ARQUIVOS_RATEIO}")
 
-    # ❌ ERRO 5 (Parte A): Se a planilha RATEIO PAG não estiver na pasta
     planilhas_encontradas = list(PASTA_BASE.glob("RATEIO PAG.xlsx"))
     if not planilhas_encontradas:
         raise FileNotFoundError("A planilha 'RATEIO PAG.xlsx' não foi encontrada na pasta 'exemplos'.\nVocê esqueceu de rodar a Etapa 2?")
     caminho_planilha_rateio = str(planilhas_encontradas[0].resolve())
 
-    # ❌ ERRO 5 (Parte B): Se o boleto PDF não estiver na pasta
     pdfs_encontrados = [arq for arq in PASTA_BASE.glob("*") if arq.suffix.lower() == ".pdf"]
     if not pdfs_encontrados:
         raise FileNotFoundError("Nenhum boleto em PDF foi encontrado na pasta 'exemplos'.")
@@ -251,12 +247,9 @@ def lancar_nota_fiscal():
 
     print(f"📋 Regional: {ID_REGIONAL} | Descrição: {descr} | Material: {material_cod}")
 
-    # ==========================================================================
-    # AQUI ESTÁ A CORREÇÃO: Criando o navegador UMA ÚNICA VEZ com o detach=True
-    # ==========================================================================
     try:
         chrome_options = Options()
-        chrome_options.add_experimental_option("detach", True) # Mantém aberto no final
+        chrome_options.add_experimental_option("detach", True) 
         
         driver = webdriver.Chrome(options=chrome_options) 
         driver.get("https://mrvpag2.mrv.com.br/home")

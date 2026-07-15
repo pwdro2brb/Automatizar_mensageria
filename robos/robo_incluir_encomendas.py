@@ -2,8 +2,10 @@ import pandas as pd
 import time
 import os
 import re
+import sys
 import unicodedata
 from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent)) # <--- ADICIONE ISSO
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -110,7 +112,7 @@ def executar_inclusao():
     
     # 1. Lógica de Pastas
     pasta_base = Path(os.path.dirname(os.path.abspath(__file__)))
-    pasta_encomendas = pasta_base / "arquivos_encomendas"
+    pasta_encomendas = Path(__file__).parent.parent / "arquivos" / "encomendas"
     
     if not pasta_encomendas.exists():
         pasta_encomendas.mkdir(parents=True, exist_ok=True)

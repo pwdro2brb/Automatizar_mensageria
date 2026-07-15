@@ -2,6 +2,7 @@
 
 EMAIL_MRV = "seu_email aqui"
 SENHA_MRV = "Sua senha aqui"
+SENHA_CORREIOS_MALOTE_WEB = "Sua senha do correios malote web aqui"
 
 # Você também pode colocar caminhos de pastas que se repetem muito aqui:
 PASTA_DOWNLOADS = r"sua pasta do dowloads aqui"

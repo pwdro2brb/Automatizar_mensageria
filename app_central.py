@@ -60,7 +60,7 @@ class CentralAutomacaoMRV:
         frame_botoes.pack(fill=tk.X, pady=5)
 
         # ======================================================================
-        # MAPEAMENTO DOS BOTÕES (ATUALIZADOS PARA A PASTA 'robos')
+        # MAPEAMENTO DOS BOTÕES
         # ======================================================================
         
         cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('✅ Concluído!')"
@@ -73,8 +73,9 @@ class CentralAutomacaoMRV:
             command=lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
         self.btn_enc_dia.pack(fill=tk.X, padx=10, pady=5)
 
+        # ✅ BOTÃO ATIVADO AQUI
         self.btn_rateio_malote = ttk.Button(frame_correios, text="Rateio de Malote (Centros de Custo)", 
-            command=lambda: self.executar_processo_cancelavel("Rateio de Malote", comando_python=cmd_placeholder))
+            command=lambda: self.executar_processo_cancelavel("Rateio de Malote", comando_python="import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
         self.btn_rateio_malote.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fat_1 = ttk.Button(frame_correios, text="Faturamento 1: Gerar Rascunhos", 

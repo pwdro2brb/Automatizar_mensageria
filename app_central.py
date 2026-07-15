@@ -94,8 +94,7 @@ class CentralAutomacaoMRV:
         frame_podio = ttk.LabelFrame(frame_botoes, text="🏢 Podio & Mensageria")
         frame_podio.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
 
-        self.btn_juridico = ttk.Button(frame_podio, text="Relatório Jurídico Montreal", 
-            command=lambda: self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import robos.robo_juridico as rj; rj.executar_juridico()"))
+        self.btn_juridico = ttk.Button(frame_podio, text="Relatório Jurídico Montreal", command=self._chamar_robo_juridico)
         self.btn_juridico.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_incluir_podio = ttk.Button(frame_podio, text="Incluir Correspondências Rápidas", 
@@ -154,6 +153,23 @@ class CentralAutomacaoMRV:
 
         print("✅ Sistema Central iniciado com sucesso, Pedro!")
         print("Selecione o processo que deseja executar.\n" + "-"*60)
+
+
+        
+    def _chamar_robo_juridico(self):
+        resposta = messagebox.askyesnocancel(
+            "Relatório Jurídico Montreal",
+            "Você deseja que o robô baixe a planilha do Podio automaticamente?\n\n"
+            "SIM: O robô fará tudo (Baixar, Formatar e Criar E-mail).\n"
+            "NÃO: Eu já baixei manualmente (Apenas Formatar e Criar E-mail).\n"
+            "CANCELAR: Abortar operação."
+        )
+        
+        if resposta is True: # Clicou em SIM
+            self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=False)")
+        elif resposta is False: # Clicou em NÃO
+            self.executar_processo_cancelavel("Relatório Jurídico (Apenas Formatação)", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=True)")
+        # Se for None (Cancelar), não faz nada
 
     # ======================================================================
     # MOTOR UNIVERSAL DE PROCESSOS ISOLADOS (CANCELÁVEIS)

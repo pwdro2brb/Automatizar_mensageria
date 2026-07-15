@@ -95,6 +95,7 @@ Cada processo é executado em um subprocesso isolado através do motor `executar
 
 - Motor universal de processos canceláveis: todos os robôs agora rodam em subprocessos isolados via `executar_processo_cancelavel` no `app_central.py`, permitindo cancelamento responsivo sem travar a UI.
 - Melhor tratamento de logs e erros: a saída dos subprocessos é mostrada no painel "Console" e mensagens de erro são extraídas e exibidas em popups mais amigáveis.
+- Novo fluxo de Rateio de Malote: o processo agora lê planilhas do Agilis e dos Correios, resolve centros de custo automaticamente, reutiliza rateios anteriores quando possível, trata valores órfãos e gera um arquivo Excel consolidado com o resultado final.
 - Novos scripts adicionados ao repositório:
 	- `robo_incluir_encomendas.py` — automação para inclusão de encomendas/envio (novo)
 	- `treinar_ia.py` — dicionários e mapeamentos usados para classificação/treinamento interno (arquivo de referência)
@@ -109,7 +110,7 @@ Cada processo é executado em um subprocesso isolado através do motor `executar
 ### Correios e Faturamento
 
 - Relatório de Encomendas do Dia
-- Rateio de Malote
+- Rateio de Malote: gera um rateio consolidado com base em arquivos do Agilis e dos Correios, incluindo resolução automática de centros de custo e tratamento de valores órfãos.
 - Faturamento 1: gerar rascunhos
 - Faturamento 2: gerar planilha de rateio
 - Faturamento 3: lançar NF no portal

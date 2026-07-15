@@ -30,7 +30,6 @@ PASTA_MALOTE = Path(__file__).parent.parent / "arquivos" / "rateio_malote"
 try:
     from malote_web_scraper import ResolvedorCC, SELENIUM_AVAILABLE
     RESOLVER_AVAILABLE = True
-    print("✅ Módulo malote_web_scraper carregado com sucesso")
 except ImportError as e:
     RESOLVER_AVAILABLE = False
     SELENIUM_AVAILABLE = False
@@ -64,19 +63,16 @@ def find_agilis_file():
 def find_correios_file():
     if not PASTA_MALOTE.exists(): return None
     for f in PASTA_MALOTE.glob("*.xlsx"):
-        if "agilis" not in f.name.lower() and "rateio" not in f.name.lower():
-            if any(c.isdigit() for c in f.stem): return str(f)
+        if re.match(r'^\d+$', f.stem): return str(f)
     for f in PASTA_MALOTE.glob("*.xls"):
-        if "agilis" not in f.name.lower() and "rateio" not in f.name.lower():
-            if any(c.isdigit() for c in f.stem): return str(f)
+        if re.match(r'^\d+$', f.stem): return str(f)
     return None
 
 def find_previous_rateios():
     rateios = []
-    pasta_arquivos = PASTA_MALOTE.parent # Aponta para a pasta geral 'arquivos'
+    pasta_arquivos = PASTA_MALOTE.parent 
     if not pasta_arquivos.exists(): return rateios
     
-    # rglob faz uma busca recursiva em TODAS as subpastas de 'arquivos'
     for f in pasta_arquivos.rglob("*.xlsx"):
         if "rateio" in f.name.lower() and f.name != "Rateio Malote.xlsx":
             rateios.append(str(f))
@@ -218,10 +214,39 @@ class RateioMalote:
         self.correios_path = correios_path or find_correios_file()
         self.output_path = output_path
 
+        # ======================================================================
+        # TRAVA DE SEGURANÇA: VALIDAÇÃO GLOBAL DE ARQUIVOS
+        # ======================================================================
+        erros_arquivos = []
+        
         if not self.agilis_path:
-            raise FileNotFoundError("Planilha do Agilis não encontrada!")
+            erros_arquivos.append("👉 Relatório Agilis (deve conter 'agilis' no nome)")
+            
         if not self.correios_path:
-            raise FileNotFoundError("Planilha dos Correios não encontrada!")
+            erros_arquivos.append("👉 Extrato dos Correios (o nome deve conter APENAS números, ex: '2554871.xlsx')")
+
+        base_cc_encontrada = False
+        vsc_encontrado = False
+        pasta_arquivos = PASTA_MALOTE.parent
+        
+        if pasta_arquivos.exists():
+            for f in pasta_arquivos.rglob("*.xlsx"):
+                fl = f.name.lower()
+                if ("centro" in fl and "custo" in fl) or "diagrama" in fl or ("base" in fl and "cc" in fl):
+                    base_cc_encontrada = True
+                if "acompanhamento" in fl and "vsc" in fl:
+                    vsc_encontrado = True
+
+        if not base_cc_encontrada:
+            erros_arquivos.append("👉 Base Centro de Custo (deve conter 'base' e 'centro de custo' no nome)")
+            
+        if not vsc_encontrado:
+            erros_arquivos.append("👉 Acompanhamento VSC (deve conter 'acompanhamento' e 'vsc' no nome)")
+
+        if erros_arquivos:
+            mensagem_erro = "O robô não pode iniciar porque faltam arquivos obrigatórios:\n\n" + "\n".join(erros_arquivos) + "\n\nPor favor, verifique a pasta 'arquivos/rateio_malote' e tente novamente."
+            raise RuntimeError(mensagem_erro)
+        # ======================================================================
 
         print(f"📄 Agilis: {Path(self.agilis_path).name}")
         print(f"📄 Correios: {Path(self.correios_path).name}")
@@ -1521,19 +1546,13 @@ def executar_rateio_malote():
 
     if not PASTA_MALOTE.exists():
         PASTA_MALOTE.mkdir(parents=True, exist_ok=True)
-        raise FileNotFoundError(f"A pasta '{PASTA_MALOTE}' não existia e foi criada.\nColoque os arquivos necessários lá dentro e tente novamente.")
+        raise RuntimeError(f"A pasta '{PASTA_MALOTE}' não existia e foi criada.\nColoque os arquivos necessários lá dentro e tente novamente.")
 
     output_file = str(PASTA_MALOTE / "Rateio Malote.xlsx")
 
-    try:
-        rateio = RateioMalote(output_path=output_file)
-        rateio.run()
-    except FileNotFoundError as e:
-        raise RuntimeError(str(e))
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise RuntimeError(f"Erro na execução do Rateio de Malote: {e}")
+    # Removido o try/except que causava o erro duplicado (nested exception)
+    rateio = RateioMalote(output_path=output_file)
+    rateio.run()
 
 if __name__ == "__main__":
     executar_rateio_malote()

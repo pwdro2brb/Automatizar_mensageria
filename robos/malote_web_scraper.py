@@ -19,13 +19,13 @@ from pathlib import Path
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS E CREDENCIAIS
 # ==============================================================================
 sys.path.append(str(Path(__file__).parent.parent))
-from config import EMAIL_MRV, SENHA_CORREIOS_MALOTE_WEB
+from config import EMAIL_MRV, SENHA_MRV
 
 PASTA_MALOTE = Path(__file__).parent.parent / "arquivos" / "rateio_malote"
 CACHE_FILE = str(PASTA_MALOTE / "cache_percursos_cc.json")
 
 CORREIOS_EMAIL = EMAIL_MRV
-CORREIOS_SENHA = SENHA_CORREIOS_MALOTE_WEB
+CORREIOS_SENHA = SENHA_MRV
 
 try:
     from selenium import webdriver
@@ -72,8 +72,7 @@ class BaseCentroCusto:
     def _load(self):
         arquivo = self._find_file()
         if not arquivo:
-            print("  ⚠️ Planilha BASE CENTRO DE CUSTO não encontrada")
-            return
+            raise RuntimeError("A planilha 'BASE CENTRO DE CUSTO' não foi encontrada nas pastas de arquivos.")
 
         print(f"  📄 Base CC: {Path(arquivo).name}")
         try:
@@ -118,10 +117,9 @@ class BaseCentroCusto:
             print(f"  ⚠️ Erro ao ler base CC: {e}")
 
     def _find_file(self):
-        pasta_arquivos = PASTA_MALOTE.parent # Aponta para a pasta geral 'arquivos'
+        pasta_arquivos = PASTA_MALOTE.parent 
         if not pasta_arquivos.exists(): return None
         
-        # rglob faz uma busca recursiva em TODAS as subpastas de 'arquivos'
         for f in pasta_arquivos.rglob("*.xlsx"):
             fl = f.name.lower()
             if ("centro" in fl and "custo" in fl) or "diagrama" in fl:
@@ -242,8 +240,7 @@ class AcompanhamentoVSC:
     def _load(self):
         arquivo = self._find_file()
         if not arquivo:
-            print("  ⚠️ Planilha Acompanhamento VSC não encontrada")
-            return
+            raise RuntimeError("A planilha 'Acompanhamento VSC' não foi encontrada nas pastas de arquivos.")
 
         print(f"  📄 Acompanhamento VSC: {Path(arquivo).name}")
         try:
@@ -292,10 +289,9 @@ class AcompanhamentoVSC:
             print(f"  ⚠️ Erro ao ler Acompanhamento VSC: {e}")
 
     def _find_file(self):
-        pasta_arquivos = PASTA_MALOTE.parent # Aponta para a pasta geral 'arquivos'
+        pasta_arquivos = PASTA_MALOTE.parent 
         if not pasta_arquivos.exists(): return None
         
-        # rglob faz uma busca recursiva em TODAS as subpastas de 'arquivos'
         for f in pasta_arquivos.rglob("*.xlsx"):
             fl = f.name.lower()
             if "acompanhamento" in fl and "vsc" in fl:

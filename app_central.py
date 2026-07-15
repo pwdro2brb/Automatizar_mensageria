@@ -69,11 +69,6 @@ class CentralAutomacaoMRV:
         frame_correios = ttk.LabelFrame(frame_botoes, text="📦 Correios & Faturamento")
         frame_correios.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-        self.btn_enc_dia = ttk.Button(frame_correios, text="Relatório Encomendas do Dia", 
-            command=lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
-        self.btn_enc_dia.pack(fill=tk.X, padx=10, pady=5)
-
-        # ✅ BOTÃO ATIVADO AQUI
         self.btn_rateio_malote = ttk.Button(frame_correios, text="Rateio de Malote (Centros de Custo)", 
             command=lambda: self.executar_processo_cancelavel("Rateio de Malote", comando_python="import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
         self.btn_rateio_malote.pack(fill=tk.X, padx=10, pady=5)
@@ -121,9 +116,18 @@ class CentralAutomacaoMRV:
         frame_outros = ttk.LabelFrame(frame_botoes, text="🚗 Outros (Uber / SAP)")
         frame_outros.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
-        self.btn_uber = ttk.Button(frame_outros, text="Relatório de Utilização Uber", 
-            command=lambda: self.executar_processo_cancelavel("Relatório Uber", comando_python=cmd_placeholder))
-        self.btn_uber.pack(fill=tk.X, padx=10, pady=5)
+        # ✅ BOTÕES DO UBER ATUALIZADOS AQUI
+        self.btn_uber_1 = ttk.Button(frame_outros, text="Uber 1: Atualizar Responsáveis (SAP)", 
+            command=lambda: self.executar_processo_cancelavel("Uber 1", comando_python="import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
+        self.btn_uber_1.pack(fill=tk.X, padx=10, pady=2)
+
+        self.btn_uber_2 = ttk.Button(frame_outros, text="Uber 2: Gerar Relatórios e Pastas", 
+            command=lambda: self.executar_processo_cancelavel("Uber 2", comando_python="import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
+        self.btn_uber_2.pack(fill=tk.X, padx=10, pady=2)
+
+        self.btn_uber_3 = ttk.Button(frame_outros, text="Uber 3: Criar Rascunhos de E-mail", 
+            command=lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()"))
+        self.btn_uber_3.pack(fill=tk.X, padx=10, pady=2)
 
         self.btn_zmm180 = ttk.Button(frame_outros, text="Faturamento Transação ZMM180", 
             command=lambda: self.executar_processo_cancelavel("Faturamento ZMM180", comando_python=cmd_placeholder))
@@ -146,16 +150,14 @@ class CentralAutomacaoMRV:
         sys.stderr = PrintRedirector(self.console)
 
         self.todos_botoes = [
-            self.btn_enc_dia, self.btn_rateio_malote, self.btn_fat_1, self.btn_fat_2, self.btn_fat_3,
+           self.btn_rateio_malote, self.btn_fat_1, self.btn_fat_2, self.btn_fat_3,
             self.btn_juridico, self.btn_incluir_podio, self.btn_produtividade, self.btn_fechar_chamados,self.btn_produtividade_setor,
-            self.btn_uber, self.btn_zmm180
+            self.btn_uber_1, self.btn_uber_2, self.btn_uber_3, self.btn_zmm180
         ]
 
         print("✅ Sistema Central iniciado com sucesso, Pedro!")
         print("Selecione o processo que deseja executar.\n" + "-"*60)
 
-
-        
     def _chamar_robo_juridico(self):
         resposta = messagebox.askyesnocancel(
             "Relatório Jurídico Montreal",
@@ -165,11 +167,10 @@ class CentralAutomacaoMRV:
             "CANCELAR: Abortar operação."
         )
         
-        if resposta is True: # Clicou em SIM
+        if resposta is True: 
             self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=False)")
-        elif resposta is False: # Clicou em NÃO
+        elif resposta is False: 
             self.executar_processo_cancelavel("Relatório Jurídico (Apenas Formatação)", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=True)")
-        # Se for None (Cancelar), não faz nada
 
     # ======================================================================
     # MOTOR UNIVERSAL DE PROCESSOS ISOLADOS (CANCELÁVEIS)

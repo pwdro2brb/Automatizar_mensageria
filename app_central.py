@@ -57,7 +57,7 @@ class CentralAutomacaoMRV:
         self.root.title("Hub Central de Automações - MRV")
         self.root.geometry("1050x850")
         
-        # Título Principal (Emoji removido para evitar desalinhamento)
+        # Título Principal
         lbl_titulo = ctk.CTkLabel(root, text="Central de Robôs - Administrativo MRV", 
                                   font=ctk.CTkFont(size=24, weight="bold"), text_color=self.COR_MRV)
         lbl_titulo.pack(pady=(20, 15))
@@ -75,7 +75,6 @@ class CentralAutomacaoMRV:
         def criar_quadro(parent, titulo, row, col):
             frm = ctk.CTkFrame(parent)
             frm.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
-            # Emoji removido do título do quadro para evitar desalinhamento
             lbl = ctk.CTkLabel(frm, text=titulo, font=ctk.CTkFont(size=16, weight="bold"))
             lbl.pack(pady=(10, 10))
             return frm
@@ -100,7 +99,6 @@ class CentralAutomacaoMRV:
         criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", 
                     lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
         
-        # Espaço extra para agrupar o faturamento
         criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", 
                     lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"), espaco_extra=True)
         
@@ -140,11 +138,11 @@ class CentralAutomacaoMRV:
         criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", 
                     lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()"))
         
-        criar_botao(frame_outros, "Faturamento Transação ZMM180", 
-                    lambda: self.executar_processo_cancelavel("Faturamento ZMM180", comando_python=cmd_placeholder), espaco_extra=True)
+        # BOTÃO ZMM180 CONECTADO AQUI
+        criar_botao(frame_outros, "Faturamento Transação ZMM180", self._chamar_robo_zmm180, espaco_extra=True)
 
         # ======================================================================
-        # BOTÃO CANCELAR (MOVIDO PARA BAIXO)
+        # BOTÃO CANCELAR
         # ======================================================================
         self.btn_cancelar = ctk.CTkButton(root, text="CANCELAR PROCESSO ATIVO", 
                                           fg_color=self.COR_CANCELAR, hover_color=self.COR_CANCELAR_HOVER, 
@@ -214,6 +212,19 @@ class CentralAutomacaoMRV:
         )
         if resposta:
             self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()")
+
+    # NOVA FUNÇÃO PARA O ZMM180
+    def _chamar_robo_zmm180(self):
+        resposta = messagebox.askokcancel(
+            "Aviso Importante - SAP e Edge",
+            "ATENÇÃO\n\n"
+            "1. Deixe o SAP aberto (após a tela de login) na SEGUNDA TELA.\n"
+            "2. Deixe o documento aberto no Edge (Notebook).\n"
+            "3. NÃO MEXA no mouse ou teclado durante o processo.\n\n"
+            "Deseja continuar?"
+        )
+        if resposta:
+            self.executar_processo_cancelavel("Faturamento ZMM180", comando_python="import robos.robo_zmm180 as rz; rz.executar_zmm180()")
 
     # ======================================================================
     # MOTOR UNIVERSAL DE PROCESSOS ISOLADOS (CANCELÁVEIS)

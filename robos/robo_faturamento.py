@@ -254,7 +254,7 @@ def lancar_nota_fiscal():
         driver = webdriver.Chrome(options=chrome_options) 
         driver.get("https://mrvpag2.mrv.com.br/home")
         driver.maximize_window()
-        
+        wait_longo = WebDriverWait(driver, 180)
         wait = WebDriverWait(driver, 15)
         wait_rapido = WebDriverWait(driver, 2)
     except Exception as e:
@@ -266,9 +266,9 @@ def lancar_nota_fiscal():
         wait.until(EC.presence_of_element_located((By.ID, "i0116"))).send_keys(EMAIL_MRV)
         click_anti_stale(wait, By.ID, "idSIButton9")
         wait.until(EC.presence_of_element_located((By.ID, "i0118"))).send_keys(SENHA_MRV)
-        click_anti_stale(wait, By.ID, "idSIButton9")
+        click_anti_stale(wait_longo, By.ID, "idSIButton9")
         print("!!! APROVE O MFA NO CELULAR !!!")
-        click_anti_stale(wait, By.ID, "idSIButton9") 
+        click_anti_stale(wait_longo, By.ID, "idSIButton9") 
         
         fechar_mensagem = WebDriverWait(driver, 100).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-icon.btnCancelTest")))
         fechar_mensagem.click()

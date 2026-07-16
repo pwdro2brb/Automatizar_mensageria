@@ -69,8 +69,12 @@ class CentralAutomacaoMRV:
         frame_correios = ttk.LabelFrame(frame_botoes, text="📦 Correios & Faturamento")
         frame_correios.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
+        self.btn_enc_dia = ttk.Button(frame_correios, text="Relatório Encomendas do Dia", 
+            command=lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
+        self.btn_enc_dia.pack(fill=tk.X, padx=10, pady=5)
+
         self.btn_rateio_malote = ttk.Button(frame_correios, text="Rateio de Malote (Centros de Custo)", 
-            command=lambda: self.executar_processo_cancelavel("Rateio de Malote", comando_python="import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
+            command=lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
         self.btn_rateio_malote.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fat_1 = ttk.Button(frame_correios, text="Faturamento 1: Gerar Rascunhos", 
@@ -78,7 +82,7 @@ class CentralAutomacaoMRV:
         self.btn_fat_1.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fat_2 = ttk.Button(frame_correios, text="Faturamento 2: Planilha Rateio Pag", 
-            command=lambda: self.executar_processo_cancelavel("Faturamento 2", comando_python="import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
+            command=lambda: self._verificar_planilhas_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
         self.btn_fat_2.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fat_3 = ttk.Button(frame_correios, text="Faturamento 3: Lançar NF (Portal)", 
@@ -93,7 +97,7 @@ class CentralAutomacaoMRV:
         self.btn_juridico.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_incluir_podio = ttk.Button(frame_podio, text="Incluir Correspondências Rápidas", 
-            command=lambda: self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()"))
+            command=self._chamar_robo_incluir_encomendas)
         self.btn_incluir_podio.pack(fill=tk.X, padx=10, pady=5)
 
         # --- CATEGORIA 3: AGILIS & PRODUTIVIDADE ---
@@ -105,7 +109,7 @@ class CentralAutomacaoMRV:
         self.btn_produtividade.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", 
-            command=lambda: self.executar_processo_cancelavel("Produtividade Setorial", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor()"))
+            command=self._chamar_robo_produtividade)
         self.btn_produtividade_setor.pack(fill=tk.X, padx=10, pady=5)
 
         self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", 
@@ -116,13 +120,12 @@ class CentralAutomacaoMRV:
         frame_outros = ttk.LabelFrame(frame_botoes, text="🚗 Outros (Uber / SAP)")
         frame_outros.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
-        # ✅ BOTÕES DO UBER ATUALIZADOS AQUI
         self.btn_uber_1 = ttk.Button(frame_outros, text="Uber 1: Atualizar Responsáveis (SAP)", 
-            command=lambda: self.executar_processo_cancelavel("Uber 1", comando_python="import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
+            command=lambda: self._verificar_planilhas_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
         self.btn_uber_1.pack(fill=tk.X, padx=10, pady=2)
 
         self.btn_uber_2 = ttk.Button(frame_outros, text="Uber 2: Gerar Relatórios e Pastas", 
-            command=lambda: self.executar_processo_cancelavel("Uber 2", comando_python="import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
+            command=lambda: self._verificar_planilhas_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
         self.btn_uber_2.pack(fill=tk.X, padx=10, pady=2)
 
         self.btn_uber_3 = ttk.Button(frame_outros, text="Uber 3: Criar Rascunhos de E-mail", 
@@ -150,7 +153,7 @@ class CentralAutomacaoMRV:
         sys.stderr = PrintRedirector(self.console)
 
         self.todos_botoes = [
-           self.btn_rateio_malote, self.btn_fat_1, self.btn_fat_2, self.btn_fat_3,
+            self.btn_enc_dia, self.btn_rateio_malote, self.btn_fat_1, self.btn_fat_2, self.btn_fat_3,
             self.btn_juridico, self.btn_incluir_podio, self.btn_produtividade, self.btn_fechar_chamados,self.btn_produtividade_setor,
             self.btn_uber_1, self.btn_uber_2, self.btn_uber_3, self.btn_zmm180
         ]
@@ -158,6 +161,9 @@ class CentralAutomacaoMRV:
         print("✅ Sistema Central iniciado com sucesso, Pedro!")
         print("Selecione o processo que deseja executar.\n" + "-"*60)
 
+    # ======================================================================
+    # FUNÇÕES DE AVISO E VALIDAÇÃO (POKA-YOKE)
+    # ======================================================================
     def _chamar_robo_juridico(self):
         resposta = messagebox.askyesnocancel(
             "Relatório Jurídico Montreal",
@@ -171,6 +177,35 @@ class CentralAutomacaoMRV:
             self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=False)")
         elif resposta is False: 
             self.executar_processo_cancelavel("Relatório Jurídico (Apenas Formatação)", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=True)")
+
+    def _verificar_planilhas_e_executar(self, nome_processo, comando_python):
+        resposta = messagebox.askyesno(
+            "Lembrete de Arquivos",
+            f"⚠️ LEMBRETE ⚠️\n\nVocê já atualizou/trocou as planilhas na pasta para rodar o {nome_processo}?"
+        )
+        if resposta:
+            self.executar_processo_cancelavel(nome_processo, comando_python=comando_python)
+
+    def _chamar_robo_produtividade(self):
+        resposta = messagebox.askokcancel(
+            "Aviso Importante - SAP e Mouse",
+            "⚠️ ATENÇÃO ⚠️\n\n"
+            "1. Deixe o SAP aberto (após a tela de login) na SEGUNDA TELA.\n"
+            "2. NÃO MEXA no mouse ou teclado durante o processo (principalmente na parte do Bússola).\n\n"
+            "Deseja continuar?"
+        )
+        if resposta:
+            self.executar_processo_cancelavel("Produtividade Setorial", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor()")
+
+    def _chamar_robo_incluir_encomendas(self):
+        resposta = messagebox.askokcancel(
+            "Lembrete - Correspondências",
+            "⚠️ LEMBRETE ⚠️\n\n"
+            "Você lembrou de apagar os dados antigos e preencher com os novos na planilha?\n\n"
+            "Clique em OK para continuar ou Cancelar para verificar."
+        )
+        if resposta:
+            self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()")
 
     # ======================================================================
     # MOTOR UNIVERSAL DE PROCESSOS ISOLADOS (CANCELÁVEIS)

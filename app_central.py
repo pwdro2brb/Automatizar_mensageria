@@ -11,12 +11,18 @@ except Exception:
     except Exception:
         pass
 # ==============================================================================
+
 import os
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import messagebox
+import customtkinter as ctk
 import threading
 import sys
 import subprocess
+
+# Configuração do Tema Moderno
+ctk.set_appearance_mode("Dark")  # Pode ser "Light", "Dark" ou "System"
+ctk.set_default_color_theme("green")
 
 class PrintRedirector:
     """Redireciona os prints do terminal para a caixa de texto da interface de forma segura (Thread-Safe)."""
@@ -39,126 +45,128 @@ class CentralAutomacaoMRV:
     def __init__(self, root):
         self.processo_ativo = None 
         self.foi_cancelado = False 
-        
-        # Botão de Cancelar (Vermelho e chamativo)
-        self.btn_cancelar = tk.Button(root, text="🛑 CANCELAR PROCESSO ATIVO", bg="#ff4d4d", fg="white", font=("Arial", 10, "bold"), command=self.cancelar_processo, state="disabled")
-        self.btn_cancelar.pack(fill=tk.X, pady=(10, 5))
+        self.todos_botoes = []
+
+        # Cores MRV
+        self.COR_MRV = "#008542"          # Verde MRV
+        self.COR_MRV_HOVER = "#006331"    # Verde MRV (Mais escuro para o hover)
+        self.COR_CANCELAR = "#E74C3C"     # Vermelho
+        self.COR_CANCELAR_HOVER = "#C0392B"
 
         self.root = root
         self.root.title("Hub Central de Automações - MRV")
-        self.root.geometry("950x750")
-        self.root.configure(padx=15, pady=15)
-
-        style = ttk.Style()
-        style.configure("TButton", font=("Arial", 9, "bold"), padding=5)
-        style.configure("TLabelframe.Label", font=("Arial", 10, "bold"), foreground="#003366")
-
-        lbl_titulo = ttk.Label(root, text="🤖 Central de Robôs - Administrativo MRV", font=("Arial", 16, "bold"))
-        lbl_titulo.pack(pady=(0, 15))
-
-        frame_botoes = tk.Frame(root)
-        frame_botoes.pack(fill=tk.X, pady=5)
-
-        # ======================================================================
-        # MAPEAMENTO DOS BOTÕES
-        # ======================================================================
+        self.root.geometry("1050x850")
         
-        cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('✅ Concluído!')"
+        # Título Principal (Emoji removido para evitar desalinhamento)
+        lbl_titulo = ctk.CTkLabel(root, text="Central de Robôs - Administrativo MRV", 
+                                  font=ctk.CTkFont(size=24, weight="bold"), text_color=self.COR_MRV)
+        lbl_titulo.pack(pady=(20, 15))
 
-        # --- CATEGORIA 1: CORREIOS & FATURAMENTO ---
-        frame_correios = ttk.LabelFrame(frame_botoes, text="📦 Correios & Faturamento")
-        frame_correios.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
-
-        self.btn_enc_dia = ttk.Button(frame_correios, text="Relatório Encomendas do Dia", 
-            command=lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
-        self.btn_enc_dia.pack(fill=tk.X, padx=10, pady=5)
-
-        self.btn_rateio_malote = ttk.Button(frame_correios, text="Rateio de Malote (Centros de Custo)", 
-            command=lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
-        self.btn_rateio_malote.pack(fill=tk.X, padx=10, pady=5)
-
-        self.btn_fat_1 = ttk.Button(frame_correios, text="Faturamento 1: Gerar Rascunhos", 
-            command=lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"))
-        self.btn_fat_1.pack(fill=tk.X, padx=10, pady=5)
-
-        self.btn_fat_2 = ttk.Button(frame_correios, text="Faturamento 2: Planilha Rateio Pag", 
-            command=lambda: self._verificar_planilhas_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
-        self.btn_fat_2.pack(fill=tk.X, padx=10, pady=5)
-
-        self.btn_fat_3 = ttk.Button(frame_correios, text="Faturamento 3: Lançar NF (Portal)", 
-            command=lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()"))
-        self.btn_fat_3.pack(fill=tk.X, padx=10, pady=5)
-
-        # --- CATEGORIA 2: PODIO & MENSAGERIA ---
-        frame_podio = ttk.LabelFrame(frame_botoes, text="🏢 Podio & Mensageria")
-        frame_podio.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
-
-        self.btn_juridico = ttk.Button(frame_podio, text="Relatório Jurídico Montreal", command=self._chamar_robo_juridico)
-        self.btn_juridico.pack(fill=tk.X, padx=10, pady=5)
-
-        self.btn_incluir_podio = ttk.Button(frame_podio, text="Incluir Correspondências Rápidas", 
-            command=self._chamar_robo_incluir_encomendas)
-        self.btn_incluir_podio.pack(fill=tk.X, padx=10, pady=5)
-
-        # --- CATEGORIA 3: AGILIS & PRODUTIVIDADE ---
-        frame_agilis = ttk.LabelFrame(frame_botoes, text="🎧 Agilis & Chamados")
-        frame_agilis.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
-
-        self.btn_produtividade = ttk.Button(frame_agilis, text="Gerar relatório de envio para Correios", 
-            command=lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
-        self.btn_produtividade.pack(fill=tk.X, padx=10, pady=5)
-
-        self.btn_produtividade_setor = ttk.Button(frame_agilis, text="Gerar Produtividade (Podio/Agilis/SAP)", 
-            command=self._chamar_robo_produtividade)
-        self.btn_produtividade_setor.pack(fill=tk.X, padx=10, pady=5)
-
-        self.btn_fechar_chamados = ttk.Button(frame_agilis, text="Fechar Chamados a Vencer", 
-            command=lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
-        self.btn_fechar_chamados.pack(fill=tk.X, padx=10, pady=5)
-
-        # --- CATEGORIA 4: OUTROS SISTEMAS ---
-        frame_outros = ttk.LabelFrame(frame_botoes, text="🚗 Outros (Uber / SAP)")
-        frame_outros.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
-
-        self.btn_uber_1 = ttk.Button(frame_outros, text="Uber 1: Atualizar Responsáveis (SAP)", 
-            command=lambda: self._verificar_planilhas_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
-        self.btn_uber_1.pack(fill=tk.X, padx=10, pady=2)
-
-        self.btn_uber_2 = ttk.Button(frame_outros, text="Uber 2: Gerar Relatórios e Pastas", 
-            command=lambda: self._verificar_planilhas_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
-        self.btn_uber_2.pack(fill=tk.X, padx=10, pady=2)
-
-        self.btn_uber_3 = ttk.Button(frame_outros, text="Uber 3: Criar Rascunhos de E-mail", 
-            command=lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()"))
-        self.btn_uber_3.pack(fill=tk.X, padx=10, pady=2)
-
-        self.btn_zmm180 = ttk.Button(frame_outros, text="Faturamento Transação ZMM180", 
-            command=lambda: self.executar_processo_cancelavel("Faturamento ZMM180", comando_python=cmd_placeholder))
-        self.btn_zmm180.pack(fill=tk.X, padx=10, pady=5)
-
+        # Frame principal que vai segurar as 4 categorias
+        frame_botoes = ctk.CTkFrame(root, fg_color="transparent")
+        frame_botoes.pack(fill=tk.BOTH, expand=False, padx=20)
+        
         frame_botoes.columnconfigure(0, weight=1)
         frame_botoes.columnconfigure(1, weight=1)
 
         # ======================================================================
+        # FUNÇÕES AUXILIARES PARA CRIAR O DESIGN
+        # ======================================================================
+        def criar_quadro(parent, titulo, row, col):
+            frm = ctk.CTkFrame(parent)
+            frm.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+            # Emoji removido do título do quadro para evitar desalinhamento
+            lbl = ctk.CTkLabel(frm, text=titulo, font=ctk.CTkFont(size=16, weight="bold"))
+            lbl.pack(pady=(10, 10))
+            return frm
+
+        def criar_botao(parent, texto, comando, espaco_extra=False):
+            pady_val = (15, 5) if espaco_extra else 5
+            btn = ctk.CTkButton(parent, text=texto, command=comando, 
+                                fg_color=self.COR_MRV, hover_color=self.COR_MRV_HOVER,
+                                font=ctk.CTkFont(size=13, weight="bold"), height=35)
+            btn.pack(fill=tk.X, padx=20, pady=pady_val)
+            self.todos_botoes.append(btn)
+            return btn
+
+        cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('Concluído!')"
+
+        # --- CATEGORIA 1: CORREIOS & FATURAMENTO ---
+        frame_correios = criar_quadro(frame_botoes, "Correios & Faturamento", 0, 0)
+        
+        criar_botao(frame_correios, "Relatório Encomendas do Dia", 
+                    lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
+        
+        criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", 
+                    lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
+        
+        # Espaço extra para agrupar o faturamento
+        criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", 
+                    lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"), espaco_extra=True)
+        
+        criar_botao(frame_correios, "Faturamento 2: Planilha Rateio Pag", 
+                    lambda: self._verificar_planilhas_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
+        
+        criar_botao(frame_correios, "Faturamento 3: Lançar NF (Portal)", 
+                    lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()"))
+
+        # --- CATEGORIA 2: PODIO & MENSAGERIA ---
+        frame_podio = criar_quadro(frame_botoes, "Podio & Mensageria", 0, 1)
+        
+        criar_botao(frame_podio, "Relatório Jurídico Montreal", self._chamar_robo_juridico)
+        
+        criar_botao(frame_podio, "Incluir Correspondências Rápidas", self._chamar_robo_incluir_encomendas)
+
+        # --- CATEGORIA 3: AGILIS & CHAMADOS ---
+        frame_agilis = criar_quadro(frame_botoes, "Agilis & Chamados", 1, 0)
+        
+        criar_botao(frame_agilis, "Gerar relatório de envio para Correios", 
+                    lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
+        
+        criar_botao(frame_agilis, "Gerar Produtividade (Podio/Agilis/SAP)", self._chamar_robo_produtividade)
+        
+        criar_botao(frame_agilis, "Fechar Chamados a Vencer", 
+                    lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
+
+        # --- CATEGORIA 4: OUTROS SISTEMAS ---
+        frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP)", 1, 1)
+        
+        criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", 
+                    lambda: self._verificar_planilhas_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
+
+        criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", 
+                    lambda: self._verificar_planilhas_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
+
+        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", 
+                    lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()"))
+        
+        criar_botao(frame_outros, "Faturamento Transação ZMM180", 
+                    lambda: self.executar_processo_cancelavel("Faturamento ZMM180", comando_python=cmd_placeholder), espaco_extra=True)
+
+        # ======================================================================
+        # BOTÃO CANCELAR (MOVIDO PARA BAIXO)
+        # ======================================================================
+        self.btn_cancelar = ctk.CTkButton(root, text="CANCELAR PROCESSO ATIVO", 
+                                          fg_color=self.COR_CANCELAR, hover_color=self.COR_CANCELAR_HOVER, 
+                                          font=ctk.CTkFont(size=14, weight="bold"), height=40,
+                                          command=self.cancelar_processo, state="disabled")
+        self.btn_cancelar.pack(fill=tk.X, padx=30, pady=(20, 10))
+
+        # ======================================================================
         # CONSOLE DE LOGS
         # ======================================================================
-        lbl_console = ttk.Label(root, text="Console de Execução em Tempo Real:", font=("Arial", 10, "bold"))
-        lbl_console.pack(anchor=tk.W, pady=(15, 5))
+        lbl_console = ctk.CTkLabel(root, text="Console de Execução em Tempo Real:", font=ctk.CTkFont(size=14, weight="bold"))
+        lbl_console.pack(anchor=tk.W, padx=30, pady=(0, 5))
 
-        self.console = tk.Text(root, height=15, bg="#1e1e1e", fg="#00ff00", font=("Consolas", 10))
-        self.console.pack(fill=tk.BOTH, expand=True)
+        self.console = ctk.CTkTextbox(root, height=200, font=ctk.CTkFont(family="Consolas", size=13), 
+                                      text_color="#00FF00", fg_color="#1E1E1E", border_width=2, border_color="#333333")
+        self.console.pack(fill=tk.BOTH, expand=True, padx=30, pady=(0, 20))
         self.console.configure(state='disabled')
 
         sys.stdout = PrintRedirector(self.console)
         sys.stderr = PrintRedirector(self.console)
 
-        self.todos_botoes = [
-            self.btn_enc_dia, self.btn_rateio_malote, self.btn_fat_1, self.btn_fat_2, self.btn_fat_3,
-            self.btn_juridico, self.btn_incluir_podio, self.btn_produtividade, self.btn_fechar_chamados,self.btn_produtividade_setor,
-            self.btn_uber_1, self.btn_uber_2, self.btn_uber_3, self.btn_zmm180
-        ]
-
-        print("✅ Sistema Central iniciado com sucesso, Pedro!")
+        print("Sistema Central iniciado com sucesso, Pedro!")
         print("Selecione o processo que deseja executar.\n" + "-"*60)
 
     # ======================================================================
@@ -181,7 +189,7 @@ class CentralAutomacaoMRV:
     def _verificar_planilhas_e_executar(self, nome_processo, comando_python):
         resposta = messagebox.askyesno(
             "Lembrete de Arquivos",
-            f"⚠️ LEMBRETE ⚠️\n\nVocê já atualizou/trocou as planilhas na pasta para rodar o {nome_processo}?"
+            f"LEMBRETE\n\nVocê já atualizou/trocou as planilhas na pasta para rodar o {nome_processo}?"
         )
         if resposta:
             self.executar_processo_cancelavel(nome_processo, comando_python=comando_python)
@@ -189,7 +197,7 @@ class CentralAutomacaoMRV:
     def _chamar_robo_produtividade(self):
         resposta = messagebox.askokcancel(
             "Aviso Importante - SAP e Mouse",
-            "⚠️ ATENÇÃO ⚠️\n\n"
+            "ATENÇÃO\n\n"
             "1. Deixe o SAP aberto (após a tela de login) na SEGUNDA TELA.\n"
             "2. NÃO MEXA no mouse ou teclado durante o processo (principalmente na parte do Bússola).\n\n"
             "Deseja continuar?"
@@ -200,7 +208,7 @@ class CentralAutomacaoMRV:
     def _chamar_robo_incluir_encomendas(self):
         resposta = messagebox.askokcancel(
             "Lembrete - Correspondências",
-            "⚠️ LEMBRETE ⚠️\n\n"
+            "LEMBRETE\n\n"
             "Você lembrou de apagar os dados antigos e preencher com os novos na planilha?\n\n"
             "Clique em OK para continuar ou Cancelar para verificar."
         )
@@ -212,7 +220,7 @@ class CentralAutomacaoMRV:
     # ======================================================================
     def executar_processo_cancelavel(self, nome_processo, comando_python=None, script_path=None):
         for btn in self.todos_botoes:
-            btn.state(['disabled'])
+            btn.configure(state="disabled")
             
         print(f">>> Iniciando: {nome_processo}...")
         threading.Thread(target=self._rodar_subprocesso, args=(comando_python, script_path), daemon=True).start()
@@ -237,7 +245,7 @@ class CentralAutomacaoMRV:
             )
             
             self.processo_ativo = processo
-            self.root.after(0, lambda: self.btn_cancelar.config(state="normal"))
+            self.root.after(0, lambda: self.btn_cancelar.configure(state="normal"))
             
             linhas_log = []
 
@@ -251,18 +259,18 @@ class CentralAutomacaoMRV:
             processo.wait() 
             
             self.processo_ativo = None
-            self.root.after(0, lambda: self.btn_cancelar.config(state="disabled"))
+            self.root.after(0, lambda: self.btn_cancelar.configure(state="disabled"))
             
             if self.foi_cancelado:
-                print("\n⚠️ O processo foi cancelado pelo usuário.")
+                print("\nO processo foi cancelado pelo usuário.")
                 self.root.after(0, lambda: messagebox.showwarning("Cancelado", "O processo foi cancelado forçadamente pelo usuário."))
             
             elif processo.returncode == 0:
-                print("\n✅ Processo finalizado com sucesso!")
+                print("\nProcesso finalizado com sucesso!")
                 self.root.after(0, lambda: messagebox.showinfo("Sucesso", "A automação foi concluída com sucesso!"))
             
             elif processo.returncode == 1:
-                print(f"\n⚠️ O processo falhou (Código {processo.returncode}).")
+                print(f"\nO processo falhou (Código {processo.returncode}).")
                 
                 linhas_erro = [l for l in linhas_log if l.strip()]
                 texto_erro = ""
@@ -287,18 +295,17 @@ class CentralAutomacaoMRV:
                 self.root.after(0, lambda: messagebox.showerror("Erro na Automação", mensagem_popup))
             
             else:
-                print(f"\n⚠️ O processo foi encerrado (Código {processo.returncode}).")
+                print(f"\nO processo foi encerrado (Código {processo.returncode}).")
                 self.root.after(0, lambda: messagebox.showwarning("Encerrado", "O processo foi encerrado."))
                 
         except Exception as e:
-            print(f"\n❌ Erro ao iniciar o processo: {e}")
+            print(f"\nErro ao iniciar o processo: {e}")
             self.root.after(0, lambda msg=str(e): messagebox.showerror("Erro Crítico", msg))
         finally:
             print("-" * 60)
             self.root.after(0, self._reativar_botoes)
 
     def cancelar_processo(self):
-        """Mata o processo ativo e todos os navegadores/janelas que ele abriu."""
         if self.processo_ativo and self.processo_ativo.poll() is None:
             resposta = messagebox.askyesno("Atenção", "Tem certeza que deseja cancelar o robô?\nIsso fechará os navegadores abertos por ele.")
             if resposta:
@@ -310,16 +317,16 @@ class CentralAutomacaoMRV:
                         self.processo_ativo.stdout.close()
                         
                     print("\n" + "="*50)
-                    print("🛑 PROCESSO CANCELADO FORÇADAMENTE PELO USUÁRIO!")
+                    print("PROCESSO CANCELADO FORÇADAMENTE PELO USUÁRIO!")
                     print("="*50 + "\n")
                 except Exception as e:
-                    print(f"\n❌ Erro ao tentar cancelar: {e}")
+                    print(f"\nErro ao tentar cancelar: {e}")
 
     def _reativar_botoes(self):
         for btn in self.todos_botoes:
-            btn.state(['!disabled'])
+            btn.configure(state="normal")
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = ctk.CTk() 
     app = CentralAutomacaoMRV(root)
     root.mainloop()

@@ -208,10 +208,30 @@ class CentralAutomacaoMRV:
             "Lembrete - Correspondências",
             "LEMBRETE\n\n"
             "Você lembrou de apagar os dados antigos e preencher com os novos na planilha?\n\n"
-            "Clique em OK para continuar ou Cancelar para verificar."
+            "• Clique em OK para rodar o robô.\n"
+            "• Clique em Cancelar para ABRIR A PLANILHA."
         )
+        
         if resposta:
+            # Se clicou em OK, roda o robô normalmente
             self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()")
+        else:
+            # Se clicou em Cancelar, abre o Excel direto na tela!
+            import os
+            
+            # Monta o caminho exato da planilha baseado na localização do app_central.py
+            pasta_raiz = os.path.dirname(os.path.abspath(__file__))
+            caminho_planilha = os.path.join(pasta_raiz, "arquivos", "encomendas", "encomendas.xlsx")
+            
+            if os.path.exists(caminho_planilha):
+                os.startfile(caminho_planilha)
+                print(">>> Planilha de encomendas aberta para edição.")
+            else:
+                messagebox.showwarning(
+                    "Aviso", 
+                    "A planilha 'encomendas.xlsx' ainda não foi encontrada.\n"
+                    "Ela será criada automaticamente na primeira vez que você rodar o robô."
+                )
 
     # NOVA FUNÇÃO PARA O ZMM180
     def _chamar_robo_zmm180(self):
@@ -241,9 +261,11 @@ class CentralAutomacaoMRV:
         
         try:
             if script_path:
-                cmd = [sys.executable, "-X", "utf8", script_path]
+                # Adicionado o "-u" aqui
+                cmd = [sys.executable, "-u", "-X", "utf8", script_path]
             else:
-                cmd = [sys.executable, "-X", "utf8", "-c", comando_python]
+                # Adicionado o "-u" aqui
+                cmd = [sys.executable, "-u", "-X", "utf8", "-c", comando_python]
 
             processo = subprocess.Popen(
                 cmd,

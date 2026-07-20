@@ -1,5 +1,4 @@
 config
-__pycache__/
 *.pyc
 config.py
 testar_edicao/
@@ -9,3 +8,32 @@ Produtividade/
 encomendas.xlsx
 rateio_malote/
 uber/
+
+# =========================
+# Python / VS Code
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+.vscode/
+.venv/
+venv/
+
+# =========================
+# PyInstaller (Executáveis)
+# =========================
+build/
+dist/
+*.spec
+
+# =========================
+# Arquivos Dinâmicos e Dados Sensíveis
+# =========================
+# Ignora os arquivos de erro do Selenium
+erro_*.png
+erro_*.html
+
+# Ignora o cache do scraper
+cache_percursos_cc.json
+
+config_mrv.json

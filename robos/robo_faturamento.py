@@ -38,10 +38,11 @@ import sys
 # ==============================================================================
 # Garante que o robô ache o config.py na raiz do projeto
 sys.path.append(str(Path(__file__).parent.parent))
+import config
 from config import EMAIL_MRV, SENHA_MRV
 
-# Aponta dinamicamente para a nova pasta: AUTOMATIZAR_MENSAGERIA/arquivos/faturamento
-PASTA_ARQUIVOS_RATEIO = Path(__file__).parent.parent / "arquivos" / "faturamento"
+# Aponta dinamicamente para a nova pasta usando o Radar do config
+PASTA_ARQUIVOS_RATEIO = Path(config.PASTA_ARQUIVOS) / "faturamento"
 
 # Constantes Globais
 CNPJ_CORREIOS_FIXO = "34028316001509"   

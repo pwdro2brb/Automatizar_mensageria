@@ -5,7 +5,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent)) # <--- ADICIONE ISSO
+sys.path.append(str(Path(__file__).parent.parent))
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -15,6 +15,15 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
+
+import config
+from pathlib import Path
+
+# ==============================================================================
+# CONFIGURAÇÃO DE PASTAS DINÂMICAS
+# ==============================================================================
+# Transforma o texto do config em um Objeto Path para o .exists() funcionar
+PASTA_ENCOMENDAS = Path(config.PASTA_ARQUIVOS) / "encomendas"
 
 # Importações locais
 from treinar_ia import MAPA_PESSOAS, MAPA_ORIGEM_MALOTE
@@ -111,16 +120,15 @@ def preencher_malote_iframe(driver, id_elemento, valor):
 def executar_inclusao():
     
     # 1. Lógica de Pastas
-    pasta_base = Path(os.path.dirname(os.path.abspath(__file__)))
-    pasta_encomendas = Path(__file__).parent.parent / "arquivos" / "encomendas"
+    pasta_encomendas = os.path.join(config.PASTA_ARQUIVOS, "encomendas")
     
-    if not pasta_encomendas.exists():
-        pasta_encomendas.mkdir(parents=True, exist_ok=True)
-        print(f"📁 Pasta 'arquivos_encomendas' criada automaticamente.")
+    if not os.path.exists(pasta_encomendas):
+        os.makedirs(pasta_encomendas, exist_ok=True)
+        print(f"📁 Pasta 'encomendas' criada automaticamente.")
         
-    caminho_planilha = pasta_encomendas / "encomendas.xlsx"
+    caminho_planilha = os.path.join(pasta_encomendas, "encomendas.xlsx")
     
-    if not caminho_planilha.exists():
+    if not os.path.exists(caminho_planilha):
         raise FileNotFoundError(f"A planilha 'encomendas.xlsx' não foi encontrada!\nPor favor, coloque o arquivo dentro da pasta:\n{pasta_encomendas}")
 
     # ==========================================================================

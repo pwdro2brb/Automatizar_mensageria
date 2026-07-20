@@ -15,13 +15,15 @@ import openpyxl
 import sys
 from pathlib import Path
 
+import config
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS E CREDENCIAIS
 # ==============================================================================
 sys.path.append(str(Path(__file__).parent.parent))
 from config import EMAIL_MRV, SENHA_MRV
 
-PASTA_MALOTE = Path(__file__).parent.parent / "arquivos" / "rateio_malote"
+# Aponta dinamicamente para a nova pasta usando o Radar do config
+PASTA_MALOTE = Path(config.PASTA_ARQUIVOS) / "rateio_malote"
 CACHE_FILE = str(PASTA_MALOTE / "cache_percursos_cc.json")
 
 CORREIOS_EMAIL = EMAIL_MRV

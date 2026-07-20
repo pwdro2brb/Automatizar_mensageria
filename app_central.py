@@ -1,7 +1,51 @@
+import sys
+import os
+import traceback
+import time
+import tempfile
+
+# ==============================================================================
+# 🚀 1. INTERCEPTADOR DE PROCESSOS (Bypass do PyInstaller --noconsole)
+# ==============================================================================
+if len(sys.argv) > 2 and sys.argv[1] == "--run-code":
+    codigo = sys.argv[2]
+    log_path = sys.argv[3] if len(sys.argv) > 3 else None
+    
+    if log_path:
+        # Redireciona a "voz" do robô para um arquivo de texto temporário
+        sys.stdout = open(log_path, "w", encoding="utf-8", buffering=1)
+        sys.stderr = sys.stdout
+        
+    try:
+        exec(codigo)
+    except Exception as e:
+        # Se der erro, escreve o erro completo no arquivo para o Hub ler
+        traceback.print_exc()
+        sys.exit(1)
+    sys.exit(0)
+
+# ==============================================================================
+# 📦 2. FORÇAR O PYINSTALLER A EMPACOTAR OS ROBÔS
+# ==============================================================================
+try:
+    import robos.robo_rateio_malote
+    import robos.robo_faturamento
+    import robos.robo_juridico
+    import robos.robo_incluir_encomendas
+    import robos.robo_relatorio_correios
+    import robos.produtividade
+    import robos.robo_fechar_chamados
+    import robos.robo_uber_relatorios
+    import robos.robo_zmm180
+    import robos.malote_web_scraper 
+    import robos.criar_rascunhos_uber
+except ImportError:
+    pass 
+
 import ctypes
 
 # ==============================================================================
-# 🚀 FORÇAR O WINDOWS A RECONHECER TODOS OS MONITORES (ANTES DO TKINTER NASCER)
+# 🚀 FORÇAR O WINDOWS A RECONHECER TODOS OS MONITORES
 # ==============================================================================
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -10,22 +54,19 @@ except Exception:
         ctypes.windll.user32.SetProcessDPIAware()
     except Exception:
         pass
-# ==============================================================================
 
-import os
 import tkinter as tk
 from tkinter import messagebox
 import customtkinter as ctk
 import threading
-import sys
 import subprocess
+import config
 
 # Configuração do Tema Moderno
-ctk.set_appearance_mode("Dark")  # Pode ser "Light", "Dark" ou "System"
+ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("green")
 
 class PrintRedirector:
-    """Redireciona os prints do terminal para a caixa de texto da interface de forma segura (Thread-Safe)."""
     def __init__(self, text_widget):
         self.text_widget = text_widget
 
@@ -47,31 +88,28 @@ class CentralAutomacaoMRV:
         self.foi_cancelado = False 
         self.todos_botoes = []
 
-        # Cores MRV
-        self.COR_MRV = "#008542"          # Verde MRV
-        self.COR_MRV_HOVER = "#006331"    # Verde MRV (Mais escuro para o hover)
-        self.COR_CANCELAR = "#E74C3C"     # Vermelho
+        self.COR_MRV = "#008542"
+        self.COR_MRV_HOVER = "#006331"
+        self.COR_CANCELAR = "#E74C3C"
         self.COR_CANCELAR_HOVER = "#C0392B"
 
         self.root = root
         self.root.title("Hub Central de Automações - MRV")
         self.root.geometry("1050x850")
         
-        # Título Principal
-        lbl_titulo = ctk.CTkLabel(root, text="Central de Robôs - Administrativo MRV", 
-                                  font=ctk.CTkFont(size=24, weight="bold"), text_color=self.COR_MRV)
-        lbl_titulo.pack(pady=(20, 15))
+        lbl_titulo = ctk.CTkLabel(root, text="🤖 Central de Robôs - Administrativo MRV", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_titulo.pack(pady=(0, 5))
 
-        # Frame principal que vai segurar as 4 categorias
+        btn_config = ctk.CTkButton(root, text="⚙️ Configurar Credenciais", command=self._abrir_popup_config, 
+                                   fg_color="#3498DB", hover_color="#2980B9", font=ctk.CTkFont(weight="bold"))
+        btn_config.pack(pady=(0, 15))
+
         frame_botoes = ctk.CTkFrame(root, fg_color="transparent")
         frame_botoes.pack(fill=tk.BOTH, expand=False, padx=20)
         
         frame_botoes.columnconfigure(0, weight=1)
         frame_botoes.columnconfigure(1, weight=1)
 
-        # ======================================================================
-        # FUNÇÕES AUXILIARES PARA CRIAR O DESIGN
-        # ======================================================================
         def criar_quadro(parent, titulo, row, col):
             frm = ctk.CTkFrame(parent)
             frm.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
@@ -90,69 +128,35 @@ class CentralAutomacaoMRV:
 
         cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('Concluído!')"
 
-        # --- CATEGORIA 1: CORREIOS & FATURAMENTO ---
         frame_correios = criar_quadro(frame_botoes, "Correios & Faturamento", 0, 0)
-        
-        criar_botao(frame_correios, "Relatório Encomendas do Dia", 
-                    lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
-        
-        criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", 
-                    lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
-        
-        criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", 
-                    lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"), espaco_extra=True)
-        
-        criar_botao(frame_correios, "Faturamento 2: Planilha Rateio Pag", 
-                    lambda: self._verificar_planilhas_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
-        
-        criar_botao(frame_correios, "Faturamento 3: Lançar NF (Portal)", 
-                    lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()"))
+        criar_botao(frame_correios, "Relatório Encomendas do Dia", lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
+        criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
+        criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"), espaco_extra=True)
+        criar_botao(frame_correios, "Faturamento 2: Planilha Rateio Pag", lambda: self._verificar_planilhas_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
+        criar_botao(frame_correios, "Faturamento 3: Lançar NF (Portal)", lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()"))
 
-        # --- CATEGORIA 2: PODIO & MENSAGERIA ---
         frame_podio = criar_quadro(frame_botoes, "Podio & Mensageria", 0, 1)
-        
         criar_botao(frame_podio, "Relatório Jurídico Montreal", self._chamar_robo_juridico)
-        
         criar_botao(frame_podio, "Incluir Correspondências Rápidas", self._chamar_robo_incluir_encomendas)
 
-        # --- CATEGORIA 3: AGILIS & CHAMADOS ---
         frame_agilis = criar_quadro(frame_botoes, "Agilis & Chamados", 1, 0)
-        
-        criar_botao(frame_agilis, "Gerar relatório de envio para Correios", 
-                    lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
-        
+        criar_botao(frame_agilis, "Gerar relatório de envio para Correios", lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
         criar_botao(frame_agilis, "Gerar Produtividade (Podio/Agilis/SAP)", self._chamar_robo_produtividade)
-        
-        criar_botao(frame_agilis, "Fechar Chamados a Vencer", 
-                    lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
+        criar_botao(frame_agilis, "Fechar Chamados a Vencer", lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
 
-        # --- CATEGORIA 4: OUTROS SISTEMAS ---
+
         frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP)", 1, 1)
-        
-        criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", 
-                    lambda: self._verificar_planilhas_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
-
-        criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", 
-                    lambda: self._verificar_planilhas_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
-
-        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", 
-                    lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()"))
-        
-        # BOTÃO ZMM180 CONECTADO AQUI
+        criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_planilhas_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
+        criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", lambda: self._verificar_planilhas_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
+        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()"))
         criar_botao(frame_outros, "Faturamento Transação ZMM180", self._chamar_robo_zmm180, espaco_extra=True)
 
-        # ======================================================================
-        # BOTÃO CANCELAR
-        # ======================================================================
         self.btn_cancelar = ctk.CTkButton(root, text="CANCELAR PROCESSO ATIVO", 
                                           fg_color=self.COR_CANCELAR, hover_color=self.COR_CANCELAR_HOVER, 
                                           font=ctk.CTkFont(size=14, weight="bold"), height=40,
                                           command=self.cancelar_processo, state="disabled")
         self.btn_cancelar.pack(fill=tk.X, padx=30, pady=(20, 10))
 
-        # ======================================================================
-        # CONSOLE DE LOGS
-        # ======================================================================
         lbl_console = ctk.CTkLabel(root, text="Console de Execução em Tempo Real:", font=ctk.CTkFont(size=14, weight="bold"))
         lbl_console.pack(anchor=tk.W, padx=30, pady=(0, 5))
 
@@ -167,129 +171,76 @@ class CentralAutomacaoMRV:
         print("Sistema Central iniciado com sucesso, Pedro!")
         print("Selecione o processo que deseja executar.\n" + "-"*60)
 
-    # ======================================================================
-    # FUNÇÕES DE AVISO E VALIDAÇÃO (POKA-YOKE)
-    # ======================================================================
     def _chamar_robo_juridico(self):
-        resposta = messagebox.askyesnocancel(
-            "Relatório Jurídico Montreal",
-            "Você deseja que o robô baixe a planilha do Podio automaticamente?\n\n"
-            "SIM: O robô fará tudo (Baixar, Formatar e Criar E-mail).\n"
-            "NÃO: Eu já baixei manualmente (Apenas Formatar e Criar E-mail).\n"
-            "CANCELAR: Abortar operação."
-        )
-        
+        resposta = messagebox.askyesnocancel("Relatório Jurídico Montreal", "Você deseja que o robô baixe a planilha do Podio automaticamente?\n\nSIM: O robô fará tudo.\nNÃO: Eu já baixei manualmente.\nCANCELAR: Abortar operação.")
         if resposta is True: 
             self.executar_processo_cancelavel("Relatório Jurídico Montreal", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=False)")
         elif resposta is False: 
             self.executar_processo_cancelavel("Relatório Jurídico (Apenas Formatação)", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=True)")
 
     def _verificar_planilhas_e_executar(self, nome_processo, comando_python):
-        resposta = messagebox.askyesno(
-            "Lembrete de Arquivos",
-            f"LEMBRETE\n\nVocê já atualizou/trocou as planilhas na pasta para rodar o {nome_processo}?"
-        )
-        if resposta:
+        if messagebox.askyesno("Lembrete de Arquivos", f"LEMBRETE\n\nVocê já atualizou/trocou as planilhas na pasta para rodar o {nome_processo}?"):
             self.executar_processo_cancelavel(nome_processo, comando_python=comando_python)
 
     def _chamar_robo_produtividade(self):
-        resposta = messagebox.askokcancel(
-            "Aviso Importante - SAP e Mouse",
-            "ATENÇÃO\n\n"
-            "1. Deixe o SAP aberto (após a tela de login) na SEGUNDA TELA.\n"
-            "2. NÃO MEXA no mouse ou teclado durante o processo (principalmente na parte do Bússola).\n\n"
-            "Deseja continuar?"
-        )
-        if resposta:
+        if messagebox.askokcancel("Aviso Importante - SAP e Mouse", "ATENÇÃO\n\n1. Deixe o SAP aberto na SEGUNDA TELA.\n2. NÃO MEXA no mouse ou teclado.\n\nDeseja continuar?"):
             self.executar_processo_cancelavel("Produtividade Setorial", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor()")
 
     def _chamar_robo_incluir_encomendas(self):
-        resposta = messagebox.askokcancel(
-            "Lembrete - Correspondências",
-            "LEMBRETE\n\n"
-            "Você lembrou de apagar os dados antigos e preencher com os novos na planilha?\n\n"
-            "• Clique em OK para rodar o robô.\n"
-            "• Clique em Cancelar para ABRIR A PLANILHA."
-        )
-        
-        if resposta:
-            # Se clicou em OK, roda o robô normalmente
+        if messagebox.askokcancel("Lembrete - Correspondências", "Você lembrou de preencher a planilha?\n\n• OK para rodar o robô.\n• Cancelar para ABRIR A PLANILHA."):
             self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()")
         else:
-            # Se clicou em Cancelar, abre o Excel direto na tela!
-            import os
-            
-            # Monta o caminho exato da planilha baseado na localização do app_central.py
-            pasta_raiz = os.path.dirname(os.path.abspath(__file__))
-            caminho_planilha = os.path.join(pasta_raiz, "arquivos", "encomendas", "encomendas.xlsx")
-            
+            caminho_planilha = os.path.join(config.PASTA_ARQUIVOS, "encomendas", "encomendas.xlsx")
             if os.path.exists(caminho_planilha):
                 os.startfile(caminho_planilha)
-                print(">>> Planilha de encomendas aberta para edição.")
             else:
-                messagebox.showwarning(
-                    "Aviso", 
-                    "A planilha 'encomendas.xlsx' ainda não foi encontrada.\n"
-                    "Ela será criada automaticamente na primeira vez que você rodar o robô."
-                )
+                messagebox.showwarning("Aviso", f"A planilha 'encomendas.xlsx' ainda não foi encontrada na pasta:\n{os.path.join(config.PASTA_ARQUIVOS, 'encomendas')}")
 
-    # NOVA FUNÇÃO PARA O ZMM180
     def _chamar_robo_zmm180(self):
-        resposta = messagebox.askokcancel(
-            "Aviso Importante - SAP e Edge",
-            "ATENÇÃO\n\n"
-            "1. Deixe o SAP aberto (após a tela de login) na SEGUNDA TELA.\n"
-            "2. Deixe o documento aberto no Edge (Notebook).\n"
-            "3. NÃO MEXA no mouse ou teclado durante o processo.\n\n"
-            "Deseja continuar?"
-        )
-        if resposta:
+        if messagebox.askokcancel("Aviso Importante - SAP e Edge", "ATENÇÃO\n\n1. Deixe o SAP aberto na SEGUNDA TELA.\n2. Deixe o documento aberto no Edge.\n3. NÃO MEXA no mouse.\n\nDeseja continuar?"):
             self.executar_processo_cancelavel("Faturamento ZMM180", comando_python="import robos.robo_zmm180 as rz; rz.executar_zmm180()")
 
-    # ======================================================================
-    # MOTOR UNIVERSAL DE PROCESSOS ISOLADOS (CANCELÁVEIS)
-    # ======================================================================
-    def executar_processo_cancelavel(self, nome_processo, comando_python=None, script_path=None):
+    def executar_processo_cancelavel(self, nome_processo, comando_python=None):
         for btn in self.todos_botoes:
             btn.configure(state="disabled")
             
         print(f">>> Iniciando: {nome_processo}...")
-        threading.Thread(target=self._rodar_subprocesso, args=(comando_python, script_path), daemon=True).start()
+        threading.Thread(target=self._rodar_subprocesso, args=(comando_python,), daemon=True).start()
 
-    def _rodar_subprocesso(self, comando_python, script_path):
+    def _rodar_subprocesso(self, comando_python):
         self.foi_cancelado = False 
         
+        # Cria um arquivo temporário para capturar os logs do robô
+        fd, log_path = tempfile.mkstemp(suffix=".log", text=True)
+        os.close(fd)
+        
         try:
-            if script_path:
-                # Adicionado o "-u" aqui
-                cmd = [sys.executable, "-u", "-X", "utf8", script_path]
+            if getattr(sys, 'frozen', False):
+                cmd = [sys.executable, "--run-code", comando_python, log_path]
             else:
-                # Adicionado o "-u" aqui
-                cmd = [sys.executable, "-u", "-X", "utf8", "-c", comando_python]
+                cmd = [sys.executable, sys.argv[0], "--run-code", comando_python, log_path]
 
-            processo = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                encoding='utf-8',
-                bufsize=1,
-                creationflags=subprocess.CREATE_NO_WINDOW
-            )
+            processo = subprocess.Popen(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
             
             self.processo_ativo = processo
             self.root.after(0, lambda: self.btn_cancelar.configure(state="normal"))
             
             linhas_log = []
 
-            try:
-                for linha in processo.stdout:
-                    print(linha, end="")
-                    linhas_log.append(linha.rstrip('\r\n')) 
-            except ValueError:
-                pass 
+            # Lê o arquivo temporário em tempo real enquanto o robô roda
+            with open(log_path, "r", encoding="utf-8") as f:
+                while processo.poll() is None:
+                    linha = f.readline()
+                    if linha:
+                        print(linha, end="")
+                        linhas_log.append(linha.rstrip('\r\n'))
+                    else:
+                        time.sleep(0.1)
                 
-            processo.wait() 
+                # Lê qualquer restinho de texto que ficou após o robô terminar
+                for linha in f.readlines():
+                    print(linha, end="")
+                    linhas_log.append(linha.rstrip('\r\n'))
             
             self.processo_ativo = None
             self.root.after(0, lambda: self.btn_cancelar.configure(state="disabled"))
@@ -305,20 +256,13 @@ class CentralAutomacaoMRV:
             elif processo.returncode == 1:
                 print(f"\nO processo falhou (Código {processo.returncode}).")
                 
+                # Agora o rastreador de erros vai achar o erro perfeitamente!
                 linhas_erro = [l for l in linhas_log if l.strip()]
                 texto_erro = ""
                 
                 for i in range(len(linhas_erro)):
                     if "Traceback (most recent call last):" in linhas_erro[i]:
-                        for j in range(i + 1, len(linhas_erro)):
-                            if not linhas_erro[j].startswith(" "):
-                                texto_erro = "\n".join(linhas_erro[j:])
-                                linhas_texto = texto_erro.split("\n")
-                                if ":" in linhas_texto[0]:
-                                    msg_limpa = linhas_texto[0].split(":", 1)[1].strip()
-                                    resto = "\n".join(linhas_texto[1:])
-                                    texto_erro = msg_limpa + ("\n" + resto if resto else "")
-                                break
+                        texto_erro = "\n".join(linhas_erro[i:])
                         break
                 
                 if not texto_erro:
@@ -337,18 +281,18 @@ class CentralAutomacaoMRV:
         finally:
             print("-" * 60)
             self.root.after(0, self._reativar_botoes)
+            # Apaga o arquivo temporário para não lotar o PC
+            try:
+                os.remove(log_path)
+            except:
+                pass
 
     def cancelar_processo(self):
         if self.processo_ativo and self.processo_ativo.poll() is None:
-            resposta = messagebox.askyesno("Atenção", "Tem certeza que deseja cancelar o robô?\nIsso fechará os navegadores abertos por ele.")
-            if resposta:
+            if messagebox.askyesno("Atenção", "Tem certeza que deseja cancelar o robô?\nIsso fechará os navegadores abertos por ele."):
                 try:
                     self.foi_cancelado = True 
                     subprocess.run(['taskkill', '/F', '/T', '/PID', str(self.processo_ativo.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
-                    
-                    if self.processo_ativo.stdout:
-                        self.processo_ativo.stdout.close()
-                        
                     print("\n" + "="*50)
                     print("PROCESSO CANCELADO FORÇADAMENTE PELO USUÁRIO!")
                     print("="*50 + "\n")
@@ -358,6 +302,34 @@ class CentralAutomacaoMRV:
     def _reativar_botoes(self):
         for btn in self.todos_botoes:
             btn.configure(state="normal")
+
+    def _abrir_popup_config(self):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Configurar Credenciais")
+        popup.geometry("400x280")
+        popup.grab_set()
+        popup.attributes("-topmost", True)
+
+        ctk.CTkLabel(popup, text="E-mail MRV:", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 0))
+        entry_email = ctk.CTkEntry(popup, width=300)
+        entry_email.pack(pady=5)
+        entry_email.insert(0, config.EMAIL_USER)
+
+        ctk.CTkLabel(popup, text="Senha:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        entry_senha = ctk.CTkEntry(popup, width=300, show="*")
+        entry_senha.pack(pady=5)
+        entry_senha.insert(0, config.SENHA_USER)
+
+        def salvar():
+            novo_email = entry_email.get().strip()
+            nova_senha = entry_senha.get().strip()
+            config.salvar_credenciais(novo_email, nova_senha)
+            config.EMAIL_USER = novo_email
+            config.SENHA_USER = nova_senha
+            messagebox.showinfo("Sucesso", "Credenciais salvas com sucesso!", parent=popup)
+            popup.destroy()
+
+        ctk.CTkButton(popup, text="Salvar", command=salvar, fg_color=self.COR_MRV, hover_color=self.COR_MRV_HOVER, font=ctk.CTkFont(weight="bold")).pack(pady=25)
 
 if __name__ == "__main__":
     root = ctk.CTk() 

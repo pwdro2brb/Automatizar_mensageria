@@ -10,11 +10,11 @@ import os
 import glob
 import sys
 from pathlib import Path
-
+import config
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS
 # ==============================================================================
-PASTA_UBER = Path(__file__).parent.parent / "arquivos" / "uber"
+PASTA_UBER = Path(config.PASTA_ARQUIVOS) / "uber"
 
 # Garante que a pasta exista
 if not PASTA_UBER.exists():
@@ -124,12 +124,13 @@ def etapa_1_atualizar_responsaveis():
     if not ativos_path: erros.append("👉 Base de Ativos (ex: 'Base de Ativos 16.06.2026.xlsx')")
     if not resp_path.exists(): erros.append("👉 Responsaveis Por Centro de Custos.xlsx")
     
-    downloads_path = os.path.join(os.path.expanduser('~'), 'Downloads')
-    sap_files = glob.glob(os.path.join(downloads_path, 'EXPORT_*_*.xlsx')) + \
-                glob.glob(os.path.join(downloads_path, 'EXPORT_*_*.xls'))
+    # Busca o arquivo SAP diretamente na pasta do Uber (muito mais seguro!)
+    sap_files = [os.path.join(PASTA_UBER, f) for f in os.listdir(PASTA_UBER) 
+                 if 'export' in f.lower() and f.lower().endswith(('.xls', '.xlsx'))]
                 
     if not sap_files:
-        erros.append("👉 Arquivo SAP (EXPORT_...) na pasta Downloads do seu computador")
+        erros.append("👉 Arquivo SAP (com 'export' no nome) na pasta do Uber")
+
         
     if erros:
         msg = "Faltam arquivos obrigatórios para a Etapa 1:\n\n" + "\n".join(erros) + f"\n\nColoque os arquivos na pasta:\n{PASTA_UBER}"
@@ -138,15 +139,24 @@ def etapa_1_atualizar_responsaveis():
     sap_file = max(sap_files, key=os.path.getctime)
     print(f"✅ Arquivo SAP encontrado: {os.path.basename(sap_file)}")
 
+    # =================================================================
+    # LEITURA BLINDADA DO SAP
+    # =================================================================
     sap_df_raw = pd.read_excel(sap_file, header=None)
     header_idx = 0
+    
     for i, row in sap_df_raw.iterrows():
-        row_norm = [norm(str(x)) for x in row.values]
-        if "RESPONSAVEL" in row_norm and ("CENTRO CUSTO" in row_norm or "CENTRO DE CUSTO" in row_norm):
+        linha_texto = " ".join([norm(str(x)) for x in row.values])
+        if "RESPONSAVEL" in linha_texto and ("CENTRO CUSTO" in linha_texto or "CENTRO DE CUSTO" in linha_texto):
             header_idx = i
             break
     
+    print(f"-> Cabeçalho do SAP encontrado na linha: {header_idx}")
     sap_df = pd.read_excel(sap_file, header=header_idx)
+    
+    # Força a limpeza de TODOS os nomes de colunas do SAP
+    sap_df.columns = [norm(str(c)) for c in sap_df.columns]
+    print(f"-> Colunas limpas lidas do SAP: {list(sap_df.columns)}")
     
     mask_inativo = pd.Series(False, index=sap_df.index)
     for col in sap_df.columns:
@@ -154,11 +164,13 @@ def etapa_1_atualizar_responsaveis():
             mask_inativo = mask_inativo | sap_df[col].astype(str).str.upper().str.contains(r'\bINATIVO|\bINAT\b|\bINAT-', regex=True)
     sap_df = sap_df[~mask_inativo]
 
-    col_cc_sap = next((c for c in sap_df.columns if "CENTRO CUSTO" in norm(c) or "CENTRO DE CUSTO" in norm(c)), None)
-    col_resp_sap = next((c for c in sap_df.columns if "RESPONSAVEL" in norm(c)), None)
+    # Agora procura nas colunas já limpas
+    col_cc_sap = next((c for c in sap_df.columns if "CENTRO CUSTO" in c or "CENTRO DE CUSTO" in c), None)
+    col_resp_sap = next((c for c in sap_df.columns if "RESPONSAVEL" in c), None)
     
     if not col_cc_sap or not col_resp_sap:
-        raise RuntimeError("⚠️ Colunas necessárias não encontradas no SAP. Pulando atualização.")
+        raise RuntimeError(f"⚠️ Colunas não encontradas! O robô enxergou estas colunas: {list(sap_df.columns)}")
+    # =================================================================
 
     sap_dict = dict(zip(sap_df[col_cc_sap].astype(str).str.strip(), sap_df[col_resp_sap].astype(str).str.strip()))
 

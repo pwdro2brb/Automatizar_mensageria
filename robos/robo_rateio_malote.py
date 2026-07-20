@@ -19,13 +19,14 @@ from openpyxl.utils import get_column_letter
 
 warnings.filterwarnings("ignore")
 
+import config
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS
 # ==============================================================================
 sys.path.insert(0, str(Path(__file__).parent)) 
 sys.path.append(str(Path(__file__).parent.parent)) 
 
-PASTA_MALOTE = Path(__file__).parent.parent / "arquivos" / "rateio_malote"
+PASTA_MALOTE = Path(config.PASTA_ARQUIVOS) / "rateio_malote"
 
 try:
     from malote_web_scraper import ResolvedorCC, SELENIUM_AVAILABLE

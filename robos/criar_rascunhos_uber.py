@@ -4,10 +4,11 @@ from pathlib import Path
 import win32com.client as win32
 from datetime import datetime
 
+import config
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS
 # ==============================================================================
-PASTA_UBER = Path(__file__).parent.parent / "arquivos" / "uber"
+PASTA_UBER = Path(config.PASTA_ARQUIVOS) / "uber"
 
 # =========================
 # CONFIGURAÇÕES

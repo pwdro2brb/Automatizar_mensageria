@@ -1,8 +1,15 @@
-# Automatizar Mensageria
+# Automatizar Mensageria - Versão 2.0
 
-Este projeto reúne uma central de automações para processos administrativos, com foco em faturamento, mensageria, Podio, Correios e relatórios operacionais.
+Este projeto agora funciona como um aplicativo executável para Windows, reunindo em uma única interface gráfica as automações administrativas mais usadas no dia a dia, com foco em faturamento, mensageria, Podio, Correios e relatórios operacionais.
 
-A solução foi organizada em uma interface central, onde é possível executar diferentes robôs a partir de botões em uma tela gráfica.
+A versão 2.0 foi transformada em um executável pronto para uso, facilitando a abertura e execução sem depender diretamente de um ambiente Python configurado na máquina.
+
+## O que mudou na versão 2.0
+
+- O projeto passou a ser distribuído como executável Windows (.exe).
+- A interface central continua disponível para execução dos robôs a partir de botões na tela.
+- O fluxo de uso ficou mais simples para usuários finais.
+- O aplicativo mantém o mesmo funcionamento das automações, agora com execução mais prática.
 
 ## Objetivo
 
@@ -20,36 +27,18 @@ Automatizar tarefas repetitivas e manuais, como:
 - config.py: configurações locais, como e-mail, senha e caminhos de pasta.
 - config_exemplo.py: modelo de configuração para ser copiado para o arquivo real.
 - treinar_ia.py: referência com dicionários e mapeamentos usados para classificação/treinamento interno.
-- arquivos/: pasta central para arquivos de entrada e saída do projeto.
-  - arquivos/encomendas/: arquivos relacionados ao fluxo de encomendas.
-  - arquivos/faturamento/: arquivos de rateio, exemplos e pastas de teste para o processo de faturamento.
-  - arquivos/Produtividade/: arquivos utilizados e gerados para o relatório de produtividade.
 - robos/: scripts com as automações organizadas por tema.
-  - robos/produtividade.py: automação de extração de dados de produtividade (Podio, Agilis, Bússola/SAP) e geração do relatório preenchido.
-  - robos/robo_faturamento.py: automações relacionadas a faturamento e correios.
-  - robos/robo_incluir_encomendas.py: automação para inclusão de encomendas.
-  - robos/robo_juridico.py: automação para o processo jurídico no Podio.
-  - robos/robo_relatorio_correios.py: automação para gerar/baixar relatórios de produtividade ou envio no Agilis.
-  - robos/robo_fechar_chamados.py: automação para fechamento de chamados.
+- dist/app_central.exe: executável gerado para uso no Windows.
 
 ## Pré-requisitos
 
 Antes de executar, certifique-se de que o ambiente atende aos itens abaixo:
 
 - Windows
-- Python 3.10 ou superior
 - Google Chrome instalado
-- ChromeDriver compatível com a versão do Chrome
 - Outlook instalado e logado
+- ChromeDriver compatível com a versão do Chrome
 - Acesso aos sistemas usados pelos robôs (Podio, Agilis, portal interno, etc.)
-
-### Bibliotecas Python necessárias
-
-Instale as dependências abaixo, se ainda não estiverem disponíveis:
-
-```bash
-pip install pandas openpyxl PyPDF2 selenium pywinauto pywin32 holidays
-```
 
 ## Configuração
 
@@ -63,54 +52,53 @@ copy config_exemplo.py config.py
 
 - e-mail corporativo;
 - senha ou credenciais de acesso;
-- caminhos das pastas utilizadas pelo projeto, incluindo a nova `PASTA_PRODUTIVIDADE` para relatório de produtividade.
+- caminhos das pastas utilizadas pelo projeto.
 
 > Importante: mantenha o arquivo config.py com as credenciais seguras e não compartilhe esse conteúdo publicamente.
 
-## Como executar
+## Como usar a versão 2.0
 
-Na pasta do projeto, execute:
+### Opção 1: executar o executável
+
+Na pasta dist do projeto, execute:
+
+```bash
+dist\app_central.exe
+```
+
+A interface gráfica será aberta com os processos disponíveis. Ao clicar em um botão, o robô correspondente será executado.
+
+### Opção 2: executar a versão em Python
+
+Se quiser rodar diretamente pelo código-fonte:
 
 ```bash
 python app_central.py
 ```
 
+## Cancelar processo ativo
 
-A interface gráfica será aberta com os processos disponíveis. Ao clicar em um botão, o robô correspondente será executado em segundo plano.
+A central oferece suporte para cancelamento de processos em execução. Um botão vermelho chamado "🛑 CANCELAR PROCESSO ATIVO" fica localizado na parte superior da interface e se habilita automaticamente quando qualquer automação estiver em execução.
 
-### Cancelar processo ativo
-
-A central agora oferece suporte universal de cancelamento para **todos os processos**. Um botão vermelho chamado "🛑 CANCELAR PROCESSO ATIVO" fica localizado na parte superior da interface e se habilita automaticamente quando qualquer automação está em execução.
-
-**Características:**
-- Funciona com todos os robôs (Faturamento, Produtividade, Jurídico, Correios, etc.)
-- Ao clicar, exibe uma confirmação antes de interromper
-- Encerra o processo ativo e todos os navegadores/janelas abertos por ele (usa `taskkill` no Windows)
-- Ideal para parada de emergência ou ajustes rápidos
-- Pode interromper o fluxo antes da conclusão completa
-
-Cada processo é executado em um subprocesso isolado através do motor `executar_processo_cancelavel` presente em `app_central.py`. A saída do subprocesso é capturada e exibida no console da interface para facilitar depuração.
+Características:
+- funciona com todos os robôs;
+- exibe confirmação antes de interromper;
+- encerra o processo ativo e janelas abertas pelo robô;
+- é útil para parada de emergência ou ajustes rápidos.
 
 ## Novas funcionalidades
 
-- Motor universal de processos canceláveis: todos os robôs agora rodam em subprocessos isolados via `executar_processo_cancelavel` no `app_central.py`, permitindo cancelamento responsivo sem travar a UI.
-- Melhor tratamento de logs e erros: a saída dos subprocessos é mostrada no painel "Console" e mensagens de erro são extraídas e exibidas em popups mais amigáveis.
-- Novo fluxo de Rateio de Malote: o processo agora lê planilhas do Agilis e dos Correios, resolve centros de custo automaticamente, reutiliza rateios anteriores quando possível, trata valores órfãos e gera um arquivo Excel consolidado com o resultado final.
-- Novos scripts adicionados ao repositório:
-	- `robo_incluir_encomendas.py` — automação para inclusão de encomendas/envio (novo)
-	- `treinar_ia.py` — dicionários e mapeamentos usados para classificação/treinamento interno (arquivo de referência)
-
-**Recomendações de uso:**
-- Antes de cancelar, confirme a ação; o cancelamento finaliza processos e janelas abertas pelo robô.
-- Consulte o console da interface para detalhes de funcionamento e mensagens de erro.
-- Mantenha `config.py` atualizado com credenciais e caminhos (não compartilhe esse arquivo publicamente).
+- motor universal de processos canceláveis;
+- melhor tratamento de logs e erros na interface;
+- novo fluxo de Rateio de Malote com leitura de dados e consolidação automática;
+- novos scripts adicionados ao repositório para diferentes cenários operacionais.
 
 ## Processos disponíveis
 
 ### Correios e Faturamento
 
 - Relatório de Encomendas do Dia
-- Rateio de Malote: gera um rateio consolidado com base em arquivos do Agilis e dos Correios, incluindo resolução automática de centros de custo e tratamento de valores órfãos.
+- Rateio de Malote
 - Faturamento 1: gerar rascunhos
 - Faturamento 2: gerar planilha de rateio
 - Faturamento 3: lançar NF no portal
@@ -123,7 +111,7 @@ Cada processo é executado em um subprocesso isolado através do motor `executar
 ### Agilis e produtividade
 
 - Gerar relatório de envio para Correios
-- Gerar Produtividade (Podio/Agilis/SAP) — executa extração de dados e preenche o relatório final na pasta arquivos/Produtividade
+- Gerar Produtividade (Podio/Agilis/SAP)
 - Fechar chamados a vencer
 
 ### Outros sistemas
@@ -147,4 +135,4 @@ Cada processo é executado em um subprocesso isolado através do motor `executar
 
 ## Resumo
 
-Este repositório funciona como um hub central de automação administrativa, reunindo em um único ponto de acesso os processos mais comuns para execução rápida e padronizada.
+Este repositório funciona como um hub central de automação administrativa, reunindo em um único ponto de acesso os processos mais comuns para execução rápida e padronizada, agora com uma versão 2.0 executável para Windows.

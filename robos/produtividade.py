@@ -37,15 +37,14 @@ import ctypes
 import sys
 from pathlib import Path
 
+import config
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS
 # ==============================================================================
-# Garante que o robô ache o config.py na raiz do projeto
-sys.path.append(str(Path(__file__).parent.parent))
 from config import EMAIL_MRV, SENHA_MRV, PASTA_DOWNLOADS
 
-# Aponta dinamicamente para a nova pasta: AUTOMATIZAR_MENSAGERIA/arquivos/produtividade
-PASTA_PRODUTIVIDADE = str(Path(__file__).parent.parent / "arquivos" / "produtividade")
+# Aponta dinamicamente para a nova pasta usando o Radar do config
+PASTA_PRODUTIVIDADE = str(Path(config.PASTA_ARQUIVOS) / "produtividade")
 
 # ==============================================================================
 # 🚀 O PULO DO GATO: FORÇAR O WINDOWS A RECONHECER TODOS OS MONITORES

@@ -17,9 +17,9 @@ import unicodedata
 import re
 import sys
 from pathlib import Path
+import config
 
 # Configuração de caminhos dinâmicos
-sys.path.append(str(Path(__file__).parent.parent))
 from config import EMAIL_MRV, SENHA_MRV 
 
 def normalizar_texto(s: str) -> str:

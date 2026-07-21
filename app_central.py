@@ -95,7 +95,13 @@ class CentralAutomacaoMRV:
 
         self.root = root
         self.root.title("Hub Central de Automações - MRV")
-        self.root.geometry("1050x850")
+        self.root.geometry("1050x700") # Reduzimos a altura padrão
+        
+        # Faz a janela abrir maximizada no Windows (respeitando a barra de tarefas)
+        try:
+            self.root.state('zoomed')
+        except:
+            pass
         
         lbl_titulo = ctk.CTkLabel(root, text="🤖 Central de Robôs - Administrativo MRV", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_titulo.pack(pady=(0, 5))
@@ -113,8 +119,9 @@ class CentralAutomacaoMRV:
         btn_ajuda.pack(side=tk.LEFT, padx=10)
 
 
-        frame_botoes = ctk.CTkFrame(root, fg_color="transparent")
-        frame_botoes.pack(fill=tk.BOTH, expand=False, padx=20)
+        # CTkScrollableFrame permite rolar a tela se os botões não couberem
+        frame_botoes = ctk.CTkScrollableFrame(root, fg_color="transparent")
+        frame_botoes.pack(fill=tk.BOTH, expand=True, padx=20, pady=5)
         
         frame_botoes.columnconfigure(0, weight=1)
         frame_botoes.columnconfigure(1, weight=1)
@@ -156,7 +163,7 @@ class CentralAutomacaoMRV:
         frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP)", 1, 1)
         criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_planilhas_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
         criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", lambda: self._verificar_planilhas_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
-        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()"))
+        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.criar_rascunhos_uber as rr; rr.criar_rascunhos()"))
         criar_botao(frame_outros, "Faturamento Transação ZMM180", self._chamar_robo_zmm180, espaco_extra=True)
 
         self.btn_cancelar = ctk.CTkButton(root, text="CANCELAR PROCESSO ATIVO", 
@@ -168,9 +175,10 @@ class CentralAutomacaoMRV:
         lbl_console = ctk.CTkLabel(root, text="Console de Execução em Tempo Real:", font=ctk.CTkFont(size=14, weight="bold"))
         lbl_console.pack(anchor=tk.W, padx=30, pady=(0, 5))
 
-        self.console = ctk.CTkTextbox(root, height=200, font=ctk.CTkFont(family="Consolas", size=13), 
+        self.console = ctk.CTkTextbox(root, height=150, font=ctk.CTkFont(family="Consolas", size=13), 
                                       text_color="#00FF00", fg_color="#1E1E1E", border_width=2, border_color="#333333")
-        self.console.pack(fill=tk.BOTH, expand=True, padx=30, pady=(0, 20))
+        # expand=False garante que o console nunca mude de tamanho e seja esmagado
+        self.console.pack(fill=tk.BOTH, expand=False, padx=30, pady=(0, 20))
         self.console.configure(state='disabled')
 
         sys.stdout = PrintRedirector(self.console)

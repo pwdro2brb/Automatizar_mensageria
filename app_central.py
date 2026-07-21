@@ -100,9 +100,18 @@ class CentralAutomacaoMRV:
         lbl_titulo = ctk.CTkLabel(root, text="🤖 Central de Robôs - Administrativo MRV", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_titulo.pack(pady=(0, 5))
 
-        btn_config = ctk.CTkButton(root, text="⚙️ Configurar Credenciais", command=self._abrir_popup_config, 
+        # Cria um espaço para colocar os botões do topo lado a lado
+        frame_topo = ctk.CTkFrame(root, fg_color="transparent")
+        frame_topo.pack(pady=(0, 15))
+
+        btn_config = ctk.CTkButton(frame_topo, text="⚙️ Configurar Credenciais", command=self._abrir_popup_config, 
                                    fg_color="#3498DB", hover_color="#2980B9", font=ctk.CTkFont(weight="bold"))
-        btn_config.pack(pady=(0, 15))
+        btn_config.pack(side=tk.LEFT, padx=10)
+
+        btn_ajuda = ctk.CTkButton(frame_topo, text="❓ Ajuda / Tutorial", command=self._abrir_popup_ajuda, 
+                                  fg_color="#F39C12", hover_color="#D68910", font=ctk.CTkFont(weight="bold"))
+        btn_ajuda.pack(side=tk.LEFT, padx=10)
+
 
         frame_botoes = ctk.CTkFrame(root, fg_color="transparent")
         frame_botoes.pack(fill=tk.BOTH, expand=False, padx=20)
@@ -129,7 +138,6 @@ class CentralAutomacaoMRV:
         cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('Concluído!')"
 
         frame_correios = criar_quadro(frame_botoes, "Correios & Faturamento", 0, 0)
-        criar_botao(frame_correios, "Relatório Encomendas do Dia", lambda: self.executar_processo_cancelavel("Relatório Encomendas do Dia", comando_python=cmd_placeholder))
         criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
         criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"), espaco_extra=True)
         criar_botao(frame_correios, "Faturamento 2: Planilha Rateio Pag", lambda: self._verificar_planilhas_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
@@ -344,6 +352,48 @@ class CentralAutomacaoMRV:
             popup.destroy()
 
         ctk.CTkButton(popup, text="Salvar", command=salvar, fg_color=self.COR_MRV, hover_color=self.COR_MRV_HOVER, font=ctk.CTkFont(weight="bold")).pack(pady=25)
+    def _abrir_popup_ajuda(self):
+        popup = ctk.CTkToplevel(self.root)
+        popup.title("Ajuda e Tutorial")
+        popup.geometry("650x550")
+        popup.grab_set()
+        popup.attributes("-topmost", True)
+
+        lbl_titulo = ctk.CTkLabel(popup, text="Guia de Uso dos Robôs", font=ctk.CTkFont(size=18, weight="bold"))
+        lbl_titulo.pack(pady=(15, 10))
+
+        # Caixa de texto com barra de rolagem
+        textbox = ctk.CTkTextbox(popup, width=600, height=450, wrap="word", font=ctk.CTkFont(size=14))
+        textbox.pack(padx=20, pady=(0, 20), fill=tk.BOTH, expand=True)
+
+        texto_ajuda = """Bem-vindo à Central de Automações MRV! Siga as instruções abaixo para garantir que tudo funcione perfeitamente.
+
+PRIMEIRO PASSO: CREDENCIAIS
+
+Antes de rodar qualquer robô, clique no botão "⚙️ Configurar Credenciais". 
+Preencha seu E-mail MRV, sua Senha MRV e a Senha do Malote Web (se você tiver). O sistema salvará isso de forma segura para os robôs usarem automaticamente.
+
+ROBÔS QUE ACESSAM SITES (Aviso Importante)
+
+• Tempo de Carregamento: Os robôs que abrem o navegador (Chrome/Edge) podem demorar alguns segundos para iniciar. Aguarde a tela abrir sozinha, eles são os robôs de: Faturamento 3, Relatório Jurídico Montreal, incluir correspodências rápidas, gerar produtividade, gerar relatório de envio para correios, fechar chamados a vencer, rateio de malote.
+• Código de Segurança (MFA): Na PRIMEIRA VEZ que o robô acessar os portais da MRV por processo (exceto o Malote Web), ele vai preencher seu e-mail e senha, mas o site pedirá a aprovação no seu celular (MFA/Token). Fique com o celular em mãos para aprovar o acesso!
+
+REGRAS DOS PROCESSOS
+
+• Correios & Faturamento: Lembre-se de colocar as planilhas e PDFs corretos dentro da pasta "arquivos", ela fica dentro da pasta "dist" antes de rodar os robôs. O robô vai ler os dados de lá.
+• SAP (Produtividade, ZMM180): Quando o robô avisar, deixe o SAP aberto na SEGUNDA TELA e NÃO MEXA no mouse ou teclado enquanto ele trabalha.
+• Podio & Mensageria: O robô fará os downloads e uploads automaticamente, apenas confirme as caixas de aviso que aparecerem na tela.
+
+CANCELAMENTO DE EMERGÊNCIA
+
+Se algo der errado, se você esquecer de fechar uma planilha, ou precisar usar o PC na mesma hora, clique no botão vermelho "CANCELAR PROCESSO ATIVO". Ele vai forçar a parada do robô imediatamente e fechar os navegadores abertos por ele.
+"""
+        # Insere o texto e bloqueia para o usuário não conseguir apagar
+        textbox.insert("0.0", texto_ajuda)
+        textbox.configure(state="disabled")
+
+
+
 
 if __name__ == "__main__":
     root = ctk.CTk() 

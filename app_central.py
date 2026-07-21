@@ -145,10 +145,11 @@ class CentralAutomacaoMRV:
         cmd_placeholder = "import time; print('Executando processo simulado...'); time.sleep(2); print('Concluído!')"
 
         frame_correios = criar_quadro(frame_botoes, "Correios & Faturamento", 0, 0)
-        criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", lambda: self._verificar_planilhas_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()"))
+        criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", lambda: self._verificar_pasta_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()", os.path.join(config.PASTA_ARQUIVOS, "rateio_malote")))
         criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"), espaco_extra=True)
-        criar_botao(frame_correios, "Faturamento 2: Planilha Rateio Pag", lambda: self._verificar_planilhas_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()"))
-        criar_botao(frame_correios, "Faturamento 3: Lançar NF (Portal)", lambda: self.executar_processo_cancelavel("Faturamento 3", comando_python="import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()"))
+        criar_botao(frame_correios, "Faturamento 2: Planilha Rateio Pag", lambda: self._verificar_pasta_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()", os.path.join(config.PASTA_ARQUIVOS, "faturamento")))
+        criar_botao(frame_correios, "Faturamento 3: Lançar NF (Portal)", lambda: self._verificar_pasta_e_executar("Faturamento 3", "import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()", os.path.join(config.PASTA_ARQUIVOS, "faturamento")))
+
 
         frame_podio = criar_quadro(frame_botoes, "Podio & Mensageria", 0, 1)
         criar_botao(frame_podio, "Relatório Jurídico Montreal", self._chamar_robo_juridico)
@@ -161,9 +162,9 @@ class CentralAutomacaoMRV:
 
 
         frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP)", 1, 1)
-        criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_planilhas_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()"))
-        criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", lambda: self._verificar_planilhas_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()"))
-        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self.executar_processo_cancelavel("Uber 3", comando_python="import robos.criar_rascunhos_uber as rr; rr.criar_rascunhos()"))
+        criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_pasta_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
+        criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", lambda: self._verificar_pasta_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
+        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self._verificar_pasta_e_executar("Uber 3", "import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
         criar_botao(frame_outros, "Faturamento Transação ZMM180", self._chamar_robo_zmm180, espaco_extra=True)
 
         self.btn_cancelar = ctk.CTkButton(root, text="CANCELAR PROCESSO ATIVO", 
@@ -194,13 +195,40 @@ class CentralAutomacaoMRV:
         elif resposta is False: 
             self.executar_processo_cancelavel("Relatório Jurídico (Apenas Formatação)", comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=True)")
 
-    def _verificar_planilhas_e_executar(self, nome_processo, comando_python):
-        if messagebox.askyesno("Lembrete de Arquivos", f"LEMBRETE\n\nVocê já atualizou/trocou as planilhas na pasta para rodar o {nome_processo}?"):
+    def _verificar_pasta_e_executar(self, nome_processo, comando_python, caminho_pasta):
+        msg = f"Você já verificou/atualizou os arquivos para o processo '{nome_processo}'?\n\n• OK para rodar o robô.\n• Cancelar para ABRIR A PASTA."
+        
+        if messagebox.askokcancel(f"Lembrete - {nome_processo}", msg):
             self.executar_processo_cancelavel(nome_processo, comando_python=comando_python)
+        else:
+            # Se a pessoa clicou em Cancelar, tenta abrir a pasta
+            if not os.path.exists(caminho_pasta):
+                try:
+                    os.makedirs(caminho_pasta) # Cria a pasta se ela não existir ainda
+                except:
+                    pass
+            
+            if os.path.exists(caminho_pasta):
+                os.startfile(caminho_pasta)
+            else:
+                messagebox.showwarning("Aviso", f"A pasta não foi encontrada:\n{caminho_pasta}")
 
     def _chamar_robo_produtividade(self):
-        if messagebox.askokcancel("Aviso Importante - SAP e Mouse", "ATENÇÃO\n\n1. Deixe o SAP aberto na SEGUNDA TELA.\n2. NÃO MEXA no mouse ou teclado.\n\nDeseja continuar?"):
-            self.executar_processo_cancelavel("Produtividade Setorial", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor()")
+        msg = "Você já verificou a planilha de produtividade?\n\n• OK para continuar.\n• Cancelar para ABRIR A PASTA."
+        
+        if messagebox.askokcancel("Lembrete - Produtividade", msg):
+            if messagebox.askokcancel("Aviso Importante - SAP e Mouse", "ATENÇÃO\n\n1. Deixe o SAP aberto na SEGUNDA TELA.\n2. NÃO MEXA no mouse ou teclado.\n\nDeseja continuar?"):
+                self.executar_processo_cancelavel("Produtividade Setorial", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor()")
+        else:
+            # Abre a pasta de produtividade definida no config.py
+            pasta = config.PASTA_PRODUTIVIDADE
+            if not os.path.exists(pasta):
+                try:
+                    os.makedirs(pasta)
+                except:
+                    pass
+            if os.path.exists(pasta):
+                os.startfile(pasta)
 
     def _chamar_robo_incluir_encomendas(self):
         if messagebox.askokcancel("Lembrete - Correspondências", "Você lembrou de preencher a planilha?\n\n• OK para rodar o robô.\n• Cancelar para ABRIR A PLANILHA."):

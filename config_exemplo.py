@@ -25,25 +25,25 @@ def carregar_credenciais():
                 return json.load(f)
         except:
             pass
-    return {"email": "", "senha": ""}
+    return {"email": "", "senha": "", "senha_malote": ""}  # Retorna vazio se não existir ou se houver erro na leitura
 
-def salvar_credenciais(email, senha):
-    """Salva o e-mail e a senha no arquivo JSON."""
+def salvar_credenciais(email, senha, senha_malote):
+    """Salva o e-mail e as senhas no arquivo JSON."""
     with open(ARQUIVO_CONFIG, "w") as f:
-        json.dump({"email": email, "senha": senha}, f)
+        json.dump({"email": email, "senha": senha, "senha_malote": senha_malote}, f)
 
 # Carrega as variáveis para serem usadas pelos robôs
 credenciais = carregar_credenciais()
 EMAIL_USER = credenciais.get("email", "")
 SENHA_USER = credenciais.get("senha", "")
-
+SENHA_MALOTE = credenciais.get("senha_malote", "") # Nova variável carregada
 
 # ==============================================================================
 # 3. MODO DE COMPATIBILIDADE (Para os robôs antigos continuarem funcionando)
 # ==============================================================================
 EMAIL_MRV = EMAIL_USER
 SENHA_MRV = SENHA_USER
-
+SENHA_MALOTE_MRV = SENHA_MALOTE
 
 # ==============================================================================
 # 4. RADAR DE PASTAS (Ignora a pasta temporária do PyInstaller)

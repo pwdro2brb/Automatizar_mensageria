@@ -306,7 +306,8 @@ class CentralAutomacaoMRV:
     def _abrir_popup_config(self):
         popup = ctk.CTkToplevel(self.root)
         popup.title("Configurar Credenciais")
-        popup.geometry("400x280")
+        # Aumentei a altura da janela de 280 para 350 para caber o novo campo
+        popup.geometry("400x350")
         popup.grab_set()
         popup.attributes("-topmost", True)
 
@@ -315,17 +316,30 @@ class CentralAutomacaoMRV:
         entry_email.pack(pady=5)
         entry_email.insert(0, config.EMAIL_USER)
 
-        ctk.CTkLabel(popup, text="Senha:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        ctk.CTkLabel(popup, text="Senha MRV:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
         entry_senha = ctk.CTkEntry(popup, width=300, show="*")
         entry_senha.pack(pady=5)
         entry_senha.insert(0, config.SENHA_USER)
 
+        # Novo campo para a senha do Malote Web
+        ctk.CTkLabel(popup, text="Senha Malote Web:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        entry_senha_malote = ctk.CTkEntry(popup, width=300, show="*")
+        entry_senha_malote.pack(pady=5)
+        entry_senha_malote.insert(0, getattr(config, "SENHA_MALOTE", ""))
+
         def salvar():
             novo_email = entry_email.get().strip()
             nova_senha = entry_senha.get().strip()
-            config.salvar_credenciais(novo_email, nova_senha)
+            nova_senha_malote = entry_senha_malote.get().strip()
+            
+            # Salva no JSON passando os 3 parâmetros
+            config.salvar_credenciais(novo_email, nova_senha, nova_senha_malote)
+            
+            # Atualiza as variáveis em memória
             config.EMAIL_USER = novo_email
             config.SENHA_USER = nova_senha
+            config.SENHA_MALOTE = nova_senha_malote
+            
             messagebox.showinfo("Sucesso", "Credenciais salvas com sucesso!", parent=popup)
             popup.destroy()
 

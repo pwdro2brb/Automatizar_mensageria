@@ -20,14 +20,14 @@ import config
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS E CREDENCIAIS
 # ==============================================================================
 sys.path.append(str(Path(__file__).parent.parent))
-from config import EMAIL_MRV, SENHA_MRV
+from config import EMAIL_MRV, SENHA_MALOTE_MRV
 
 # Aponta dinamicamente para a nova pasta usando o Radar do config
 PASTA_MALOTE = Path(config.PASTA_ARQUIVOS) / "rateio_malote"
 CACHE_FILE = str(PASTA_MALOTE / "cache_percursos_cc.json")
 
 CORREIOS_EMAIL = EMAIL_MRV
-CORREIOS_SENHA = SENHA_MRV
+CORREIOS_SENHA = SENHA_MALOTE_MRV
 
 try:
     from selenium import webdriver

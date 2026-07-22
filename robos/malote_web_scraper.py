@@ -72,6 +72,7 @@ class BaseCentroCusto:
         self._load()
 
     def _load(self):
+        print("[PROGRESSO: 41]")
         arquivo = self._find_file()
         if not arquivo:
             raise RuntimeError("A planilha 'BASE CENTRO DE CUSTO' não foi encontrada nas pastas de arquivos.")
@@ -240,6 +241,7 @@ class AcompanhamentoVSC:
         self._load()
 
     def _load(self):
+        print("[PROGRESSO: 43]")
         arquivo = self._find_file()
         if not arquivo:
             raise RuntimeError("A planilha 'Acompanhamento VSC' não foi encontrada nas pastas de arquivos.")
@@ -410,6 +412,7 @@ class MaloteWebScraper:
             return False
 
         try:
+            print("[PROGRESSO: 45]")
             print("  🔐 Abrindo Malote Web no Chrome...")
             self.driver.get(self.URL_LOGIN)
             time.sleep(6)

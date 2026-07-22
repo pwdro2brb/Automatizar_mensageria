@@ -271,20 +271,35 @@ class RateioMalote:
         self.vsc_resolvido_obra = set()
 
     def run(self):
+        print("[PROGRESSO: 5]")
         print("🔄 Etapa 1-2: Lendo dados...")
         self._read_data()
+        
+        print("[PROGRESSO: 20]")
         print("🔄 Etapa 2.5: Lendo rateios anteriores...")
         self._read_previous_rateios()
+        
+        print("[PROGRESSO: 30]")
         print("🔄 Etapa 3: Colunas Origem/Destino/CC...")
         self._process_agilis_columns()
+        
+        print("[PROGRESSO: 35]")
         print("🔄 Etapa 4: Processando VSC...")
         self._process_vsc()
+        
+        print("[PROGRESSO: 65]")
         print("🔄 Etapa 5: Tabelas dinâmicas...")
         self._create_pivot_tables()
+        
+        print("[PROGRESSO: 70]")
         print("🔄 Etapa 6: Criando Rateio...")
         self._create_rateio()
+        
+        print("[PROGRESSO: 95]")
         print("💾 Salvando...")
         self._save()
+        
+        print("[PROGRESSO: 100]")
         print(f"✅ Concluído! → {self.output_path}")
 
     def _read_data(self):
@@ -542,10 +557,12 @@ class RateioMalote:
         destino_idx = len(self.agilis_headers) - 2
 
         if self.resolvedor_cc is None and RESOLVER_AVAILABLE:
+            print("[PROGRESSO: 40]")
             print("  📊 Inicializando integração Web/Cache para buscar Origens e Destinos vazios...")
             self.resolvedor_cc = ResolvedorCC(use_selenium=SELENIUM_AVAILABLE)
 
-        for vsc_item in self.vsc_data:
+        total_vsc = len(self.vsc_data)
+        for i, vsc_item in enumerate(self.vsc_data):
             texto = str(vsc_item['texto'])
             valor = vsc_item['valor']
 
@@ -610,6 +627,11 @@ class RateioMalote:
                 'has_debito': vsc_item['has_debito'],
                 'texto_original': texto
             })
+            
+            # Progresso dinâmico de 45% a 60%
+            if total_vsc > 0:
+                prog = 45 + int(((i + 1) / total_vsc) * 15)
+                print(f"[PROGRESSO: {prog}]")
 
         print(f"  ✅ VSC: {len(self.vsc_processed)} processados")
         for v in self.vsc_processed:
@@ -830,7 +852,8 @@ class RateioMalote:
         pivot_percurso = self._build_pivot_percurso()
         vsc_por_percurso = self._build_vsc_summary()
 
-        for cartao, municipios_correios in self.pivot_correios.items():
+        total_cartoes = len(self.pivot_correios)
+        for i, (cartao, municipios_correios) in enumerate(self.pivot_correios.items()):
             print(f"\n  🔄 Cartão {cartao}: {dict(municipios_correios)}")
             start_idx = len(self.rateio_data)
 
@@ -850,10 +873,16 @@ class RateioMalote:
                     if 'PAULO' in orig_str or 'PAULO' in dest_str or 'MOGI' in orig_str or 'MOGI' in dest_str:
                         self.status_cartoes[cartao] = "N/L valor rateado entre o percurso SP - SP"
                         break
+            
+            # Progresso dinâmico de 70% a 85%
+            if total_cartoes > 0:
+                prog = 70 + int(((i + 1) / total_cartoes) * 15)
+                print(f"[PROGRESSO: {prog}]")
 
         self._absorb_global_sp_orphans(pivot_percurso)
         self._compact_rateio_data()
 
+        print("[PROGRESSO: 88]")
         print(f"\n  🔄 Pós-processamento: VSC sem CC...")
         self._process_vsc_without_cc()
 
@@ -1540,6 +1569,7 @@ class RateioMalote:
 # FUNÇÃO MESTRE (CHAMADA PELO HUB CENTRAL)
 # ==============================================================================
 def executar_rateio_malote():
+    print("[PROGRESSO: 2]")
     print("=" * 60)
     print("  RATEIO MALOTE v14")
     print("  Com resolução avançada de CC e Correção de Valor Órfão")

@@ -60,6 +60,7 @@ def limpar_nome_arquivo(nome: str) -> str:
 # MAIN
 # =========================
 def criar_rascunhos():
+    print("[PROGRESSO: 5]")
     print("="*60)
     print(" UBER ETAPA 3: CRIAR RASCUNHOS DE E-MAIL ".center(60))
     print("="*60)
@@ -78,6 +79,7 @@ def criar_rascunhos():
         print(f"❌ Nenhum arquivo Excel encontrado dentro de: {pasta_mes}")
         sys.exit(1)
 
+    print("[PROGRESSO: 15]")
     print(f"📁 Lendo arquivos da pasta: {pasta_mes.name}")
     print("Iniciando comunicação com o Outlook...")
     
@@ -88,8 +90,9 @@ def criar_rascunhos():
         sys.exit(1)
 
     falhas = []
+    total_arquivos = len(arquivos)
 
-    for f in arquivos:
+    for i, f in enumerate(arquivos):
         destinatario = limpar_nome_arquivo(f.name)
 
         mail = outlook.CreateItem(0)  
@@ -103,8 +106,8 @@ def criar_rascunhos():
         recip.ResolveAll()
 
         resolved = True
-        for i in range(1, recip.Count + 1):
-            if not recip.Item(i).Resolved:
+        for j in range(1, recip.Count + 1):
+            if not recip.Item(j).Resolved:
                 resolved = False
 
         if not resolved:
@@ -129,7 +132,12 @@ def criar_rascunhos():
         mail.Close(0)  
 
         print(f"✅ Rascunho criado: {destinatario} | Anexo: {f.name}")
+        
+        # Progresso dinâmico de 20% a 95%
+        progresso_atual = 20 + int(((i + 1) / total_arquivos) * 75)
+        print(f"[PROGRESSO: {progresso_atual}]")
 
+    print("[PROGRESSO: 100]")
     if falhas:
         print("\n⚠️ ATENÇÃO: alguns destinatários NÃO foram resolvidos pelo Outlook (nome não encontrado):")
         for n in falhas:

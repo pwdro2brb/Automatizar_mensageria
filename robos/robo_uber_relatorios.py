@@ -112,6 +112,7 @@ def get_cargo_weight(cargo):
 # ETAPA 1: ATUALIZAR PLANILHA DE RESPONSÁVEIS COM O SAP
 # =====================================================================
 def etapa_1_atualizar_responsaveis():
+    print("[PROGRESSO: 5]")
     print("="*60)
     print(" UBER ETAPA 1: ATUALIZAR RESPONSÁVEIS ".center(60))
     print("="*60)
@@ -139,6 +140,7 @@ def etapa_1_atualizar_responsaveis():
     sap_file = max(sap_files, key=os.path.getctime)
     print(f"✅ Arquivo SAP encontrado: {os.path.basename(sap_file)}")
 
+    print("[PROGRESSO: 20]")
     # =================================================================
     # LEITURA BLINDADA DO SAP
     # =================================================================
@@ -174,6 +176,7 @@ def etapa_1_atualizar_responsaveis():
 
     sap_dict = dict(zip(sap_df[col_cc_sap].astype(str).str.strip(), sap_df[col_resp_sap].astype(str).str.strip()))
 
+    print("[PROGRESSO: 40]")
     wb_ativos = load_workbook(ativos_path, read_only=True, data_only=True)
     ws_ativos = wb_ativos.worksheets[0]
     
@@ -208,6 +211,7 @@ def etapa_1_atualizar_responsaveis():
             })
     wb_ativos.close()
 
+    print("[PROGRESSO: 60]")
     wb_resp = load_workbook(resp_path)
     ws_resp = wb_resp.active
     
@@ -221,6 +225,7 @@ def etapa_1_atualizar_responsaveis():
     status_col_idx = ws_resp.max_column + 2
     ws_resp.cell(1, status_col_idx).value = "Status Atualização SAP"
 
+    print("[PROGRESSO: 80]")
     for r in range(2, ws_resp.max_row + 1):
         cc_val = str(ws_resp.cell(r, cc_col_idx).value).strip()
         if not cc_val or cc_val == "None": continue
@@ -254,6 +259,7 @@ def etapa_1_atualizar_responsaveis():
 
     novo_resp_path = PASTA_UBER / "Responsaveis_Atualizado_SAP.xlsx"
     wb_resp.save(novo_resp_path)
+    print("[PROGRESSO: 100]")
     print(f"✅ Planilha de responsáveis atualizada salva como: {novo_resp_path.name}")
     print("\n⚠️ PROCESSO PAUSADO ⚠️")
     print("Abra o arquivo 'Responsaveis_Atualizado_SAP.xlsx', verifique os casos marcados manualmente, corrija o que for necessário e salve.")
@@ -264,6 +270,7 @@ def etapa_1_atualizar_responsaveis():
 # ETAPA 2: GERAR CONSOLIDADO E PASTAS
 # =====================================================================
 def etapa_2_gerar_relatorios():
+    print("[PROGRESSO: 5]")
     print("="*60)
     print(" UBER ETAPA 2: GERAR RELATÓRIOS E PASTAS ".center(60))
     print("="*60)
@@ -322,6 +329,7 @@ def etapa_2_gerar_relatorios():
         if pd.isna(dt): return str(x).strip()
         return dt.strftime("%I:%M%p").lstrip("0")
 
+    print("[PROGRESSO: 15]")
     # =========================
     # 1) RESPONSÁVEIS
     # =========================
@@ -350,6 +358,7 @@ def etapa_2_gerar_relatorios():
     resp_name_to_cargo = resp_df.groupby("_resp_norm")[col_cargo_resp].first().to_dict()
     resp_name_to_email_norm = resp_df.groupby("_resp_norm")["_email_norm"].first().to_dict()
 
+    print("[PROGRESSO: 25]")
     # =========================
     # 2) BASE ATIVOS
     # =========================
@@ -407,6 +416,7 @@ def etapa_2_gerar_relatorios():
 
     wb.close()
 
+    print("[PROGRESSO: 35]")
     # =========================
     # 3) UBER (consolidado)
     # =========================
@@ -488,6 +498,7 @@ def etapa_2_gerar_relatorios():
 
     uber_out_df = uber_df[cols].drop(columns=["_cc_norm"], errors="ignore")
 
+    print("[PROGRESSO: 45]")
     # =========================
     # 4) SALVA CONSOLIDADO + APLICA ESTILOS
     # =========================
@@ -546,6 +557,7 @@ def etapa_2_gerar_relatorios():
     wb_out.save(out_consolidado)
     print("OK! Arquivo gerado:", out_consolidado.name)
 
+    print("[PROGRESSO: 55]")
     # =========================
     # 5) TESTE MACRO + ENVIAR EMAIL
     # =========================
@@ -653,7 +665,8 @@ def etapa_2_gerar_relatorios():
         thin = Side(style="thin", color="A6A6A6")
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
-        for resp in responsaveis:
+        total_resp = len(responsaveis)
+        for i, resp in enumerate(responsaveis):
             resp_norm = norm(resp)
             if col_resp_cc is None: continue
 
@@ -678,7 +691,7 @@ def etapa_2_gerar_relatorios():
             ws.freeze_panes = "A2"
             ws.auto_filter.ref = ws.dimensions
 
-            header_map = {ws.cell(1, i).value: i for i in range(1, ws.max_column + 1)}
+            header_map = {ws.cell(1, j).value: j for j in range(1, ws.max_column + 1)}
             for col_name, idx in header_map.items():
                 cell = ws.cell(1, idx)
                 cell.fill = roxo
@@ -719,6 +732,10 @@ def etapa_2_gerar_relatorios():
 
             file_name = sanitize_filename(resp) + ".xlsx"
             wb.save(pasta_mes_path / file_name)
+            
+            # Progresso dinâmico de 60% a 95%
+            progresso_atual = 60 + int(((i + 1) / total_resp) * 35)
+            print(f"[PROGRESSO: {progresso_atual}]")
 
         print(f"✅ Pasta criada: {pasta_mes_path.name} | Arquivos por responsável gerados.")
 
@@ -742,4 +759,5 @@ def etapa_2_gerar_relatorios():
         pend_df.to_excel(writer, index=False, sheet_name="Pendencias (linhas)")
         resumo.to_excel(writer, index=False, sheet_name="Resumo por pessoa")
 
+    print("[PROGRESSO: 100]")
     print(f"✅ Arquivo gerado: {PEND_FILE.name}  | Linhas: {len(pend_df)} | Pessoas: {len(resumo)}")

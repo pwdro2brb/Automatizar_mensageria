@@ -164,7 +164,7 @@ class CentralAutomacaoMRV:
         frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP)", 1, 1)
         criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_pasta_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
         criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", lambda: self._verificar_pasta_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
-        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self._verificar_pasta_e_executar("Uber 3", "import robos.robo_uber_rascunhos as rr; rr.criar_rascunhos()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
+        criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self._verificar_pasta_e_executar("Uber 3", "import robos.criar_rascunhos_uber as rr; rr.criar_rascunhos()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
         criar_botao(frame_outros, "Faturamento Transação ZMM180", self._chamar_robo_zmm180, espaco_extra=True)
 
         self.btn_cancelar = ctk.CTkButton(root, text="CANCELAR PROCESSO ATIVO", 

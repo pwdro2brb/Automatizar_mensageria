@@ -177,9 +177,9 @@ class CentralAutomacaoMRV:
         lbl_console.pack(anchor=tk.W, padx=30, pady=(0, 5))
 
         # --- NOVA BARRA DE PROGRESSO ---
-        self.progressbar = ctk.CTkProgressBar(root, mode="indeterminate", height=8, progress_color=self.COR_MRV)
+        self.progressbar = ctk.CTkProgressBar(root, mode="determinate", height=8, progress_color=self.COR_MRV)
         self.progressbar.pack(fill=tk.X, padx=30, pady=(0, 5))
-        self.progressbar.set(0) # Começa vazia e parada
+        self.progressbar.set(0) # Começa vazia
         # -------------------------------
 
         self.console = ctk.CTkTextbox(root, height=150, font=ctk.CTkFont(family="Consolas", size=13), 
@@ -254,8 +254,8 @@ class CentralAutomacaoMRV:
         for btn in self.todos_botoes:
             btn.configure(state="disabled")
             
-        # Inicia a animação da barra de progresso
-        self.progressbar.start()
+        # Zera a barra antes de começar
+        self.progressbar.set(0)
             
         print(f">>> Iniciando: {nome_processo}...")
         threading.Thread(target=self._rodar_subprocesso, args=(comando_python,), daemon=True).start()
@@ -285,15 +285,35 @@ class CentralAutomacaoMRV:
                 while processo.poll() is None:
                     linha = f.readline()
                     if linha:
-                        print(linha, end="")
-                        linhas_log.append(linha.rstrip('\r\n'))
+                        # INTERCEPTADOR DE PROGRESSO
+                        if "[PROGRESSO:" in linha:
+                            try:
+                                # Pega apenas o número. Ex: "[PROGRESSO: 50]" vira "50"
+                                valor_str = linha.split("[PROGRESSO:")[1].replace("]", "").strip()
+                                valor = float(valor_str)
+                                # A barra vai de 0.0 a 1.0, então dividimos por 100
+                                self.root.after(0, lambda v=valor: self.progressbar.set(v / 100.0))
+                            except:
+                                pass # Se der erro na conversão, apenas ignora
+                        else:
+                            # Se for texto normal, mostra no console
+                            print(linha, end="")
+                            linhas_log.append(linha.rstrip('\r\n'))
                     else:
                         time.sleep(0.1)
                 
                 # Lê qualquer restinho de texto que ficou após o robô terminar
                 for linha in f.readlines():
-                    print(linha, end="")
-                    linhas_log.append(linha.rstrip('\r\n'))
+                    if "[PROGRESSO:" in linha:
+                        try:
+                            valor_str = linha.split("[PROGRESSO:")[1].replace("]", "").strip()
+                            valor = float(valor_str)
+                            self.root.after(0, lambda v=valor: self.progressbar.set(v / 100.0))
+                        except:
+                            pass
+                    else:
+                        print(linha, end="")
+                        linhas_log.append(linha.rstrip('\r\n'))
             
             self.processo_ativo = None
             self.root.after(0, lambda: self.btn_cancelar.configure(state="disabled"))
@@ -356,8 +376,7 @@ class CentralAutomacaoMRV:
         for btn in self.todos_botoes:
             btn.configure(state="normal")
             
-        # Para a animação e zera a barra de progresso
-        self.progressbar.stop()
+        # Zera a barra de progresso ao finalizar
         self.progressbar.set(0)
 
     def _abrir_popup_config(self):

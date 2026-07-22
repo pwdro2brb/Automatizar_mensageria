@@ -52,6 +52,7 @@ DATE_RE = r"([0-3]?\d/[01]?\d/\d{4})"
 # 1. FUNÇÃO: GERAR RASCUNHOS
 # ==============================================================================
 def criar_rascunhos_correios():
+    print("[PROGRESSO: 5]")
     print("Iniciando a criação de rascunhos no Outlook...")
     caminho_base = r"\\Bhz-fls-app1\mrvbh\Gerência Administrativa\Pública\NUCLEO DE CONTRATOS E APOIO A GESTÃO\CONTRATOS\Contratos Serviços\1. CORREIOS\2. Faturamento\2026"
     
@@ -66,6 +67,7 @@ def criar_rascunhos_correios():
     nome_mes = pasta_mes_recente.split("-")[-1].strip()
 
     print(f"Pasta mais recente encontrada: {pasta_mes_recente}")
+    print("[PROGRESSO: 15]")
 
     contatos_para = {
         "Campinas": "flavia.pinho@mrv.com.br; ana.tilli@mrv.com.br",
@@ -93,10 +95,14 @@ def criar_rascunhos_correios():
     outlook = win32.Dispatch('outlook.application')
     pastas_regionais = os.listdir(caminho_mes_recente)
     
-    for regional in pastas_regionais:
+    # Filtra apenas as pastas válidas para calcular o total
+    regionais_validas = [r for r in pastas_regionais if os.path.isdir(os.path.join(caminho_mes_recente, r)) and r.upper() != "BH"]
+    total_regionais = len(regionais_validas)
+    
+    print("[PROGRESSO: 25]")
+    
+    for i, regional in enumerate(regionais_validas):
         caminho_regional = os.path.join(caminho_mes_recente, regional)
-        if not os.path.isdir(caminho_regional) or regional.upper() == "BH":
-            continue
 
         print(f"Gerando rascunho para: {regional}...")
         mail = outlook.CreateItem(0)
@@ -121,7 +127,12 @@ def criar_rascunhos_correios():
         mail.HTMLBody = f"<html><body>{corpo_email}{assinatura_outlook}</body></html>"
         mail.Save()
         mail.Close(0)
+        
+        # Calcula o progresso dinâmico (de 25% até 95%)
+        progresso_atual = 25 + int(((i + 1) / total_regionais) * 70)
+        print(f"[PROGRESSO: {progresso_atual}]")
 
+    print("[PROGRESSO: 100]")
     print("\nProcesso concluído! Verifique a pasta 'Rascunhos' no seu Outlook.")
 
 # ==============================================================================
@@ -129,6 +140,7 @@ def criar_rascunhos_correios():
 # ==============================================================================
 
 def preparar_e_gerar_rateio():
+    print("[PROGRESSO: 5]")
     print("Lendo planilhas na pasta testar_edicao...")
     pasta_trabalho = PASTA_ARQUIVOS_RATEIO / "testar_edicao"
     
@@ -151,6 +163,7 @@ def preparar_e_gerar_rateio():
     elif not caminho_correios:
         raise FileNotFoundError("Falta a planilha numérica dos Correios (ex: 1234567.xlsx) na pasta 'testar_edicao'.")
 
+    print("[PROGRESSO: 20]")
     print(f">> Iniciando processamento...")
     
     pasta_exemplos = PASTA_ARQUIVOS_RATEIO / "exemplos"
@@ -161,8 +174,10 @@ def preparar_e_gerar_rateio():
         
     caminho_saida = pasta_exemplos / "RATEIO PAG.xlsx"
     
+    print("[PROGRESSO: 30]")
     final = gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_saida)
     
+    print("[PROGRESSO: 100]")
     print(f"Total de linhas geradas no final: {len(final)}")
     print(f"✅ Arquivo RATEIO PAG.xlsx gerado e salvo direto na pasta 'exemplos'!")
 
@@ -172,7 +187,7 @@ def preparar_e_gerar_rateio():
 # 3. FUNÇÃO: LANÇAR NOTA FISCAL
 # ==============================================================================
 def lancar_nota_fiscal():
-
+    print("[PROGRESSO: 2]")
     PASTA_BASE = PASTA_ARQUIVOS_RATEIO / "exemplos"
     ARQUIVO_REGRAS_XLSX = PASTA_ARQUIVOS_RATEIO / "dados_puxados_preenchimento.xlsx"
 
@@ -195,10 +210,10 @@ def lancar_nota_fiscal():
     caminho_boleto_pdf = str(pdfs_encontrados[0].resolve())
 
     print("Iniciando robô de lançamento...")
-
     print(f"✅ Planilha de Upload carregada: {caminho_planilha_rateio}")
     print(f"✅ Boleto carregado: {caminho_boleto_pdf}")
 
+    print("[PROGRESSO: 10]")
     print("⏳ Extraindo dados do Boleto...")
     campos = extrair_campos_boleto(caminho_boleto_pdf)
 
@@ -248,6 +263,7 @@ def lancar_nota_fiscal():
 
     print(f"📋 Regional: {ID_REGIONAL} | Descrição: {descr} | Material: {material_cod}")
 
+    print("[PROGRESSO: 15]")
     try:
         chrome_options = Options()
         chrome_options.add_experimental_option("detach", True) 
@@ -271,6 +287,7 @@ def lancar_nota_fiscal():
         print("!!! APROVE O MFA NO CELULAR !!!")
         click_anti_stale(wait_longo, By.ID, "idSIButton9") 
         
+        print("[PROGRESSO: 25]")
         fechar_mensagem = WebDriverWait(driver, 100).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-icon.btnCancelTest")))
         fechar_mensagem.click()
         print("Mensagem de boas-vindas fechada.")
@@ -278,6 +295,7 @@ def lancar_nota_fiscal():
         novo_protocolo = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.item-menu[routerlink='/protocolo'], a.item-menu[href='/protocolo']")))
         novo_protocolo.click()
         
+        print("[PROGRESSO: 35]")
         tipo_nota = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-card a.pointer")))
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tipo_nota)
         tipo_nota.click()
@@ -296,6 +314,7 @@ def lancar_nota_fiscal():
         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", opcao)
         opcao.click()
 
+        print("[PROGRESSO: 45]")
         input_enviar_arquivo = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#frmFile")))
         input_enviar_arquivo.send_keys(caminho_boleto_pdf)
 
@@ -308,6 +327,7 @@ def lancar_nota_fiscal():
         opcao_vanessa = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[normalize-space(.)='VANESSA DE BRITO RODRIGUES (VANESSA.BRODRIGUES)']/ancestor::mat-option")))
         safe_click(driver, opcao_vanessa) 
 
+        print("[PROGRESSO: 55]")
         cnpj_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='CNPJ DA EMPRESA MRV'], input[aria-label='CNPJ DA EMPRESA MRV']")
         cnpj_input.clear()
         cnpj_input.send_keys(cnpj_mrv)
@@ -336,6 +356,7 @@ def lancar_nota_fiscal():
             print("Erro ao clicar na linha MRV.")
             raise
 
+        print("[PROGRESSO: 65]")
         wait_overlay_gone(driver, wait)
         wait_no_overlay(driver, wait)
         
@@ -395,6 +416,7 @@ def lancar_nota_fiscal():
         if qtd_cliques > 0:
             print(f"✅ {qtd_cliques} diálogo(s) confirmado(s) com sucesso.")
 
+        print("[PROGRESSO: 75]")
         campo_desc = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input[formcontrolname="frmDescNota"]')))
         driver.execute_script("""
             arguments[0].value = arguments[1];
@@ -425,6 +447,7 @@ def lancar_nota_fiscal():
         preencher_codigo_material_ultima_linha(driver, wait_rapido, material_cod, timeout=10)
         click_pesquisar(driver, wait_rapido)
 
+        print("[PROGRESSO: 85]")
         print("Aguardando tabela carregar para selecionar o checkbox...")
         wait_longo = WebDriverWait(driver, 40)
         locator_checkbox = (By.XPATH, "(//td[contains(@class,'mat-column-select')]//mat-checkbox)[1]")
@@ -449,6 +472,7 @@ def lancar_nota_fiscal():
         selecionar_opcao_justificativa_com_hover(driver, wait_rapido, texto_alvo="2 - Orientações do gestor/coordendor da área")
         click_continuar_proximo_ao_select(driver, wait_rapido)
         
+        print("[PROGRESSO: 95]")
         print("Anexando planilha em segundo plano (sem abrir janela do Windows)...")
         try:
             inputs_file = driver.find_elements(By.XPATH, "//input[@type='file']")
@@ -471,6 +495,7 @@ def lancar_nota_fiscal():
         total_ok = click_ok_confirm_repeatedly(driver, wait, max_clicks=3)
         print(f"[INFO] Botão OK clicado {total_ok} vez(es).")
 
+        print("[PROGRESSO: 100]")
         print("✅ Fluxo concluído com sucesso! O navegador permanecerá aberto para conferência.")
 
     except Exception as e:
@@ -1460,6 +1485,7 @@ def _clean_valor_series(s: pd.Series) -> pd.Series:
     return s.apply(limpa_valor)
 
 def ler_rr_bruto(caminho_rr: Union[str, Path]) -> pd.DataFrame:
+    print("[PROGRESSO: 40]")
     xls = pd.ExcelFile(caminho_rr, engine='openpyxl')
     frames = []
     
@@ -1579,6 +1605,7 @@ def _extrair_coletor_de_titular(texto: str) -> str:
     return "SEM CENTRO DE CUSTO"
 
 def ler_correios_bruto(caminho_correios: Union[str, Path]) -> Tuple[pd.DataFrame, float]:
+    print("[PROGRESSO: 60]")
     df_raw = pd.read_excel(caminho_correios, header=None, engine='openpyxl')
     idx_header = -1
     col_titular, col_valor = -1, -1
@@ -1655,6 +1682,7 @@ def gerar_rateio_pag(
     df_rr_raw = ler_rr_bruto(caminho_rr)
     df_corr_raw, valor_liquido_correios = ler_correios_bruto(caminho_correios)
 
+    print("[PROGRESSO: 80]")
     df_rr_raw['VALOR'] = pd.to_numeric(df_rr_raw['VALOR'], errors='coerce').fillna(0.0)
     df_corr_raw['VALOR'] = pd.to_numeric(df_corr_raw['VALOR'], errors='coerce').fillna(0.0)
 
@@ -1725,6 +1753,7 @@ def gerar_rateio_pag(
                 
         if debug: print(f"[DEBUG] Adicionados {pacotes_adicionados} pacotes exatos dos Correios.")
 
+    print("[PROGRESSO: 90]")
     final_base = pd.DataFrame(linhas_finais)
     if not final_base.empty:
         final_base = final_base.groupby(['TIPOCOLETOR', 'COLETOR'], as_index=False)['VALOR'].sum()

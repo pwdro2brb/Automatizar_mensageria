@@ -185,7 +185,7 @@ class CentralAutomacaoMRV:
         sys.stdout = PrintRedirector(self.console)
         sys.stderr = PrintRedirector(self.console)
 
-        print("Sistema Central iniciado com sucesso, Pedro!")
+        print("Sistema Central iniciado com sucesso!")
         print("Selecione o processo que deseja executar.\n" + "-"*60)
 
     def _chamar_robo_juridico(self):
@@ -404,25 +404,71 @@ class CentralAutomacaoMRV:
 
         texto_ajuda = """Bem-vindo à Central de Automações MRV! Siga as instruções abaixo para garantir que tudo funcione perfeitamente.
 
-PRIMEIRO PASSO: CREDENCIAIS
+PRIMEIRO PASSO: CREDENCIAIS!!!!
 
 Antes de rodar qualquer robô, clique no botão "⚙️ Configurar Credenciais". 
 Preencha seu E-mail MRV, sua Senha MRV e a Senha do Malote Web (se você tiver). O sistema salvará isso de forma segura para os robôs usarem automaticamente.
 
-ROBÔS QUE ACESSAM SITES (Aviso Importante)
+
+ROBÔS QUE ACESSAM SITES (Aviso Importante) !!!!
 
 • Tempo de Carregamento: Os robôs que abrem o navegador (Chrome/Edge) podem demorar alguns segundos para iniciar. Aguarde a tela abrir sozinha, eles são os robôs de: Faturamento 3, Relatório Jurídico Montreal, incluir correspodências rápidas, gerar produtividade, gerar relatório de envio para correios, fechar chamados a vencer, rateio de malote.
 • Código de Segurança (MFA): Na PRIMEIRA VEZ que o robô acessar os portais da MRV por processo (exceto o Malote Web), ele vai preencher seu e-mail e senha, mas o site pedirá a aprovação no seu celular (MFA/Token). Fique com o celular em mãos para aprovar o acesso!
 
-REGRAS DOS PROCESSOS
+
+REGRAS DOS PROCESSOS!!!!
 
 • Correios & Faturamento: Lembre-se de colocar as planilhas e PDFs corretos dentro da pasta "arquivos", ela fica dentro da pasta "dist" antes de rodar os robôs. O robô vai ler os dados de lá.
 • SAP (Produtividade, ZMM180): Quando o robô avisar, deixe o SAP aberto na SEGUNDA TELA e NÃO MEXA no mouse ou teclado enquanto ele trabalha.
 • Podio & Mensageria: O robô fará os downloads e uploads automaticamente, apenas confirme as caixas de aviso que aparecerem na tela.
 
-CANCELAMENTO DE EMERGÊNCIA
 
-Se algo der errado, se você esquecer de fechar uma planilha, ou precisar usar o PC na mesma hora, clique no botão vermelho "CANCELAR PROCESSO ATIVO". Ele vai forçar a parada do robô imediatamente e fechar os navegadores abertos por ele.
+ARQUIVOS OBRIGATÓRIOS PARA CADA ROBÔ!!!!
+
+• Rateio de Malote: Planilha dos correios (ela se parece com isso 2554871.xlsx), 
+planilha relatório agilis (ela se parece com isso Relatório Agilis -  01.05 a 23.06.xlsx), 
+base de centro de custo, e acompanhamento de VSC mais recente. 
+Todos estão dentro da pasta "dist/arquivos/rateio_malote".
+
+• Faturamento 2: Planilha dos correios (ela se parece com isso 2554871.xlsx),
+e planilha rateio recebido (ela se parece com isso Rateio Recebido.xlsx) 
+todos eles ficam dentro da pasta "dist/arquivos/faturamento/testar_edicao".
+
+• Faturamento 3: Planilha dados_puxados_preenchimento.xlsx ela fica na pasta "dist/arquivos/faturamento",
+planilha RATEIO PAG.xlsx e o boleto (pdf), eles ficam na pasta "dist/arquivos/faturamento/exemplos".
+
+• Produtividade: Planilha de produtividade (ela se parece com isso Produtividade 05 - 2026.xlsx) ela fica na pasta "dist/arquivos/produtividade".
+
+• Incluir encomendas rápidass: Planilha encomendas.xlsx ela fica na pasta "dist/arquivos/encomendas".
+
+• Uber 1: Planilha retirada do sap (ela se parece com isso EXPORT_20260721_132513.xlsx, ela sempre começa com "EXPORT_"),
+Planilha Responsaveis Por Centro de Custos.xlsx as duas ficam na pasta "dist/arquivos/uber".
+
+• Uber 2: A planilha Responsaveis_Atualizado_SAP.xlsx (ela aparece depois de rodar o Uber 1),
+E a planilha de relatórios do mês (ela se parece com isso Relatório Junho - 2026 Atualizado.xlsx, ela sempre começa com "Relatório_") 
+As duas ficam na pasta "dist/arquivos/uber".
+
+• Uber 3: Os arquivos que são gerados dentro da  2026,06 (ou seja, ano,mes) dentro da pasta "dist/arquivos/uber".
+
+CANCELAMENTO DE EMERGÊNCIA!!!!
+
+• Se algo der errado, se você esquecer de fechar uma planilha, ou precisar usar o PC na mesma hora, clique no botão vermelho "CANCELAR PROCESSO ATIVO". Ele vai forçar a parada do robô imediatamente e fechar os navegadores abertos por ele.
+
+
+OBSERVAÇÕES IMPORTANTES!!!!
+
+• Os robôs de Uber, você deverá rodar na ordem: Uber 1, Uber 2 e depois Uber 3. Se você pular algum deles, o próximo não vai funcionar.
+
+• Na planilha encomendas.xlsx, não altere os nomes das colunas, pois o robô depende delas para funcionar corretamente.
+
+• O robô de faturamento 3 depende do robô de faturamento 2, então sempre rode o faturamento 2 antes do faturamento 3. 
+
+• O robô Uber 2 vai gerar esses arquivos: PENDENCIAS_CARGO.xlsx, consolidado_para_envio_ATUALIZADO.xlsx, TESTE MACRO 2026,06 COM_ESTILO.xlsx, Enviar_e-mail original COM_ESTILO.xlsx e a pasta 2026,06 (ano,mes). Não altere os nomes deles, pois o robô Uber 3 depende desses nomes para funcionar corretamente.
+
+• O robô Uber 1 vai gerar a planilha Responsaveis_Atualizado_SAP.xlsx, que é necessária para o Uber 2. É recomendável você analisar os nomes que o robô não conseguiu achar por não estar na base de ativos.
+
+• O robô de Rateio de Malote vai gerar a planilha Rateio_Malote.xlsx.
+
 """
         # Insere o texto e bloqueia para o usuário não conseguir apagar
         textbox.insert("0.0", texto_ajuda)

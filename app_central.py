@@ -176,6 +176,12 @@ class CentralAutomacaoMRV:
         lbl_console = ctk.CTkLabel(root, text="Console de Execução em Tempo Real:", font=ctk.CTkFont(size=14, weight="bold"))
         lbl_console.pack(anchor=tk.W, padx=30, pady=(0, 5))
 
+        # --- NOVA BARRA DE PROGRESSO ---
+        self.progressbar = ctk.CTkProgressBar(root, mode="indeterminate", height=8, progress_color=self.COR_MRV)
+        self.progressbar.pack(fill=tk.X, padx=30, pady=(0, 5))
+        self.progressbar.set(0) # Começa vazia e parada
+        # -------------------------------
+
         self.console = ctk.CTkTextbox(root, height=150, font=ctk.CTkFont(family="Consolas", size=13), 
                                       text_color="#00FF00", fg_color="#1E1E1E", border_width=2, border_color="#333333")
         # expand=False garante que o console nunca mude de tamanho e seja esmagado
@@ -247,6 +253,9 @@ class CentralAutomacaoMRV:
     def executar_processo_cancelavel(self, nome_processo, comando_python=None):
         for btn in self.todos_botoes:
             btn.configure(state="disabled")
+            
+        # Inicia a animação da barra de progresso
+        self.progressbar.start()
             
         print(f">>> Iniciando: {nome_processo}...")
         threading.Thread(target=self._rodar_subprocesso, args=(comando_python,), daemon=True).start()
@@ -346,6 +355,10 @@ class CentralAutomacaoMRV:
     def _reativar_botoes(self):
         for btn in self.todos_botoes:
             btn.configure(state="normal")
+            
+        # Para a animação e zera a barra de progresso
+        self.progressbar.stop()
+        self.progressbar.set(0)
 
     def _abrir_popup_config(self):
         popup = ctk.CTkToplevel(self.root)

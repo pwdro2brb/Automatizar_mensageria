@@ -388,12 +388,14 @@ def filtrar_proximos_vencer(chamados, minutos=60):
 # FUNÇÃO PRINCIPAL (Chamada pela Interface)
 # =============================================
 def executar_fechamento():
+    print("[PROGRESSO: 5]")
     URL_INICIAL = "https://agilis.mrv.com.br/HomePage.do?view_type=my_view"
     driver = webdriver.Chrome()
     wait = WebDriverWait(driver, 70)
 
     try:
         fazer_login(driver, wait)
+        print("[PROGRESSO: 20]")
 
         # =============================================
         # LOOP PRINCIPAL
@@ -422,6 +424,7 @@ def executar_fechamento():
             todos_chamados = buscar_chamados_vencem_hoje_api(driver, filter_id="3316")
 
             if not todos_chamados:
+                print("[PROGRESSO: 100]")
                 print("\n✅ Nenhum chamado para vencer hoje encontrado via API.")
                 print("🛑 Encerrando o robô automaticamente para liberar a central.")
                 break 
@@ -429,9 +432,10 @@ def executar_fechamento():
             proximos = filtrar_proximos_vencer(todos_chamados, minutos=60)
 
             if not proximos:
+                print("[PROGRESSO: 100]")
                 print(f"  ℹ️ {len(todos_chamados)} chamados encontrados, mas nenhum vence em menos de 1 hora.")
-                aguardar_proximo_ciclo(10)
-                continue
+                print("🛑 Encerrando o robô automaticamente para liberar a central.")
+                break
 
             print(f"\n  ⚠️ {len(proximos)} chamados para processar:")
             for c in proximos:
@@ -441,7 +445,8 @@ def executar_fechamento():
             # =============================================
             # LOOP DE PROCESSAMENTO DOS CHAMADOS
             # =============================================
-            for chamado in proximos:
+            total_chamados = len(proximos)
+            for i, chamado in enumerate(proximos):
                  # ✅ Verifica se ainda está aberto antes de abrir no navegador
                 if not chamado_ainda_aberto(driver, chamado["id"]):
                     print(f"  ⏭️ Chamado #{chamado['id']} já foi fechado. Pulando...")
@@ -464,14 +469,19 @@ def executar_fechamento():
                 # Volta para a home entre cada chamado
                 driver.get(URL_INICIAL)
                 time.sleep(3)
+                
+                # Progresso dinâmico de 20% a 95%
+                progresso_atual = 20 + int(((i + 1) / total_chamados) * 75)
+                print(f"[PROGRESSO: {progresso_atual}]")
 
             # =============================================
             # FIM DO CICLO
             # =============================================
+            print("[PROGRESSO: 100]")
             print("\n" + "="*60)
             print("CICLO CONCLUÍDO!")
             print("="*60)
-            aguardar_proximo_ciclo(10)
+            break # Quebra o loop infinito para o robô poder finalizar e liberar a interface
 
     except Exception as e:
         print(f"\n[ERRO FATAL] {e}")

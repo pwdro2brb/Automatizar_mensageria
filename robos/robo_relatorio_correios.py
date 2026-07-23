@@ -136,6 +136,7 @@ def validar_chamado_no_agilis(chamado, driver, wait):
 # FUNÇÃO 2: BAIXAR RELATÓRIO NO AGILIS (SELENIUM)
 # ==============================================================================
 def baixar_relatorio_agilis():
+    print("[PROGRESSO: 5]")
     print("Iniciando automação do relatório de envio dos correios...")
     driver = webdriver.Chrome()
     wait = WebDriverWait(driver, 10)
@@ -196,6 +197,7 @@ def baixar_relatorio_agilis():
                 clicado_manter = False; break
         if not clicado_manter: raise Exception("Falha ao clicar em Manter Conectado")
 
+        print("[PROGRESSO: 15]")
         print("Login da Microsoft concluído na janela pop-up.")
 
         selector_relatorios = (By.LINK_TEXT, "Relatórios")
@@ -241,6 +243,7 @@ def baixar_relatorio_agilis():
             print("    - FALHA: Não foi possível encontrar o rádio 'Durante'.")
             raise 
 
+        print("[PROGRESSO: 25]")
         selector_executar = (By.ID, "addnew223222")
         wait.until(EC.element_to_be_clickable(selector_executar)).click()
         print("6. Cliquei em 'Executar relatório'.")
@@ -272,6 +275,7 @@ def baixar_relatorio_agilis():
 # FUNÇÃO 3: PROCESSAR EXCEL E VALIDAR CHAMADOS
 # ==============================================================================
 def processar_excel_e_validar(driver):
+    print("[PROGRESSO: 35]")
     # Constantes de formatação do Excel
     xlUp = -4162
     xlCenter = -4108           
@@ -453,13 +457,15 @@ def processar_excel_e_validar(driver):
         full_range.Borders.LineStyle = xlContinuous
         
         # --- VALIDAÇÃO DOS CHAMADOS NO AGILIS ---
+        print("[PROGRESSO: 50]")
         print("\n--- Iniciando validação dos chamados no Agilis ---")
         wait_validacao = WebDriverWait(driver, 1)
 
         try:
             driver.get("https://agilis.mrv.com.br/HomePage.do?view_type=my_view")
             last_summary_row = ws_summary.Cells(ws_summary.Rows.Count, "B").End(xlUp).Row
-            print(f"Total de chamados para validar: {last_summary_row - 2}")
+            total_chamados = last_summary_row - 2
+            print(f"Total de chamados para validar: {total_chamados}")
 
             for i in range(last_summary_row, 2, -1): 
                 chamado = ws_summary.Cells(i, 2).Value 
@@ -476,6 +482,12 @@ def processar_excel_e_validar(driver):
                             print(f"   Linha {i} deletada do Resumo.")
                 else:
                     print(f"   Linha {i} ignorada (chamado vazio).")
+                    
+                # Progresso dinâmico de 50% a 95%
+                if total_chamados > 0:
+                    chamados_processados = last_summary_row - i + 1
+                    progresso_atual = 50 + int((chamados_processados / total_chamados) * 45)
+                    print(f"[PROGRESSO: {progresso_atual}]")
 
         finally:
             driver.quit() # AQUI O NAVEGADOR É FECHADO DEFINITIVAMENTE
@@ -536,6 +548,7 @@ def executar_relatorio_completo():
         print("Etapa 2/2: Processando a planilha no Excel e validando chamados...")
         # Passamos o navegador aberto para a função do Excel usar
         processar_excel_e_validar(navegador_aberto)
+        print("[PROGRESSO: 100]")
         print("Automação do Relatório dos Correios finalizada!")
     else:
         print("A automação foi interrompida porque houve um erro no download.")

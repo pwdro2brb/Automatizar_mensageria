@@ -32,6 +32,7 @@ def normalizar_texto(s: str) -> str:
     return s
 
 def executar_juridico(pular_download=False):
+    print("[PROGRESSO: 5]")
     print("Iniciando automação do Jurídico Montreal...")
     
     if not pular_download:
@@ -76,6 +77,7 @@ def executar_juridico(pular_download=False):
                 
             # --- Etapa 1.5: Lidar com o login da Microsoft ---
             try:
+                print("[PROGRESSO: 15]")
                 print("Aguardando a nova janela/aba de login da Microsoft...")
                 WebDriverWait(driver, 12).until(EC.number_of_windows_to_be(2))
 
@@ -159,6 +161,7 @@ def executar_juridico(pular_download=False):
 
             # --- Início da Navegação no Podio (Etapas 2-12) ---
             try:
+                print("[PROGRESSO: 30]")
                 print("Etapa 2: Procurando 'Vá para uma área de trabalho'...")
                 parent_element_xpath = "//div[contains(@class, 'space-switcher-wrapper')]"
                 parent_element = WebDriverWait(driver, 20).until(
@@ -231,6 +234,7 @@ def executar_juridico(pular_download=False):
                 print("Ação concluída com sucesso!")
                 time.sleep(1)
 
+                print("[PROGRESSO: 45]")
                 print("Etapa 6: Procurando o 'Criado em'...")
                 Criado_em_xpath = "//li[@data-id='created_on']"
                 Criado_em = WebDriverWait(driver, 3).until(
@@ -307,6 +311,7 @@ def executar_juridico(pular_download=False):
                 )
                 item_notificacao.click()
 
+                print("[PROGRESSO: 60]")
                 print("Etapa 12: Aguardando a página de exportação carregar e o status ser 'Completado'...")
                 status_completado_xpath = "//div[contains(@class, 'field-type-text')]"
                 WebDriverWait(driver, 180).until(
@@ -339,12 +344,14 @@ def executar_juridico(pular_download=False):
             sys.exit(1)         
     
     else:
+        print("[PROGRESSO: 60]")
         print("Opção: Pular download ativada. Buscando arquivo já existente na pasta Downloads...")
 
     # ==========================================================================
     # PROCESSAMENTO DO EXCEL (Roda independente de ter baixado agora ou não)
     # ==========================================================================
     try:
+        print("[PROGRESSO: 75]")
         print("\n--- INICIANDO PROCESSAMENTO DO EXCEL ---")
         
         download_dir = os.path.join(os.path.expanduser('~'), 'Downloads')
@@ -437,6 +444,7 @@ def executar_juridico(pular_download=False):
     # ==========================================================================
     if excel_file_path and os.path.exists(excel_file_path):
         try:
+            print("[PROGRESSO: 90]")
             print("\n--- INICIANDO CRIAÇÃO DE E-MAIL NO OUTLOOK ---")
 
             outlook = win32com.client.Dispatch("Outlook.Application")
@@ -489,6 +497,7 @@ def executar_juridico(pular_download=False):
             else:
                 print("Planilha vazia: Arquivo NÃO anexado.")
 
+            print("[PROGRESSO: 100]")
             print("E-mail criado no Outlook com sucesso.")
 
         except Exception as e:

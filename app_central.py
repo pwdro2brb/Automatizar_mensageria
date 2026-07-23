@@ -221,22 +221,20 @@ class CentralAutomacaoMRV:
                 messagebox.showwarning("Aviso", f"A pasta não foi encontrada:\n{caminho_pasta}")
 
     def _chamar_robo_produtividade(self):
-        msg = "Você já verificou a planilha de produtividade?\n\n• OK para continuar.\n• Cancelar para ABRIR A PASTA."
+        resposta = messagebox.askyesnocancel(
+            "Produtividade Setorial", 
+            "Você deseja que o robô baixe os relatórios automaticamente (Podio, Agilis, Bússola)?\n\n"
+            "SIM: O robô fará o download e a edição.\n"
+            "NÃO: Pular download (apenas formatar planilhas já existentes na pasta).\n"
+            "CANCELAR: Abortar operação."
+        )
         
-        if messagebox.askokcancel("Lembrete - Produtividade", msg):
-            if messagebox.askokcancel("Aviso Importante - SAP e Mouse", "ATENÇÃO\n\n1. Deixe o SAP aberto na SEGUNDA TELA.\n2. NÃO MEXA no mouse ou teclado.\n\nDeseja continuar?"):
-                self.executar_processo_cancelavel("Produtividade Setorial", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor()")
-        else:
-            # Abre a pasta de produtividade definida no config.py
-            pasta = config.PASTA_PRODUTIVIDADE
-            if not os.path.exists(pasta):
-                try:
-                    os.makedirs(pasta)
-                except:
-                    pass
-            if os.path.exists(pasta):
-                os.startfile(pasta)
-
+        if resposta is True:
+            if messagebox.askokcancel("Aviso Importante", "ATENÇÃO\n\nNÃO MEXA no mouse ou teclado durante a extração do Bússola.\nDeseja continuar?"):
+                self.executar_processo_cancelavel("Produtividade (Completo)", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor(pular_extracao=False)")
+        elif resposta is False:
+            self.executar_processo_cancelavel("Produtividade (Apenas Edição)", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor(pular_extracao=True)")
+            
     def _chamar_robo_incluir_encomendas(self):
         if messagebox.askokcancel("Lembrete - Correspondências", "Você lembrou de preencher a planilha?\n\n• OK para rodar o robô.\n• Cancelar para ABRIR A PLANILHA."):
             self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()")

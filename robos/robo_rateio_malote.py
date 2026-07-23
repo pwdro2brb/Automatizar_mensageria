@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-RATEIO MALOTE v14 - Correção de Valor Órfão e Filtro de Mesma Cidade
+RATEIO MALOTE v15 - Correção de Valor Órfão de VSC e Exceção SP Dinâmica
 """
 import sys
 import os
@@ -861,7 +861,12 @@ class RateioMalote:
 
             self._distribute_municipality_pairs(cartao, municipios_correios, pivot_percurso, vsc_valor)
             self._apply_sp_fallback(cartao, municipios_correios, pivot_percurso, start_idx)
-            self._sweep_orphan_values(cartao, municipios_correios, pivot_percurso, start_idx)
+            
+            # Passa o vsc_valor para a função de varredura para ela saber quanto VSC deveria ter sido distribuído
+            self._sweep_orphan_values(cartao, municipios_correios, pivot_percurso, start_idx, vsc_valor)
+            
+            # Aplica os créditos e a exceção de SP (que agora pega 100% do valor)
+            self._apply_vsc_credits_and_exceptions(cartao, start_idx, vsc_credito, has_credito, vsc_sp_injetado, is_sp_exc)
 
             linhas_deste_cartao = self.rateio_data[start_idx:]
             has_valid_cc = any(r.get('centro_custo') and r.get('centro_custo') != "CC NÃO ENCONTRADO" for r in linhas_deste_cartao)
@@ -931,12 +936,9 @@ class RateioMalote:
         vsc_sp_injetado = 0
 
         if is_sp_exception:
-            if vsc_valor >= 1205.84:
-                vsc_sp_injetado = 1205.84
-                vsc_valor -= 1205.84
-            elif vsc_valor > 0:
-                vsc_sp_injetado = vsc_valor
-                vsc_valor = 0
+            if vsc_valor > 0:
+                vsc_sp_injetado = vsc_valor # Pega TODO o valor do VSC
+                vsc_valor = 0 # Zera para não distribuir no fluxo normal
                 
         return vsc_valor, vsc_credito_valor, vsc_has_credito, vsc_sp_injetado, is_sp_exception
 
@@ -1061,7 +1063,7 @@ class RateioMalote:
                         self._append_rateio_row(l['origem'], l['destino'], l['cc'], l['count'], parcela, '', '', '')
                     print(f"      🧩 Fallback UTILIZAÇÃO aplicado (SP pivot) no cartão {cartao}: R$ {faltante} distribuído.")
 
-    def _sweep_orphan_values(self, cartao, municipios_correios, pivot_percurso, start_idx):
+    def _sweep_orphan_values(self, cartao, municipios_correios, pivot_percurso, start_idx, vsc_total_cartao):
         valor_total_correios = self.pivot_correios_totals.get(cartao, 0)
         linhas_deste_cartao = self.rateio_data[start_idx:]
         
@@ -1074,6 +1076,8 @@ class RateioMalote:
                 self.rateio_data.remove(linha_vazia)
         
         linhas_deste_cartao_atualizadas = self.rateio_data[start_idx:]
+        
+        # --- 1. VARREDURA DE UTILIZAÇÃO ---
         valor_ja_distribuido = sum(
             (r['utilizacao'] if isinstance(r['utilizacao'], (int, float)) else 0) +
             (r['nao_localizado'] if isinstance(r['nao_localizado'], (int, float)) else 0)
@@ -1114,6 +1118,47 @@ class RateioMalote:
                 
                 print(f"      ⚠️ Criando linha de aviso para absorver R${valor_orfao}.")
                 self._append_rateio_row(origem_str, destino_str, "CC NÃO ENCONTRADO", 0, '', valor_orfao, '', '', highlight=True)
+                # Atualiza a lista de linhas válidas/vazias pois adicionamos uma nova
+                linhas_deste_cartao_atualizadas = self.rateio_data[start_idx:]
+
+        # --- 2. VARREDURA DE VSC ---
+        vsc_ja_distribuido = sum(
+            (r['vsc'] if isinstance(r['vsc'], (int, float)) else 0)
+            for r in linhas_deste_cartao_atualizadas
+        )
+        
+        vsc_orfao = round(vsc_total_cartao - vsc_ja_distribuido, 2)
+        
+        if vsc_orfao > 0.01 or vsc_orfao < -0.01:
+            print(f"      💰 VSC órfão detectado: R${vsc_orfao}")
+            linhas_validas_vsc = [r for r in linhas_deste_cartao_atualizadas if r.get('centro_custo')]
+            
+            if linhas_validas_vsc:
+                soma_chamados_vsc = sum(r.get('qnt_chamados', 0) for r in linhas_validas_vsc if isinstance(r.get('qnt_chamados'), (int, float)))
+                vsc_restante = vsc_orfao
+                
+                for i, r in enumerate(linhas_validas_vsc):
+                    count = r.get('qnt_chamados', 0) if isinstance(r.get('qnt_chamados'), (int, float)) else 0
+                    
+                    if soma_chamados_vsc > 0:
+                        parcela_vsc = round((vsc_orfao / soma_chamados_vsc) * count, 2)
+                    else:
+                        parcela_vsc = round(vsc_orfao / len(linhas_validas_vsc), 2)
+                        
+                    if i == len(linhas_validas_vsc) - 1:
+                        parcela_vsc = round(vsc_restante, 2)
+                        
+                    vsc_restante -= parcela_vsc
+                    
+                    atual_vsc = r['vsc'] if isinstance(r['vsc'], (int, float)) else 0
+                    r['vsc'] = round(atual_vsc + parcela_vsc, 2)
+            else:
+                # Se não tem linha válida, joga na linha de aviso (CC NÃO ENCONTRADO)
+                for r in linhas_deste_cartao_atualizadas:
+                    if r.get('centro_custo') == "CC NÃO ENCONTRADO":
+                        atual_vsc = r['vsc'] if isinstance(r['vsc'], (int, float)) else 0
+                        r['vsc'] = round(atual_vsc + vsc_orfao, 2)
+                        break
 
     def _apply_vsc_credits_and_exceptions(self, cartao, start_idx, vsc_credito_valor, vsc_has_credito, vsc_sp_injetado, is_sp_exception):
         if vsc_has_credito and vsc_credito_valor > 0:
@@ -1571,7 +1616,7 @@ class RateioMalote:
 def executar_rateio_malote():
     print("[PROGRESSO: 2]")
     print("=" * 60)
-    print("  RATEIO MALOTE v14")
+    print("  RATEIO MALOTE v15")
     print("  Com resolução avançada de CC e Correção de Valor Órfão")
     print("=" * 60)
 
@@ -1581,7 +1626,6 @@ def executar_rateio_malote():
 
     output_file = str(PASTA_MALOTE / "Rateio Malote.xlsx")
 
-    # Removido o try/except que causava o erro duplicado (nested exception)
     rateio = RateioMalote(output_path=output_file)
     rateio.run()
 

@@ -822,7 +822,7 @@ def main(nome_arquivo_base, nome_arquivo_saida):
 # ==============================================================================
 # FUNÇÃO MESTRE (CHAMADA PELO HUB CENTRAL)
 # ============================================================================
-def executar_robo_produtividade_setor():
+def executar_robo_produtividade_setor(pular_extracao=False):
     import sys 
     
     print("[PROGRESSO: 2]")
@@ -860,11 +860,15 @@ def executar_robo_produtividade_setor():
         print("Coloque o arquivo do mês retrasado na pasta e tente novamente.")
         sys.exit(1) 
         
-    print("[PROGRESSO: 5]")
-    print("✅ Pré-requisitos validados! Iniciando extração...\n")
-    print("-" * 50)
-    
-    extrair_dados_sistemas()
+    if not pular_extracao:
+        print("[PROGRESSO: 5]")
+        print("✅ Pré-requisitos validados! Iniciando extração...\n")
+        print("-" * 50)
+        extrair_dados_sistemas()
+    else:
+        print("[PROGRESSO: 60]")
+        print("⚠️ Opção 'Pular Extração' ativada. Usando arquivos já existentes na pasta...")
+        print("-" * 50)
     
     print("[PROGRESSO: 70]")
     print("--- Executando Etapa 1: Renomear Arquivos ---")

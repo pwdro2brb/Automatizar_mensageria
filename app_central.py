@@ -42,18 +42,6 @@ try:
 except ImportError:
     pass 
 
-import ctypes
-
-# ==============================================================================
-# 🚀 FORÇAR O WINDOWS A RECONHECER TODOS OS MONITORES
-# ==============================================================================
-try:
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
-except Exception:
-    try:
-        ctypes.windll.user32.SetProcessDPIAware()
-    except Exception:
-        pass
 
 import tkinter as tk
 from tkinter import messagebox
@@ -95,13 +83,10 @@ class CentralAutomacaoMRV:
 
         self.root = root
         self.root.title("Hub Central de Automações - MRV")
-        self.root.geometry("1050x700") # Reduzimos a altura padrão
+        self.root.geometry("1050x700")
         
-        # Faz a janela abrir maximizada no Windows (respeitando a barra de tarefas)
-        try:
-            self.root.state('zoomed')
-        except:
-            pass
+        # Maximiza a janela de forma suave APÓS ela ser renderizada (evita o bug de piscar)
+        self.root.after(0, lambda: self.root.state('zoomed'))
         
         lbl_titulo = ctk.CTkLabel(root, text="🤖 Central de Robôs - Administrativo MRV", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_titulo.pack(pady=(0, 5))

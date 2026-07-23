@@ -111,6 +111,7 @@ def extrair_dados_sistemas():
         wait = WebDriverWait(driver, WAIT_TIME)
 
         # --- PARTE 1: PODIO ---
+        print("[PROGRESSO: 10]")
         print("\n=== INICIANDO PARTE 1: PODIO ===")
         driver.get("https://podio.com/login")
         try: wait.until(EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))).click()
@@ -226,6 +227,10 @@ def extrair_dados_sistemas():
         nome_do_arquivo = "Mensageria - Última vista usada.xlsx"
 
         while tempo_espera < 180:
+            # Progresso dinâmico enquanto espera o Podio (vai de 10% a 24%)
+            prog = 10 + int((tempo_espera / 180) * 14)
+            print(f"[PROGRESSO: {prog}]")
+            
             try:            
                 if EC.element_to_be_clickable((By.PARTIAL_LINK_TEXT, "Mensageria - Última vista usada.xlsx")):
 
@@ -260,6 +265,7 @@ def extrair_dados_sistemas():
         time.sleep(1) 
         
         # --- PARTE 2: AGILIS ---
+        print("[PROGRESSO: 25]")
         print("\n=== INICIANDO PARTE 2: AGILIS ===")
         driver.get("https://agilis.mrv.com.br/HomePage.do?view_type=my_view")
         try:
@@ -302,6 +308,7 @@ def extrair_dados_sistemas():
         print("Relatório Agilis baixado com sucesso!")
 
         # --- PARTE 3: BÚSSOLA MRV ---
+        print("[PROGRESSO: 40]")
         print("\n=== INICIANDO PARTE 3: BÚSSOLA MRV ===")
         driver.get("http://bussola.mrv.com.br/Main/Big.aspx")
         time.sleep(4)
@@ -371,12 +378,15 @@ def extrair_dados_sistemas():
 
         btn_excel = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[@title='Excel' or @alt='Excel']")))
         btn_excel.click()
+        
+        print("[PROGRESSO: 55]")
         time.sleep(15) 
         print("Download do Bússola finalizado!")
 
 
 
         # --- MOVER ARQUIVOS ---
+        print("[PROGRESSO: 60]")
         time.sleep(5)
         if not os.path.exists(PASTA_PRODUTIVIDADE):
             os.makedirs(PASTA_PRODUTIVIDADE)
@@ -727,6 +737,7 @@ def fill_fsf_flags(ws, header_map):
 # FUNÇÃO PRINCIPAL DE PROCESSAMENTO DO EXCEL
 # ==============================================================================
 def main(nome_arquivo_base, nome_arquivo_saida):
+    print("[PROGRESSO: 82]")
     PROD_PATH    = os.path.join(PASTA_PRODUTIVIDADE, nome_arquivo_base)
     
     if not os.path.exists(PROD_PATH):
@@ -788,6 +799,7 @@ def main(nome_arquivo_base, nome_arquivo_saida):
     ROW_RANGES_ATIV = [(2, 5), (7, 10), (12, 15), (17, 20), (22, 25), (27, 30), (32, 35), (37, 40), (42, 45), (47, 50), (52,52)]
     clear_month_data_in_blocks(ws, ROW_RANGES_ATIV, start_col_letter="D", end_col_letter="AH")
     
+    print("[PROGRESSO: 85]")
     header_map = build_header_map(ws)
 
     df_ag  = read_tabledinamica_with_namecol(AGILIS_PATH)
@@ -795,10 +807,13 @@ def main(nome_arquivo_base, nome_arquivo_saida):
     df_lan = read_lanctos_tabledinamica(LANCTOS_PATH)
     df_sap = read_tabledinamica_with_namecol(SAP_PATH, name_col_hint="Nome do usuário")
 
+    print("[PROGRESSO: 90]")
     fill_agilis_same_row(ws, header_map, df_ag, AGILIS_POS)
     fill_sedex(ws, header_map, df_sd, MAP_SEDEX)
     fill_lanctos_fixed(ws, header_map, df_lan, LANCTOS_USER_MAP)
     fill_sap_fixed(ws, header_map, df_sap, SAP_COD_MAP)
+    
+    print("[PROGRESSO: 95]")
     fill_fsf_flags(ws, header_map)
 
     wb.save(OUT_PATH)
@@ -810,6 +825,7 @@ def main(nome_arquivo_base, nome_arquivo_saida):
 def executar_robo_produtividade_setor():
     import sys 
     
+    print("[PROGRESSO: 2]")
     print("Iniciando Robô de Produtividade...")
     
     hoje = date.today()
@@ -844,17 +860,21 @@ def executar_robo_produtividade_setor():
         print("Coloque o arquivo do mês retrasado na pasta e tente novamente.")
         sys.exit(1) 
         
+    print("[PROGRESSO: 5]")
     print("✅ Pré-requisitos validados! Iniciando extração...\n")
     print("-" * 50)
     
     extrair_dados_sistemas()
     
+    print("[PROGRESSO: 70]")
     print("--- Executando Etapa 1: Renomear Arquivos ---")
     step_1_prepare_and_rename_reports(PASTA_PRODUTIVIDADE)
     
+    print("[PROGRESSO: 80]")
     print("--- Executando Etapa 2: Processar Produtividade ---")
     main(nome_arquivo_base, nome_arquivo_saida)
     
+    print("[PROGRESSO: 100]")
     print("✅ Robô de Produtividade finalizado com sucesso!")
 
 if __name__ == "__main__":

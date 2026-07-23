@@ -455,7 +455,7 @@ def executar_juridico(pular_download=False):
                 "reinaldo.reis@parceiro.mrv.com.br;"
                 "maria.rferreira@parceiro.mrv.com.br"
             )
-            mail.CC = "matheus.lemos.silva@mrv.com.br;alfredo.pereira@mrv.com.br"
+            mail.CC = "correiosbh@mrv.com.br"
 
             hoje = datetime.now()
             data_formatada = hoje.strftime("%d/%m/%Y")

@@ -3,6 +3,8 @@ import os
 import traceback
 import time
 import tempfile
+import tkinter.messagebox as messagebox
+import config
 
 # ==============================================================================
 # 🚀 1. INTERCEPTADOR DE PROCESSOS (Bypass do PyInstaller --noconsole)
@@ -178,6 +180,20 @@ class CentralAutomacaoMRV:
 
         print("Sistema Central iniciado com sucesso!")
         print("Selecione o processo que deseja executar.\n" + "-"*60)
+
+        # Chama a verificação de credenciais 1 segundo após abrir o app
+        self.root.after(1000, self._verificar_credenciais_iniciais)
+
+    def _verificar_credenciais_iniciais(self):
+        # Verifica se as credenciais estão vazias ou com o texto padrão
+        email_vazio = not config.EMAIL_MRV or config.EMAIL_MRV == "seu_email@mrv.com.br"
+        senha_vazia = not config.SENHA_MRV or config.SENHA_MRV == "sua_senha"
+        
+        if email_vazio or senha_vazia:
+            messagebox.showwarning(
+                "Atenção: Credenciais Ausentes",
+                "Bem-vindo ao Hub Central!\n\nNotamos que suas credenciais ainda não foram configuradas.\n\nPor favor, clique no botão 'Configurar Credenciais' e preencha seu e-mail e senha antes de executar os robôs."
+            )
 
     def _chamar_robo_juridico(self):
         resposta = messagebox.askyesnocancel("Relatório Jurídico Montreal", "Você deseja que o robô baixe a planilha do Podio automaticamente?\n\nSIM: O robô fará tudo.\nNÃO: Eu já baixei manualmente.\nCANCELAR: Abortar operação.")
@@ -405,6 +421,7 @@ class CentralAutomacaoMRV:
             popup.destroy()
 
         ctk.CTkButton(popup, text="Salvar", command=salvar, fg_color=self.COR_MRV, hover_color=self.COR_MRV_HOVER, font=ctk.CTkFont(weight="bold")).pack(pady=25)
+    
     def _abrir_popup_ajuda(self):
         popup = ctk.CTkToplevel(self.root)
         popup.title("Ajuda e Tutorial")
@@ -418,6 +435,10 @@ class CentralAutomacaoMRV:
         # Caixa de texto com barra de rolagem
         textbox = ctk.CTkTextbox(popup, width=600, height=450, wrap="word", font=ctk.CTkFont(size=14))
         textbox.pack(padx=20, pady=(0, 20), fill=tk.BOTH, expand=True)
+
+        # Adiciona o atalho CTRL+F na janela de ajuda
+        popup.bind("<Control-f>", lambda e: JanelaBusca(popup, textbox))
+        popup.bind("<Control-F>", lambda e: JanelaBusca(popup, textbox))
 
         texto_ajuda = """Bem-vindo à Central de Automações MRV! Siga as instruções abaixo para garantir que tudo funcione perfeitamente.
 
@@ -492,7 +513,54 @@ OBSERVAÇÕES IMPORTANTES!!!!
         textbox.configure(state="disabled")
 
 
+class JanelaBusca:
+    def __init__(self, parent, textbox):
+        self.top = ctk.CTkToplevel(parent)
+        self.top.title("Buscar na Ajuda")
+        self.top.geometry("350x80")
+        self.top.attributes("-topmost", True) # Mantém a busca sempre na frente
+        self.top.resizable(False, False)
+        
+        # O CTkTextbox usa um widget Text do Tkinter por baixo dos panos
+        self.textbox = textbox._textbox 
+        self.last_pos = "1.0"
 
+        self.entry = ctk.CTkEntry(self.top, placeholder_text="Digite para buscar...")
+        self.entry.pack(side="left", padx=10, pady=10, expand=True, fill="x")
+        # Permite buscar apertando Enter
+        self.entry.bind("<Return>", self.buscar)
+
+        self.btn = ctk.CTkButton(self.top, text="Próximo", width=80, command=self.buscar)
+        self.btn.pack(side="right", padx=10, pady=10)
+
+        self.entry.focus()
+
+    def buscar(self, event=None):
+        query = self.entry.get()
+        # Remove o grifo amarelo da busca anterior
+        self.textbox.tag_remove("highlight", "1.0", "end")
+        if not query:
+            return
+
+        # Procura a palavra a partir da última posição
+        pos = self.textbox.search(query, self.last_pos, stopindex="end", nocase=True)
+        
+        # Se não achar, volta para o começo do texto e procura de novo
+        if not pos:
+            pos = self.textbox.search(query, "1.0", stopindex="end", nocase=True)
+
+        if pos:
+            # Calcula onde a palavra termina
+            end_pos = f"{pos}+{len(query)}c"
+            # Adiciona um grifo amarelo na palavra encontrada
+            self.textbox.tag_add("highlight", pos, end_pos)
+            self.textbox.tag_config("highlight", background="#FFC000", foreground="black")
+            # Rola a tela até a palavra
+            self.textbox.see(pos)
+            # Salva a posição para a próxima busca
+            self.last_pos = end_pos
+        else:
+            self.last_pos = "1.0"
 
 if __name__ == "__main__":
     root = ctk.CTk() 

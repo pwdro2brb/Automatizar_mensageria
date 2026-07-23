@@ -428,6 +428,7 @@ def rolar_e_ler_documento_edge(max_paginas=10, cnpjs_procurados=None, valor_proc
 # FUNÇÃO PRINCIPAL DE EXECUÇÃO
 # ============================================================
 def executar_zmm180():
+    print("[PROGRESSO: 2]")
     print("=" * 50)
     print("  AUTOMAÇÃO ZMM180 - INICIANDO")
     print("=" * 50)
@@ -439,6 +440,7 @@ def executar_zmm180():
     time.sleep(0.5)
     print("✅ Foco no SAP!")
 
+    print("[PROGRESSO: 5]")
     print("\nPASSO 1: Abrindo ZMM180...")
     focar_sap()
     clicar(CAMPO_COMANDO)
@@ -465,6 +467,7 @@ def executar_zmm180():
     clicar_e_digitar(CAMPO_LAYOUT, '/carlosa')
     print("✅ Layout = /carlosa")
 
+    print("[PROGRESSO: 15]")
     print("\nPASSO 5: Executando relatório (F8)...")
     focar_sap()
     pyautogui.press('f8')
@@ -490,6 +493,7 @@ def executar_zmm180():
     clicar(MEU_NOME)
     print("✅ Nome selecionado!")
 
+    print("[PROGRESSO: 25]")
     print("\nPASSO 10: Confirmando...")
     clicar(BOTAO_OK_USUARIO)
     time.sleep(2)
@@ -526,6 +530,7 @@ def executar_zmm180():
     arrastar_scrollbar_lateral(SCROLLBAR_LATERAL, distancia_x=500)
     print("✅ Página carregada!")
 
+    print("[PROGRESSO: 35]")
     print("\nPASSO 15: Clicando no lápis...")
     clicar(BOTAO_LAPIS)
     time.sleep(0.1)
@@ -556,6 +561,7 @@ def executar_zmm180():
     arrastar_scrollbar_lateral_voltar(SCROLLBAR_LATERAL, distancia_x=210)
     print("✅ Página carregada!")
 
+    print("[PROGRESSO: 45]")
     print("\nPASSO 20: Selecionando primeiro registro novamente...")
     focar_sap()
     clicar_chekbox(CHECKBOX_PRIMEIRO)
@@ -577,6 +583,7 @@ def executar_zmm180():
     time.sleep(2)
     print("✅ Relatório executado!")
 
+    print("[PROGRESSO: 55]")
     print("\n" + "=" * 50)
     print("  VALIDAÇÃO DE CNPJ")
     print("=" * 50)
@@ -593,6 +600,7 @@ def executar_zmm180():
     cnpj_forn_norm = normalizar_cnpj(cnpj_fornecedor_sap)
     cnpj_mrv_norm = normalizar_cnpj(cnpj_grupo_mrv_sap)
 
+    print("[PROGRESSO: 65]")
     print("\nPASSO 25: Lendo documento no Edge (notebook)...")
     conteudo_documento, metodo = rolar_e_ler_documento_edge(
         max_paginas=10,
@@ -642,6 +650,7 @@ def executar_zmm180():
     time.sleep(1)
     print("✅ Saiu da tela de conferência!")
 
+    print("[PROGRESSO: 75]")
     print("\nPASSO 28: Lendo valor do SAP...")
     focar_sap()
 
@@ -684,6 +693,7 @@ def executar_zmm180():
     clicar_e_digitar(CAMPO_COLAR_VALOR_SAP, valor_sap_raw)
     print(f"✅ Valor colado: '{valor_sap_raw}'")
 
+    print("[PROGRESSO: 85]")
     print("\nPASSO 32: Lendo número do pedido...")
     focar_sap()
 
@@ -742,6 +752,7 @@ def executar_zmm180():
     time.sleep(1)
     print("✅ Botão clicado!")
 
+    print("[PROGRESSO: 95]")
     print("\nPASSO 35: Executando sequência de atualização...")
     focar_sap()
 
@@ -765,6 +776,7 @@ def executar_zmm180():
     time.sleep(3)  
     print("   ✅ Botão 4 OK!")
 
+    print("[PROGRESSO: 100]")
     print("\n" + "=" * 50)
     print("  🎉 PROCESSO COMPLETO!")
     print("=" * 50)

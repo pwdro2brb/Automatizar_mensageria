@@ -10,6 +10,7 @@ A versão 2.0 foi transformada em um executável pronto para uso, facilitando a 
 - A interface central continua disponível para execução dos robôs a partir de botões na tela.
 - O fluxo de uso ficou mais simples para usuários finais.
 - O aplicativo mantém o mesmo funcionamento das automações, agora com execução mais prática.
+- Durante a execução de cada robô, a interface agora exibe uma barra de progresso visual para indicar o andamento da tarefa.
 
 ## Objetivo
 
@@ -76,6 +77,10 @@ Se quiser rodar diretamente pelo código-fonte:
 python app_central.py
 ```
 
+## Barra de progresso durante a execução
+
+Ao iniciar um robô pela interface, uma barra de progresso é exibida na parte superior da tela para mostrar o andamento da automação em tempo real. Isso facilita o acompanhamento da execução e deixa o processo mais transparente para o usuário.
+
 ## Cancelar processo ativo
 
 A central oferece suporte para cancelamento de processos em execução. Um botão vermelho chamado "🛑 CANCELAR PROCESSO ATIVO" fica localizado na parte superior da interface e se habilita automaticamente quando qualquer automação estiver em execução.
@@ -89,6 +94,7 @@ Características:
 ## Novas funcionalidades
 
 - motor universal de processos canceláveis;
+- barra de progresso visual durante a execução dos robôs;
 - melhor tratamento de logs e erros na interface;
 - novo fluxo de Rateio de Malote com leitura de dados e consolidação automática;
 - novos scripts adicionados ao repositório para diferentes cenários operacionais.

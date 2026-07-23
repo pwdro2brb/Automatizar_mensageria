@@ -118,7 +118,7 @@ def preencher_malote_iframe(driver, id_elemento, valor):
 # FUNÇÃO PRINCIPAL
 # ==============================================================================
 def executar_inclusao():
-    
+    print("[PROGRESSO: 2]")
     # 1. Lógica de Pastas
     pasta_encomendas = os.path.join(config.PASTA_ARQUIVOS, "encomendas")
     
@@ -154,6 +154,7 @@ def executar_inclusao():
             raise e # Repassa o erro amigável para o popup
         raise RuntimeError(f"Erro ao ler a planilha encomendas.xlsx: {e}")
     
+    print("[PROGRESSO: 5]")
     print("\n--- INICIANDO ROBÔ DE ENCOMENDAS RÁPIDAS ---")
     
     # 2. Configura o Chrome para não fechar no final
@@ -192,6 +193,7 @@ def executar_inclusao():
 
     # --- Etapa 1.5: Lidar com o login da Microsoft ---
     try:
+        print("[PROGRESSO: 10]")
         print("Aguardando a nova janela/aba de login da Microsoft...")
         WebDriverWait(driver, 12).until(EC.number_of_windows_to_be(2))
 
@@ -247,6 +249,7 @@ def executar_inclusao():
                  clicado_manter = False; break
         if not clicado_manter: raise Exception("Falha ao clicar em Manter Conectado")
 
+        print("[PROGRESSO: 15]")
         print("Login da Microsoft concluído na janela pop-up.")
         
         print("Aguardando janela pop-up fechar...")
@@ -265,6 +268,7 @@ def executar_inclusao():
     url_app = "https://podio.com/mrvcombr/processos-e-informacoes-csc-teste/apps/mensageria/items/new"
     driver.get(url_app)
 
+    total_linhas = len(tabela)
     for i, linha in tabela.iterrows():
         codigo_rastreio = str(linha.get('Codigo', '')).strip()
         codigo_upper = codigo_rastreio.upper()
@@ -348,7 +352,13 @@ def executar_inclusao():
             time.sleep(2)
             print("Sucesso!")
         except: print("Erro ao salvar")
+        
+        # Progresso dinâmico de 15% a 95%
+        if total_linhas > 0:
+            progresso_atual = 15 + int(((i + 1) / total_linhas) * 80)
+            print(f"[PROGRESSO: {progresso_atual}]")
 
+    print("[PROGRESSO: 100]")
     print("\n✅ Fim do processamento! O navegador permanecerá aberto.")
 
 if __name__ == "__main__":

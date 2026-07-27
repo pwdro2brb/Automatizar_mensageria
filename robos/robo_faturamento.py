@@ -3,6 +3,7 @@ import re
 import time
 import getpass
 import unicodedata
+import win32timezone
 import pandas as pd
 from pathlib import Path
 from PyPDF2 import PdfReader
@@ -36,20 +37,18 @@ import sys
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS
 # ==============================================================================
-# Garante que o robô ache o config.py na raiz do projeto
 sys.path.append(str(Path(__file__).parent.parent))
 import config
 from config import EMAIL_MRV, SENHA_MRV
 
-# Aponta dinamicamente para a nova pasta usando o Radar do config
 PASTA_ARQUIVOS_RATEIO = Path(config.PASTA_ARQUIVOS) / "faturamento"
-
-# Constantes Globais
 CNPJ_CORREIOS_FIXO = "34028316001509"   
 DATE_RE = r"([0-3]?\d/[01]?\d/\d{4})"   
 
+EMAILS_IGNORADOS = ["pedro.henrsilva@mrv.com.br", "correiosbh@mrv.com.br"]
+
 # ==============================================================================
-# 1. FUNÇÃO: GERAR RASCUNHOS
+# 1. FUNÇÃO: GERAR RASCUNHOS (MANTIDA INTACTA)
 # ==============================================================================
 def criar_rascunhos_correios():
     print("[PROGRESSO: 5]")
@@ -70,9 +69,9 @@ def criar_rascunhos_correios():
     print("[PROGRESSO: 15]")
 
     contatos_para = {
-        "Campinas": "flavia.pinho@mrv.com.br; ana.tilli@mrv.com.br",
+        "Campinas": "flavia.pinho@mrv.com.br; ana.tilli@mrv.com.br; sofia.fernandes@mrv.com.br",
         "Ribeirão Preto": "kaylana.alves@mrv.com.br",
-        "Centro Oeste": "nicole.souza@mrv.com.br; maksuel.araujo@mrv.com.br; eunice.prudente@primeconstrucoes.com.br; maryanne.camargo@primeconstrucoes.com.br",
+        "Centro Oeste": "maysa.risalte@mrv.com.br,nicole.souza@mrv.com.br; maksuel.araujo@mrv.com.br; eunice.prudente@primeconstrucoes.com.br; maryanne.camargo@primeconstrucoes.com.br",
         "Nordeste": "langela.santos@mrv.com.br",
         "Sul": "victoria.gomes@mrv.com.br; filipe.avila@mrv.com.br; simone.csantos@mrv.com.br; monique.silva@mrv.com.br",
         "São Paulo": "telma.amattos@mrv.com.br; cristina.demetrio@parceiro.mrv.com.br; manoella.camargo@mrv.com.br; luciano.lsilva@mrv.com.br; nicoli.santos@mrv.com.br",
@@ -95,7 +94,6 @@ def criar_rascunhos_correios():
     outlook = win32.Dispatch('outlook.application')
     pastas_regionais = os.listdir(caminho_mes_recente)
     
-    # Filtra apenas as pastas válidas para calcular o total
     regionais_validas = [r for r in pastas_regionais if os.path.isdir(os.path.join(caminho_mes_recente, r)) and r.upper() != "BH"]
     total_regionais = len(regionais_validas)
     
@@ -128,7 +126,6 @@ def criar_rascunhos_correios():
         mail.Save()
         mail.Close(0)
         
-        # Calcula o progresso dinâmico (de 25% até 95%)
         progresso_atual = 25 + int(((i + 1) / total_regionais) * 70)
         print(f"[PROGRESSO: {progresso_atual}]")
 
@@ -136,87 +133,333 @@ def criar_rascunhos_correios():
     print("\nProcesso concluído! Verifique a pasta 'Rascunhos' no seu Outlook.")
 
 # ==============================================================================
-# 2. FUNÇÃO: GERAR PLANILHA DE RATEIO
+# 2. NOVA FUNÇÃO: FATURAMENTO END-TO-END (E-MAIL -> MRV PAG)
 # ==============================================================================
-
-def preparar_e_gerar_rateio():
-    print("[PROGRESSO: 5]")
-    print("Lendo planilhas na pasta testar_edicao...")
-    pasta_trabalho = PASTA_ARQUIVOS_RATEIO / "testar_edicao"
+def extrair_dados_email_inteligente(texto_email, caminho_correios):
+    """Lê o corpo do e-mail e extrai os Centros de Custo e Valores (ou busca o valor pelo rastreio)"""
+    dados = []
+    rastreios_encontrados = []
     
-    if not pasta_trabalho.exists():
-        raise FileNotFoundError(f"A pasta 'testar_edicao' não foi encontrada dentro de:\n{PASTA_ARQUIVOS_RATEIO}")
+    # 1. Isolar apenas a resposta mais recente (Corta o histórico do e-mail)
+    marcadores_historico = ["De:", "From:", "________________________________", "-----Mensagem original-----", "-----Original Message-----"]
+    texto_recente = texto_email
+    for marcador in marcadores_historico:
+        if marcador in texto_recente:
+            texto_recente = texto_recente.split(marcador)[0]
+            
+    # 2. Analisar linha por linha
+    linhas = texto_recente.splitlines()
     
-    caminho_rr = None
-    caminho_correios = None
+    # Padrões Regex super flexíveis (Aceita com hífen, sem hífen, em tabela, etc.)
+    # CC: 6 a 12 caracteres alfanuméricos (com letras e números) OU 10 a 12 números puros
+    padrao_cc = re.compile(r'\b(?:(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{6,12}|\d{10,12})\b', re.IGNORECASE)
+    # Valor: R$ 123,45 ou apenas 123,45
+    padrao_valor = re.compile(r'(?:R\$?\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})', re.IGNORECASE)
+    # Rastreio: 2 letras + 9 números + 2 letras
+    padrao_rastreio = re.compile(r'\b([A-Z]{2}\d{9}[A-Z]{2})\b', re.IGNORECASE)
     
-    for ficheiro in pasta_trabalho.glob('*.xlsx'):
-        nome_ficheiro = ficheiro.name.upper()
-        if nome_ficheiro.startswith('~$') or nome_ficheiro == 'RATEIO PAG.XLSX': continue
-        if 'RATEIO RECEBIDO' in nome_ficheiro: caminho_rr = ficheiro
-        elif re.match(r'^\d{7}\.XLSX$', nome_ficheiro): caminho_correios = ficheiro
-
-    if not caminho_rr and not caminho_correios:
-        raise FileNotFoundError("Faltam as DUAS planilhas (Rateio Recebido e a dos Correios) na pasta 'testar_edicao'.")
-    elif not caminho_rr:
-        raise FileNotFoundError("Falta a planilha 'RATEIO RECEBIDO' na pasta 'testar_edicao'.")
-    elif not caminho_correios:
-        raise FileNotFoundError("Falta a planilha numérica dos Correios (ex: 1234567.xlsx) na pasta 'testar_edicao'.")
-
-    print("[PROGRESSO: 20]")
-    print(f">> Iniciando processamento...")
-    
-    pasta_exemplos = PASTA_ARQUIVOS_RATEIO / "exemplos"
-    
-    if not pasta_exemplos.exists():
-        pasta_exemplos.mkdir(parents=True, exist_ok=True)
-        print(f"📁 Pasta 'exemplos' criada automaticamente.")
+    for linha in linhas:
+        linha = linha.strip()
+        if not linha: continue
         
-    caminho_saida = pasta_exemplos / "RATEIO PAG.xlsx"
+        cc_match = padrao_cc.search(linha)
+        val_match = padrao_valor.search(linha)
+        rastreio_match = padrao_rastreio.search(linha)
+        
+        # Caso A: Tem CC e Valor na mesma linha (Tabela ou Texto)
+        if cc_match and val_match:
+            cc = cc_match.group(1).upper()
+            valor = float(val_match.group(1).replace('.', '').replace(',', '.'))
+            dados.append({"COLETOR": cc, "VALOR": valor})
+            continue # Já achou valor, não precisa procurar rastreio nessa linha
+            
+        # Caso B: Tem CC e Rastreio na mesma linha
+        if cc_match and rastreio_match:
+            cc = cc_match.group(1).upper()
+            rastreio = rastreio_match.group(1).upper()
+            rastreios_encontrados.append((rastreio, cc))
+            
+    # 3. Se achou rastreios, busca os valores na planilha dos Correios
+    if rastreios_encontrados and os.path.exists(caminho_correios):
+        print(f"   -> {len(rastreios_encontrados)} rastreios encontrados. Buscando valores na planilha...")
+        try:
+            df_corr = pd.read_excel(caminho_correios, engine='openpyxl')
+            df_str = df_corr.astype(str).apply(lambda x: x.str.upper())
+            
+            for rastreio, cc in rastreios_encontrados:
+                mask = df_str.apply(lambda row: row.str.contains(rastreio).any(), axis=1)
+                if mask.any():
+                    idx = mask.idxmax()
+                    row = df_corr.iloc[idx]
+                    
+                    valor_encontrado = 0.0
+                    for val in row.values:
+                        if isinstance(val, (int, float)):
+                            valor_encontrado = float(val)
+                            break
+                        elif isinstance(val, str) and 'R$' in val:
+                            try:
+                                v = val.replace('R$', '').replace('.', '').replace(',', '.').strip()
+                                valor_encontrado = float(v)
+                                break
+                            except: pass
+                            
+                    if valor_encontrado > 0:
+                        dados.append({"COLETOR": cc, "VALOR": valor_encontrado})
+                        print(f"      Rastreio {rastreio} -> Valor R$ {valor_encontrado} -> CC {cc}")
+        except Exception as e:
+            print(f"   -> Erro ao buscar rastreio na planilha: {e}")
+            
+    if dados:
+        # Agrupar por CC caso a pessoa tenha mandado o mesmo CC duas vezes
+        df = pd.DataFrame(dados)
+        df = df.groupby("COLETOR", as_index=False)["VALOR"].sum()
+        return df
+    return None
+
+def executar_faturamento_completo():
+    print("[PROGRESSO: 5]")
+    print("Iniciando Faturamento Ponta a Ponta (E-mail -> MRV Pag)...")
     
-    print("[PROGRESSO: 30]")
-    final = gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_saida)
+    caminho_base = r"\\Bhz-fls-app1\mrvbh\Gerência Administrativa\Pública\NUCLEO DE CONTRATOS E APOIO A GESTÃO\CONTRATOS\Contratos Serviços\1. CORREIOS\2. Faturamento\2026"
     
-    print("[PROGRESSO: 100]")
-    print(f"Total de linhas geradas no final: {len(final)}")
-    print(f"✅ Arquivo RATEIO PAG.xlsx gerado e salvo direto na pasta 'exemplos'!")
+    pastas_meses = [f for f in os.listdir(caminho_base) if os.path.isdir(os.path.join(caminho_base, f))]
+    if not pastas_meses:
+        print("Nenhuma pasta de mês encontrada no diretório da rede.")
+        return
+    pastas_meses.sort()
+    pasta_mes_recente = pastas_meses[-1]
+    caminho_mes_recente = os.path.join(caminho_base, pasta_mes_recente)
+    
+    print(f"Lendo e-mails do Outlook (Caixa de Entrada)...")
+    outlook = win32.Dispatch("Outlook.Application").GetNamespace("MAPI")
+    inbox = outlook.GetDefaultFolder(6) 
+    mensagens = inbox.Items
+    mensagens.Sort("[ReceivedTime]", True) 
+    
+    emails_processar = []
+    
+    print("[PROGRESSO: 15]")
+    print("Analisando os 200 e-mails mais recentes...")
+    
+    contador = 0
+    for msg in mensagens:
+        # 43 é o código interno do Outlook para "MailItem" (E-mail normal)
+        # Isso evita que ele tente ler relatórios de "Não foi possível entregar"
+        if getattr(msg, "Class", 0) != 43:
+            continue
+            
+        contador += 1
+        if contador > 200:
+            break 
+            
+        try:
+            assunto = getattr(msg, "Subject", "")
+            if not assunto:
+                continue
+                
+            if "EXTRATO CORREIOS" in assunto.upper():
+                print(f"\n🔍 Achou: {assunto}")
+                
+                try:
+                    # Agora com o win32timezone importado, isso vai funcionar perfeitamente
+                    data_msg = msg.ReceivedTime
+                    data_python = datetime(data_msg.year, data_msg.month, data_msg.day)
+                    dias_passados = (datetime.now() - data_python).days
+                except Exception as e:
+                    print(f"   ❌ Erro ao ler a data do e-mail: {e}")
+                    continue
+                    
+                if dias_passados > 3:
+                    print(f"   ❌ Ignorado (Muito antigo: {dias_passados} dias atrás)")
+                    continue
+                    
+                try:
+                    remetente = msg.SenderEmailAddress.lower()
+                except:
+                    remetente = "desconhecido"
+                    
+                if remetente in EMAILS_IGNORADOS:
+                    print(f"   ❌ Ignorado (Remetente na lista de ignorados: {remetente})")
+                    continue
+                    
+                try:
+                    regional = assunto.split("-")[1].split("(")[0].strip()
+                    emails_processar.append({
+                        "mensagem": msg,
+                        "regional": regional,
+                        "assunto": assunto
+                    })
+                    print(f"   ✅ APROVADO! Regional identificada: {regional}")
+                except Exception as e:
+                    print(f"   ❌ Ignorado (Não consegui descobrir a regional pelo assunto)")
+                    
+        except Exception as e:
+            continue
 
+    if not emails_processar:
+        print("[PROGRESSO: 100]")
+        print("\nNenhum e-mail válido para processar.")
+        return
 
-
-# ==============================================================================
-# 3. FUNÇÃO: LANÇAR NOTA FISCAL
-# ==============================================================================
-def lancar_nota_fiscal():
-    print("[PROGRESSO: 2]")
-    PASTA_BASE = PASTA_ARQUIVOS_RATEIO / "exemplos"
+    print(f"Encontrados {len(emails_processar)} e-mails para processar.")
+    
     ARQUIVO_REGRAS_XLSX = PASTA_ARQUIVOS_RATEIO / "dados_puxados_preenchimento.xlsx"
-
     if not ARQUIVO_REGRAS_XLSX.exists():
-        raise FileNotFoundError(f"A planilha de regras 'dados_puxados_preenchimento.xlsx' não foi encontrada no caminho:\n{ARQUIVO_REGRAS_XLSX}")
+        print(f"ERRO: Planilha de regras não encontrada em {ARQUIVO_REGRAS_XLSX}")
+        return
+    df_regras = pd.read_excel(ARQUIVO_REGRAS_XLSX, engine="openpyxl")
+
+    driver = None 
+    regionais_ja_tratadas = [] # <--- NOVA MEMÓRIA DO ROBÔ
     
-    if not PASTA_BASE.exists():
-        raise FileNotFoundError(f"A pasta 'exemplos' não foi encontrada dentro de:\n{PASTA_ARQUIVOS_RATEIO}")
+    for i, item in enumerate(emails_processar):
+        msg = item["mensagem"]
+        regional = item["regional"]
+        
+        # Se já tratou essa regional neste ciclo, pula para o próximo e-mail
+        if regional in regionais_ja_tratadas:
+            print(f"⚠️ Regional {regional} já foi processada. Pulando e-mail duplicado.")
+            continue
 
-    planilhas_encontradas = list(PASTA_BASE.glob("RATEIO PAG.xlsx"))
-    if not planilhas_encontradas:
-        raise FileNotFoundError("A planilha 'RATEIO PAG.xlsx' não foi encontrada na pasta 'exemplos'.\nVocê esqueceu de rodar a Etapa 2?")
-    caminho_planilha_rateio = str(planilhas_encontradas[0].resolve())
+        print(f"\n" + "="*50)
+        print(f"Processando Regional: {regional}") 
+        
+        caminho_regional_rede = os.path.join(caminho_mes_recente, regional)
+        if not os.path.exists(caminho_regional_rede):
+            print(f"⚠️ Pasta da regional não encontrada na rede: {caminho_regional_rede}")
+            continue
+            
+        arquivos_rede = os.listdir(caminho_regional_rede)
+        caminho_correios = None
+        caminho_boleto_pdf = None
+        
+        for arq in arquivos_rede:
+            if re.match(r'^\d{7}\.xlsx$', arq, re.IGNORECASE):
+                caminho_correios = os.path.join(caminho_regional_rede, arq)
+            elif arq.lower().endswith('.pdf'):
+                caminho_boleto_pdf = os.path.join(caminho_regional_rede, arq)
+                
+        if not caminho_correios or not caminho_boleto_pdf:
+            print(f"⚠️ Faltam arquivos (PDF ou Planilha dos Correios) na pasta da rede: {caminho_regional_rede}")
+            continue
 
-    pdfs_encontrados = [arq for arq in PASTA_BASE.glob("*") if arq.suffix.lower() == ".pdf"]
-    if not pdfs_encontrados:
-        raise FileNotFoundError("Nenhum boleto em PDF foi encontrado na pasta 'exemplos'.")
-    elif len(pdfs_encontrados) > 1:
-        raise FileNotFoundError(f"Foram encontrados {len(pdfs_encontrados)} PDFs na pasta 'exemplos'.\nDeixe apenas UM boleto na pasta para o robô não se confundir!")
-    caminho_boleto_pdf = str(pdfs_encontrados[0].resolve())
+        caminho_rr = os.path.join(caminho_regional_rede, "Rateio Recebido.xlsx")
+        caminho_rateio_pag = os.path.join(caminho_regional_rede, "RATEIO PAG.xlsx")
+        
+        df_email = extrair_dados_email_inteligente(msg.Body, caminho_correios)
+        
+        if df_email is not None and not df_email.empty:
+            print("✅ Dados extraídos do corpo do e-mail com sucesso!")
+            df_email.to_excel(caminho_rr, index=False)
+            
+            nome_comprovante = f"Comprovante_Aprovacao_{regional}.msg"
+            msg.SaveAs(os.path.join(caminho_regional_rede, nome_comprovante), 3)
+            print("✅ E-mail salvo como comprovante (.msg).")
+        else:
+            print("Procurando anexo no e-mail...")
+            anexo_salvo = False
+            for anexo in msg.Attachments:
+                if ".xls" in anexo.FileName.lower():
+                    anexo.SaveAsFile(caminho_rr)
+                    anexo_salvo = True
+                    print("✅ Anexo salvo como 'Rateio Recebido.xlsx'.")
+                    break
+            if not anexo_salvo:
+                print("⚠️ Nenhum dado no corpo e nenhum anexo Excel encontrado. Pulando regional.")
+                continue
 
-    print("Iniciando robô de lançamento...")
-    print(f"✅ Planilha de Upload carregada: {caminho_planilha_rateio}")
-    print(f"✅ Boleto carregado: {caminho_boleto_pdf}")
+        print("Gerando RATEIO PAG.xlsx...")
+        try:
+            gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_rateio_pag, debug=False)
+            print("✅ RATEIO PAG gerado com sucesso!")
+        except Exception as e:
+            print(f"⚠️ Erro ao gerar RATEIO PAG: {e}")
+            continue
 
-    print("[PROGRESSO: 10]")
-    print("⏳ Extraindo dados do Boleto...")
-    campos = extrair_campos_boleto(caminho_boleto_pdf)
+        print("Extraindo dados do Boleto PDF...")
+        try:
+            campos = extrair_campos_boleto(caminho_boleto_pdf)
+            num_doc = campos["numero_documento"]
+            cnpj_mrv = campos["cnpj_pagador"]
+            valor_boleto = campos["valor_total_str"]
+            
+            if not num_doc or not cnpj_mrv or not valor_boleto:
+                print("⚠️ Falha ao extrair dados essenciais do PDF.")
+                continue
+            print(f"📌 Dados: CNPJ MRV: {cnpj_mrv} | Valor: R$ {valor_boleto} | Nº Doc: {num_doc}")
+        except Exception as e:
+            print(f"⚠️ Erro ao ler PDF: {e}")
+            continue
 
+        if not driver:
+            print("Abrindo MRV Pag...")
+            chrome_options = Options()
+            chrome_options.add_experimental_option("detach", True) 
+            driver = webdriver.Chrome(options=chrome_options) 
+            driver.get("https://mrvpag2.mrv.com.br/home")
+            driver.maximize_window()
+            wait_longo = WebDriverWait(driver, 180)
+            wait = WebDriverWait(driver, 15)
+            wait_rapido = WebDriverWait(driver, 2)
+            
+            print("Aguardando login...")
+            wait.until(EC.presence_of_element_located((By.ID, "i0116"))).send_keys(EMAIL_MRV)
+            click_anti_stale(wait, By.ID, "idSIButton9")
+            wait.until(EC.presence_of_element_located((By.ID, "i0118"))).send_keys(SENHA_MRV)
+            click_anti_stale(wait_longo, By.ID, "idSIButton9")
+            print("!!! APROVE O MFA NO CELULAR !!!")
+            click_anti_stale(wait_longo, By.ID, "idSIButton9") 
+            
+            fechar_mensagem = WebDriverWait(driver, 100).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-icon.btnCancelTest")))
+            fechar_mensagem.click()
+            print("Login concluído.")
+
+        print("Verificando se o documento já foi lançado...")
+        driver.get("https://mrvpag2.mrv.com.br/home")
+        wait_overlays_to_hide(wait)
+        
+        try:
+            dropdown_paginacao = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-select[aria-label='Itens por página:']")))
+            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", dropdown_paginacao)
+            dropdown_paginacao.click()
+            
+            opcao_1000 = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option[.//span[contains(text(), '1000')]]")))
+            opcao_1000.click()
+            time.sleep(3) 
+        except Exception as e:
+            print("Aviso: Não foi possível alterar a paginação para 1000.")
+
+        xpath_doc = f"//td[contains(@class, 'cdk-column-documento') and contains(text(), '{num_doc}')]"
+        documento_encontrado = driver.find_elements(By.XPATH, xpath_doc)
+        
+        if len(documento_encontrado) > 0:
+            print(f"⚠️ Documento {num_doc} JÁ ESTÁ LANÇADO no MRV Pag. Pulando lançamento.")
+        else:
+            print(f"✅ Documento {num_doc} não encontrado. Iniciando lançamento...")
+            try:
+                _realizar_lancamento_mrvpag(driver, wait, wait_rapido, caminho_boleto_pdf, caminho_rateio_pag, campos, df_regras)
+                print(f"🎉 Lançamento da regional {regional} preenchido com sucesso!")
+                
+                regionais_ja_tratadas.append(regional) # Salva na memória
+                
+                # --- PARADA DE SEGURANÇA ---
+                print("\n🛑 PARADA DE SEGURANÇA: O robô preencheu os dados.")
+                print("Por favor, confira na tela do Chrome e clique em SALVAR/CONFIRMAR manualmente.")
+                print("Para lançar a próxima regional, rode o robô novamente no Hub.")
+                break # <--- ISSO FAZ O ROBÔ PARAR AQUI E DEIXAR A TELA ABERTA PARA VOCÊ
+                
+            except Exception as e:
+                print(f"❌ Erro ao lançar no MRV Pag: {e}")
+
+        progresso = 15 + int(((i + 1) / len(emails_processar)) * 85)
+        print(f"[PROGRESSO: {progresso}]")
+
+    print("[PROGRESSO: 100]")
+    print("\nFaturamento Ponta a Ponta finalizado com sucesso!")
+
+def _realizar_lancamento_mrvpag(driver, wait, wait_rapido, caminho_boleto_pdf, caminho_planilha_rateio, campos, df_regras):
+    """Função interna que executa os cliques do MRV Pag"""
     cnpj_correios = campos["cnpj_beneficiario"]
     num_doc       = campos["numero_documento"]
     vencimento    = campos["vencimento"]
@@ -224,20 +467,13 @@ def lancar_nota_fiscal():
     cnpj_mrv      = campos["cnpj_pagador"]
     emissao_proc  = campos["data_processamento"]
 
-    if not cnpj_mrv or not valor_boleto:
-        raise ValueError("Não foi possível localizar o CNPJ da MRV ou o Valor no boleto PDF.")
-
-    print(f"📌 Dados extraídos: CNPJ MRV: {cnpj_mrv} | Valor: R$ {valor_boleto} | Nº Doc: {num_doc}")
-
-    df = pd.read_excel(ARQUIVO_REGRAS_XLSX, engine="openpyxl")
-
     texto_completo_pdf = norm_text(read_pdf_text(caminho_boleto_pdf)).upper()
     norm_limpo = texto_completo_pdf.replace(".", "").replace("/", "").replace("-", "")
 
     ID_REGIONAL = None
     candidatos = []
 
-    for index, linha in df.iterrows():
+    for index, linha in df_regras.iterrows():
         palavra_chave = str(linha.get("PALAVRA_CHAVE", "")).upper()
         if not palavra_chave or palavra_chave == "NAN": continue
         palavra_chave_limpa = palavra_chave.replace(".", "").replace("/", "").replace("-", "")
@@ -245,270 +481,208 @@ def lancar_nota_fiscal():
             candidatos.append(linha)
 
     if len(candidatos) == 0:
-        print("⚠️ Falha: Nenhuma 'PALAVRA_CHAVE' da planilha Excel foi encontrada no boleto.")
-        return
+        raise ValueError("Nenhuma 'PALAVRA_CHAVE' da planilha Excel foi encontrada no boleto.")
     elif len(candidatos) == 1:
         linha_escolhida = candidatos[0]
         ID_REGIONAL  = linha_escolhida["ID"]
         descr        = linha_escolhida["DESCR"]
         material_cod = str(linha_escolhida["material_cod"])
     else:
-        resultado = determinar_id_por_valor(valor_boleto, cnpj_mrv, df)
+        resultado = determinar_id_por_valor(valor_boleto, cnpj_mrv, df_regras)
         if resultado is None:
-            print("⚠️ Não foi possível determinar o ID regional pelo valor do boleto.")
-            return
+            raise ValueError("Não foi possível determinar o ID regional pelo valor do boleto.")
         ID_REGIONAL  = resultado["ID"]
         descr        = resultado["DESCR"]
         material_cod = resultado["material_cod"]
 
-    print(f"📋 Regional: {ID_REGIONAL} | Descrição: {descr} | Material: {material_cod}")
+    novo_protocolo = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.item-menu[routerlink='/protocolo'], a.item-menu[href='/protocolo']")))
+    novo_protocolo.click()
+    
+    tipo_nota = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-card a.pointer")))
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tipo_nota)
+    tipo_nota.click()
+    
+    tipo_de_documento = wait.until(EC.presence_of_element_located((By.XPATH, "//mat-expansion-panel-header[.//mat-panel-title[contains(normalize-space(),'Tipo de Documento')]]")))
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tipo_de_documento)
+    if tipo_de_documento.get_attribute("aria-expanded") == "false":
+        wait.until(EC.element_to_be_clickable(tipo_de_documento)).click()
+    
+    select_el = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-select[formcontrolname='frmTipoDoc'], mat-select[aria-label='Qual o tipo do documento'], #mat-select-2")))
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", select_el)
+    select_el.click()
 
-    print("[PROGRESSO: 15]")
+    wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".cdk-overlay-pane .mat-select-panel")))
+    opcao = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option[.//span[contains(@class,'mat-option-text') and normalize-space()='NF somente de Serviços']]")))
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", opcao)
+    opcao.click()
+
+    input_enviar_arquivo = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#frmFile")))
+    input_enviar_arquivo.send_keys(caminho_boleto_pdf)
+
+    btn_continuar = wait.until(EC.element_to_be_clickable((By.ID, "btnTipoDoc")))
+    safe_click(driver, btn_continuar) 
+
+    aprovador_select = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-select[@aria-label='APROVADOR' or @placeholder='APROVADOR']")))
+    safe_click(driver, aprovador_select) 
+
+    opcao_vanessa = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[normalize-space(.)='VANESSA DE BRITO RODRIGUES (VANESSA.BRODRIGUES)']/ancestor::mat-option")))
+    safe_click(driver, opcao_vanessa) 
+
+    cnpj_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='CNPJ DA EMPRESA MRV'], input[aria-label='CNPJ DA EMPRESA MRV']")
+    cnpj_input.clear()
+    cnpj_input.send_keys(cnpj_mrv)
+    cnpj_input.send_keys(Keys.TAB)
+
+    xpath_linha_mrv = "(//tr[contains(@class,'mat-row')][.//td[contains(normalize-space(.),'MRV')]])[1]"
+    linha_mrv = wait.until(EC.presence_of_element_located((By.XPATH, xpath_linha_mrv)))
+    driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", linha_mrv)
+
     try:
-        chrome_options = Options()
-        chrome_options.add_experimental_option("detach", True) 
-        
-        driver = webdriver.Chrome(options=chrome_options) 
-        driver.get("https://mrvpag2.mrv.com.br/home")
-        driver.maximize_window()
-        wait_longo = WebDriverWait(driver, 180)
-        wait = WebDriverWait(driver, 15)
-        wait_rapido = WebDriverWait(driver, 2)
+        wait.until(EC.element_to_be_clickable((By.XPATH, xpath_linha_mrv)))
+    except TimeoutException:
+        pass 
+
+    try:
+        try:
+            ActionChains(driver).move_to_element(linha_mrv).pause(0.1).click(linha_mrv).perform()
+        except (ElementClickInterceptedException, StaleElementReferenceException):
+            primeiro_td = linha_mrv.find_element(By.XPATH, ".//td[1]")
+            driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", primeiro_td)
+            try:
+                ActionChains(driver).move_to_element(primeiro_td).pause(0.1).click(primeiro_td).perform()
+            except Exception:
+                driver.execute_script("arguments[0].click();", primeiro_td)
     except Exception as e:
-        print(f"Erro ao iniciar o Chrome: {e}")
-        return
+        raise RuntimeError("Erro ao clicar na linha MRV.")
 
-    try:    
-        print("Aguardando login...")
-        wait.until(EC.presence_of_element_located((By.ID, "i0116"))).send_keys(EMAIL_MRV)
-        click_anti_stale(wait, By.ID, "idSIButton9")
-        wait.until(EC.presence_of_element_located((By.ID, "i0118"))).send_keys(SENHA_MRV)
-        click_anti_stale(wait_longo, By.ID, "idSIButton9")
-        print("!!! APROVE O MFA NO CELULAR !!!")
-        click_anti_stale(wait_longo, By.ID, "idSIButton9") 
-        
-        print("[PROGRESSO: 25]")
-        fechar_mensagem = WebDriverWait(driver, 100).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-icon.btnCancelTest")))
-        fechar_mensagem.click()
-        print("Mensagem de boas-vindas fechada.")
-
-        novo_protocolo = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a.item-menu[routerlink='/protocolo'], a.item-menu[href='/protocolo']")))
-        novo_protocolo.click()
-        
-        print("[PROGRESSO: 35]")
-        tipo_nota = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-card a.pointer")))
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tipo_nota)
-        tipo_nota.click()
-        
-        tipo_de_documento = wait.until(EC.presence_of_element_located((By.XPATH, "//mat-expansion-panel-header[.//mat-panel-title[contains(normalize-space(),'Tipo de Documento')]]")))
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", tipo_de_documento)
-        if tipo_de_documento.get_attribute("aria-expanded") == "false":
-            wait.until(EC.element_to_be_clickable(tipo_de_documento)).click()
-        
-        select_el = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-select[formcontrolname='frmTipoDoc'], mat-select[aria-label='Qual o tipo do documento'], #mat-select-2")))
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", select_el)
-        select_el.click()
-
-        wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, ".cdk-overlay-pane .mat-select-panel")))
-        opcao = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option[.//span[contains(@class,'mat-option-text') and normalize-space()='NF somente de Serviços']]")))
-        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", opcao)
-        opcao.click()
-
-        print("[PROGRESSO: 45]")
-        input_enviar_arquivo = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#frmFile")))
-        input_enviar_arquivo.send_keys(caminho_boleto_pdf)
-
-        btn_continuar = wait.until(EC.element_to_be_clickable((By.ID, "btnTipoDoc")))
-        safe_click(driver, btn_continuar) 
-
-        aprovador_select = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-select[@aria-label='APROVADOR' or @placeholder='APROVADOR']")))
-        safe_click(driver, aprovador_select) 
-
-        opcao_vanessa = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option//span[normalize-space(.)='VANESSA DE BRITO RODRIGUES (VANESSA.BRODRIGUES)']/ancestor::mat-option")))
-        safe_click(driver, opcao_vanessa) 
-
-        print("[PROGRESSO: 55]")
-        cnpj_input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='CNPJ DA EMPRESA MRV'], input[aria-label='CNPJ DA EMPRESA MRV']")
-        cnpj_input.clear()
-        cnpj_input.send_keys(cnpj_mrv)
-        cnpj_input.send_keys(Keys.TAB)
-
-        xpath_linha_mrv = "(//tr[contains(@class,'mat-row')][.//td[contains(normalize-space(.),'MRV')]])[1]"
-        linha_mrv = wait.until(EC.presence_of_element_located((By.XPATH, xpath_linha_mrv)))
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", linha_mrv)
-
+    wait_overlay_gone(driver, wait)
+    wait_no_overlay(driver, wait)
+    
+    for _ in range(3):
         try:
-            wait.until(EC.element_to_be_clickable((By.XPATH, xpath_linha_mrv)))
-        except TimeoutException:
-            pass 
+            inp_num_doc = get_input_by_formcontrol(driver, wait, "frmNumDocumento")
+            type_safely(driver, wait, inp_num_doc, num_doc)
+            if (inp_num_doc.get_attribute("value") or "").strip() == num_doc: break
+        except StaleElementReferenceException: continue
 
+    wait_no_overlay(driver, wait)
+    for _ in range(3):
         try:
-            try:
-                ActionChains(driver).move_to_element(linha_mrv).pause(0.1).click(linha_mrv).perform()
-            except (ElementClickInterceptedException, StaleElementReferenceException):
-                primeiro_td = linha_mrv.find_element(By.XPATH, ".//td[1]")
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", primeiro_td)
-                try:
-                    ActionChains(driver).move_to_element(primeiro_td).pause(0.1).click(primeiro_td).perform()
-                except Exception:
-                    driver.execute_script("arguments[0].click();", primeiro_td)
-        except Exception as e:
-            print("Erro ao clicar na linha MRV.")
-            raise
+            inp_cnpj_cor = get_input_by_formcontrol(driver, wait, "frmCnpjFornecedor")
+            editable = ensure_enabled_and_editable(driver, inp_cnpj_cor, allow_force=True)
+            if editable: type_safely(driver, wait, inp_cnpj_cor, cnpj_correios)
+            else: js_set_value_and_dispatch(driver, inp_cnpj_cor, cnpj_correios)
+            if (re.sub(r"\D", "", inp_cnpj_cor.get_attribute("value") or "")) == cnpj_correios: break
+        except StaleElementReferenceException: continue
 
-        print("[PROGRESSO: 65]")
-        wait_overlay_gone(driver, wait)
-        wait_no_overlay(driver, wait)
-        
-        for _ in range(3):
-            try:
-                inp_num_doc = get_input_by_formcontrol(driver, wait, "frmNumDocumento")
-                type_safely(driver, wait, inp_num_doc, num_doc)
-                if (inp_num_doc.get_attribute("value") or "").strip() == num_doc: break
-            except StaleElementReferenceException: continue
+    wait_no_overlay(driver, wait)
+    for _ in range(3):
+        try:
+            inp_emissao = get_input_by_formcontrol(driver, wait, "frmDtEmissao")
+            try: click_with_fallback(driver, inp_emissao)
+            except Exception: pass
+            inp_emissao.send_keys(Keys.ESCAPE)
+            type_safely(driver, wait, inp_emissao, emissao_proc)
+            if (inp_emissao.get_attribute("value") or "").strip() == emissao_proc: break
+        except StaleElementReferenceException: continue
 
-        wait_no_overlay(driver, wait)
-        for _ in range(3):
-            try:
-                inp_cnpj_cor = get_input_by_formcontrol(driver, wait, "frmCnpjFornecedor")
-                editable = ensure_enabled_and_editable(driver, inp_cnpj_cor, allow_force=True)
-                if editable: type_safely(driver, wait, inp_cnpj_cor, cnpj_correios)
-                else: js_set_value_and_dispatch(driver, inp_cnpj_cor, cnpj_correios)
-                if (re.sub(r"\D", "", inp_cnpj_cor.get_attribute("value") or "")) == cnpj_correios: break
-            except StaleElementReferenceException: continue
+    wait_no_overlay(driver, wait)
+    for _ in range(3):
+        try:
+            inp_venc = get_input_by_formcontrol(driver, wait, "frmVencimento")
+            ensure_enabled_and_editable(driver, inp_venc, allow_force=True)
+            try: click_with_fallback(driver, inp_venc)
+            except Exception: pass
+            inp_venc.send_keys(Keys.ESCAPE)
+            type_safely(driver, wait, inp_venc, vencimento)
+            if (inp_venc.get_attribute("value") or "").strip() == vencimento: break
+        except StaleElementReferenceException: continue
 
-        wait_no_overlay(driver, wait)
-        for _ in range(3):
-            try:
-                inp_emissao = get_input_by_formcontrol(driver, wait, "frmDtEmissao")
-                try: click_with_fallback(driver, inp_emissao)
-                except Exception: pass
-                inp_emissao.send_keys(Keys.ESCAPE)
-                type_safely(driver, wait, inp_emissao, emissao_proc)
-                if (inp_emissao.get_attribute("value") or "").strip() == emissao_proc: break
-            except StaleElementReferenceException: continue
+    wait_no_overlay(driver, wait)
+    for _ in range(3):
+        try:
+            inp_valor = get_input_by_formcontrol(driver, wait, "frmValorTotalNf")
+            click_with_fallback(driver, inp_valor)
+            inp_valor.send_keys(Keys.CONTROL, 'a', Keys.DELETE)
+            for ch in valor_boleto:
+                inp_valor.send_keys(ch)
+                time.sleep(0.01)
+            if (inp_valor.get_attribute("value") or "").strip(): break
+        except StaleElementReferenceException: continue
 
-        wait_no_overlay(driver, wait)
-        for _ in range(3):
-            try:
-                inp_venc = get_input_by_formcontrol(driver, wait, "frmVencimento")
-                ensure_enabled_and_editable(driver, inp_venc, allow_force=True)
-                try: click_with_fallback(driver, inp_venc)
-                except Exception: pass
-                inp_venc.send_keys(Keys.ESCAPE)
-                type_safely(driver, wait, inp_venc, vencimento)
-                if (inp_venc.get_attribute("value") or "").strip() == vencimento: break
-            except StaleElementReferenceException: continue
+    click_ok_confirm(driver, wait_rapido, timeout=1, max_tentativas=1)
 
-        wait_no_overlay(driver, wait)
-        for _ in range(3):
-            try:
-                inp_valor = get_input_by_formcontrol(driver, wait, "frmValorTotalNf")
-                click_with_fallback(driver, inp_valor)
-                inp_valor.send_keys(Keys.CONTROL, 'a', Keys.DELETE)
-                for ch in valor_boleto:
-                    inp_valor.send_keys(ch)
-                    time.sleep(0.01)
-                if (inp_valor.get_attribute("value") or "").strip(): break
-            except StaleElementReferenceException: continue
+    campo_desc = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input[formcontrolname="frmDescNota"]')))
+    driver.execute_script("""
+        arguments[0].value = arguments[1];
+        arguments[0].dispatchEvent(new Event('input', {bubbles: true}));
+        arguments[0].dispatchEvent(new Event('change', {bubbles: true}));
+    """, campo_desc, descr)
+    campo_desc.send_keys(Keys.TAB) 
+    time.sleep(0.2) 
 
-        qtd_cliques = click_ok_confirm(driver, wait_rapido, timeout=1, max_tentativas=1)
-        if qtd_cliques > 0:
-            print(f"✅ {qtd_cliques} diálogo(s) confirmado(s) com sucesso.")
+    driver.execute_script("""
+        let btns = Array.from(document.querySelectorAll("button"));
+        let btn = btns.find(b => b.textContent.includes("CONTINUAR") && !b.disabled && !b.classList.contains("mat-button-disabled"));
+        if(btn) btn.click();
+    """)
 
-        print("[PROGRESSO: 75]")
-        campo_desc = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'input[formcontrolname="frmDescNota"]')))
-        driver.execute_script("""
-            arguments[0].value = arguments[1];
-            arguments[0].dispatchEvent(new Event('input', {bubbles: true}));
-            arguments[0].dispatchEvent(new Event('change', {bubbles: true}));
-        """, campo_desc, descr)
-        campo_desc.send_keys(Keys.TAB) 
-        time.sleep(0.2) 
+    locator_link = (By.XPATH, "//a[.//span[normalize-space(.)='CONTINUAR']]")
+    wait.until(EC.presence_of_element_located(locator_link)) 
+    
+    driver.execute_script("""
+        let links = Array.from(document.querySelectorAll("a"));
+        let link = links.find(a => a.textContent.includes("CONTINUAR") && !a.classList.contains("mat-button-disabled"));
+        if(link) link.click();
+    """)
 
-        driver.execute_script("""
-            let btns = Array.from(document.querySelectorAll("button"));
-            let btn = btns.find(b => b.textContent.includes("CONTINUAR") && !b.disabled && !b.classList.contains("mat-button-disabled"));
-            if(btn) btn.click();
-        """)
+    btn_adicionar = wait_rapido.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space(.)='Adicionar']/ancestor::button[1]")))
+    btn_adicionar.click()
 
-        locator_link = (By.XPATH, "//a[.//span[normalize-space(.)='CONTINUAR']]")
-        wait.until(EC.presence_of_element_located(locator_link)) 
-        
-        driver.execute_script("""
-            let links = Array.from(document.querySelectorAll("a"));
-            let link = links.find(a => a.textContent.includes("CONTINUAR") && !a.classList.contains("mat-button-disabled"));
-            if(link) link.click();
-        """)
+    preencher_codigo_material_ultima_linha(driver, wait_rapido, material_cod, timeout=10)
+    click_pesquisar(driver, wait_rapido)
 
-        btn_adicionar = wait_rapido.until(EC.element_to_be_clickable((By.XPATH, "//span[normalize-space(.)='Adicionar']/ancestor::button[1]")))
-        btn_adicionar.click()
-
-        preencher_codigo_material_ultima_linha(driver, wait_rapido, material_cod, timeout=10)
-        click_pesquisar(driver, wait_rapido)
-
-        print("[PROGRESSO: 85]")
-        print("Aguardando tabela carregar para selecionar o checkbox...")
-        wait_longo = WebDriverWait(driver, 40)
-        locator_checkbox = (By.XPATH, "(//td[contains(@class,'mat-column-select')]//mat-checkbox)[1]")
-        wait_longo.until(EC.presence_of_element_located(locator_checkbox))
-        
-        driver.execute_script("""
-            let matCheckbox = document.querySelector("td.mat-column-select mat-checkbox");
-            if (matCheckbox) {
-                let label = matCheckbox.querySelector("label");
-                if (label) {
-                    label.click();
-                } else {
-                    matCheckbox.click();
-                }
+    wait_longo = WebDriverWait(driver, 40)
+    locator_checkbox = (By.XPATH, "(//td[contains(@class,'mat-column-select')]//mat-checkbox)[1]")
+    wait_longo.until(EC.presence_of_element_located(locator_checkbox))
+    
+    driver.execute_script("""
+        let matCheckbox = document.querySelector("td.mat-column-select mat-checkbox");
+        if (matCheckbox) {
+            let label = matCheckbox.querySelector("label");
+            if (label) {
+                label.click();
+            } else {
+                matCheckbox.click();
             }
-        """)
-        print("✅ Primeira linha selecionada instantaneamente!")
-        
-        click_incluir_produtos(driver, wait_rapido)
-        preencher_quantidade_e_valor(driver, wait_rapido, quantidade="1", valor_boleto=valor_boleto)
-        abrir_select_justificativa(driver, wait_rapido)
-        selecionar_opcao_justificativa_com_hover(driver, wait_rapido, texto_alvo="2 - Orientações do gestor/coordendor da área")
-        click_continuar_proximo_ao_select(driver, wait_rapido)
-        
-        print("[PROGRESSO: 95]")
-        print("Anexando planilha em segundo plano (sem abrir janela do Windows)...")
-        try:
-            inputs_file = driver.find_elements(By.XPATH, "//input[@type='file']")
-            if not inputs_file:
-                print("⚠️ Nenhum input de arquivo encontrado na página!")
-            else:
-                input_planilha = inputs_file[-1]
-                driver.execute_script(
-                    "arguments[0].style.display = 'block'; "
-                    "arguments[0].style.visibility = 'visible'; "
-                    "arguments[0].style.opacity = 1;", 
-                    input_planilha
-                )
-                input_planilha.send_keys(caminho_planilha_rateio)
-                print("✅ Planilha anexada com sucesso via HTML!")
-                time.sleep(2) 
-        except Exception as e:
-            print(f"⚠️ Erro ao tentar anexar silenciosamente: {e}")
-            
-        total_ok = click_ok_confirm_repeatedly(driver, wait, max_clicks=3)
-        print(f"[INFO] Botão OK clicado {total_ok} vez(es).")
-
-        print("[PROGRESSO: 100]")
-        print("✅ Fluxo concluído com sucesso! O navegador permanecerá aberto para conferência.")
-
+        }
+    """)
+    
+    click_incluir_produtos(driver, wait_rapido)
+    preencher_quantidade_e_valor(driver, wait_rapido, quantidade="1", valor_boleto=valor_boleto)
+    abrir_select_justificativa(driver, wait_rapido)
+    selecionar_opcao_justificativa_com_hover(driver, wait_rapido, texto_alvo="2 - Orientações do gestor/coordendor da área")
+    click_continuar_proximo_ao_select(driver, wait_rapido)
+    
+    try:
+        inputs_file = driver.find_elements(By.XPATH, "//input[@type='file']")
+        if inputs_file:
+            input_planilha = inputs_file[-1]
+            driver.execute_script(
+                "arguments[0].style.display = 'block'; "
+                "arguments[0].style.visibility = 'visible'; "
+                "arguments[0].style.opacity = 1;", 
+                input_planilha
+            )
+            input_planilha.send_keys(caminho_planilha_rateio)
+            time.sleep(2) 
     except Exception as e:
-        print(f"❌ Erro Crítico durante a execução: {e}")
-        traceback.print_exc()
-        try:
-            driver.save_screenshot("erro_final.png")
-            debug_dump(driver, "erro_final")
-        except Exception:
-            pass
+        print(f"⚠️ Erro ao tentar anexar silenciosamente: {e}")
+        
+    click_ok_confirm_repeatedly(driver, wait, max_clicks=3)
 
 # ==============================================================================
-# 4. FUNÇÕES AUXILIARES (Devem ficar na raiz do arquivo)
+# 3. FUNÇÕES AUXILIARES (MANTIDAS INTACTAS)
 # ==============================================================================
 
 def click_anti_stale(wait, by, seletor, tentativas=3):
@@ -1485,7 +1659,6 @@ def _clean_valor_series(s: pd.Series) -> pd.Series:
     return s.apply(limpa_valor)
 
 def ler_rr_bruto(caminho_rr: Union[str, Path]) -> pd.DataFrame:
-    print("[PROGRESSO: 40]")
     xls = pd.ExcelFile(caminho_rr, engine='openpyxl')
     frames = []
     
@@ -1605,7 +1778,6 @@ def _extrair_coletor_de_titular(texto: str) -> str:
     return "SEM CENTRO DE CUSTO"
 
 def ler_correios_bruto(caminho_correios: Union[str, Path]) -> Tuple[pd.DataFrame, float]:
-    print("[PROGRESSO: 60]")
     df_raw = pd.read_excel(caminho_correios, header=None, engine='openpyxl')
     idx_header = -1
     col_titular, col_valor = -1, -1
@@ -1682,7 +1854,6 @@ def gerar_rateio_pag(
     df_rr_raw = ler_rr_bruto(caminho_rr)
     df_corr_raw, valor_liquido_correios = ler_correios_bruto(caminho_correios)
 
-    print("[PROGRESSO: 80]")
     df_rr_raw['VALOR'] = pd.to_numeric(df_rr_raw['VALOR'], errors='coerce').fillna(0.0)
     df_corr_raw['VALOR'] = pd.to_numeric(df_corr_raw['VALOR'], errors='coerce').fillna(0.0)
 
@@ -1753,7 +1924,6 @@ def gerar_rateio_pag(
                 
         if debug: print(f"[DEBUG] Adicionados {pacotes_adicionados} pacotes exatos dos Correios.")
 
-    print("[PROGRESSO: 90]")
     final_base = pd.DataFrame(linhas_finais)
     if not final_base.empty:
         final_base = final_base.groupby(['TIPOCOLETOR', 'COLETOR'], as_index=False)['VALOR'].sum()

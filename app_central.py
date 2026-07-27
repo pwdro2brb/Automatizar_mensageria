@@ -133,10 +133,10 @@ class CentralAutomacaoMRV:
 
         frame_correios = criar_quadro(frame_botoes, "Correios & Faturamento", 0, 0)
         criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", lambda: self._verificar_pasta_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()", os.path.join(config.PASTA_ARQUIVOS, "rateio_malote")))
-        criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"), espaco_extra=True)
-        criar_botao(frame_correios, "Faturamento 2: Planilha Rateio Pag", lambda: self._verificar_pasta_e_executar("Faturamento 2", "import robos.robo_faturamento as rf; rf.preparar_e_gerar_rateio()", os.path.join(config.PASTA_ARQUIVOS, "faturamento")))
-        criar_botao(frame_correios, "Faturamento 3: Lançar NF (Portal)", lambda: self._verificar_pasta_e_executar("Faturamento 3", "import robos.robo_faturamento as rf; rf.lancar_nota_fiscal()", os.path.join(config.PASTA_ARQUIVOS, "faturamento")))
-
+        criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"))
+        
+        # NOVO BOTÃO UNIFICADO
+        criar_botao(frame_correios, "Faturamento 2: Processo Completo (E-mail -> MRV Pag)", lambda: self.executar_processo_cancelavel("Faturamento Completo", comando_python="import robos.robo_faturamento as rf; rf.executar_faturamento_completo()"), espaco_extra=True)
 
         frame_podio = criar_quadro(frame_botoes, "Podio & Mensageria", 0, 1)
         criar_botao(frame_podio, "Relatório Jurídico Montreal", self._chamar_robo_juridico)

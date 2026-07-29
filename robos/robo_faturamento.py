@@ -219,6 +219,71 @@ def extrair_dados_email_inteligente(texto_email, caminho_correios):
         return df
     return None
 
+def extrair_substituicao_cc(texto_email):
+    """Lê o histórico do e-mail para descobrir quais CCs falharam e quais são os novos"""
+    marcadores_historico = ["De:", "From:", "________________________________", "-----Mensagem original-----", "-----Original Message-----"]
+    texto_recente = texto_email
+    for marcador in marcadores_historico:
+        if marcador in texto_recente:
+            texto_recente = texto_recente.split(marcador)[0]
+            
+    padrao_cc = re.compile(r'\b(?:(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{6,12}|\d{10,12})\b', re.IGNORECASE)
+    
+    # Pega todos os CCs novos na resposta da regional (sem duplicatas)
+    ccs_novos = list(dict.fromkeys([m.upper() for m in padrao_cc.findall(texto_recente)]))
+    
+    # Pega o histórico (o que você escreveu)
+    historico = texto_email.replace(texto_recente, "")
+    
+    # Procura a linha onde você escreveu "substituto" e extrai os CCs inválidos de lá
+    ccs_antigos = []
+    for linha in historico.splitlines():
+        if "substituto" in linha.lower():
+            ccs_antigos.extend(padrao_cc.findall(linha))
+            
+    ccs_antigos = list(dict.fromkeys([m.upper() for m in ccs_antigos]))
+    
+    return ccs_antigos, ccs_novos
+
+def atualizar_cc_rateio_pag(caminho_rateio_pag, ccs_antigos, ccs_novos):
+    """Abre o RATEIO PAG existente, troca os CCs antigos pelos novos e salva"""
+    df = pd.read_excel(caminho_rateio_pag, engine='openpyxl')
+    sucesso = False
+    
+    # Pega os CCs que atualmente estão na planilha
+    ccs_na_planilha = df['COLETOR'].astype(str).values
+    
+    # Cenário 1: Você pediu 2 substitutos e mandaram 2 novos (troca um por um)
+    if len(ccs_antigos) == len(ccs_novos) and len(ccs_antigos) > 0:
+        for antigo, novo in zip(ccs_antigos, ccs_novos):
+            if antigo in ccs_na_planilha:
+                df['COLETOR'] = df['COLETOR'].astype(str).replace(antigo, novo)
+                sucesso = True
+                
+    # Cenário 2: Achou vários antigos no histórico, mas só mandaram 1 novo agora
+    elif len(ccs_antigos) >= 1 and len(ccs_novos) >= 1:
+        novo = ccs_novos[0]
+        # Procura qual dos antigos do histórico realmente está na planilha precisando ser trocado
+        for antigo in ccs_antigos:
+            if antigo in ccs_na_planilha:
+                df['COLETOR'] = df['COLETOR'].astype(str).replace(antigo, novo)
+                sucesso = True
+                break # Achou o culpado, faz a troca e para de procurar
+                
+    if sucesso:
+        # Atualiza as colunas de tipo e operação para o novo CC
+        df['TIPOCOLETOR'] = df['COLETOR'].apply(_tipo_de_coletor)
+        df['OPERACAO'] = df['TIPOCOLETOR'].apply(lambda t: 10 if t == 'N' else '')
+        
+        # Salva por cima
+        with pd.ExcelWriter(caminho_rateio_pag, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Planilha1', index=False)
+            
+        _formatar_planilha_final(caminho_rateio_pag, 'Planilha1')
+        
+    return sucesso
+
+
 def executar_faturamento_completo():
     print("[PROGRESSO: 5]")
     print("Iniciando Faturamento Ponta a Ponta (E-mail -> MRV Pag)...")
@@ -349,60 +414,84 @@ def executar_faturamento_completo():
         caminho_rr = os.path.join(caminho_regional_rede, "Rateio Recebido.xlsx")
         caminho_rateio_pag = os.path.join(caminho_regional_rede, "RATEIO PAG.xlsx")
         
-        df_email = extrair_dados_email_inteligente(msg.Body, caminho_correios)
-        
-        if df_email is not None and not df_email.empty:
-            print("✅ Dados extraídos do corpo do e-mail com sucesso!")
-            df_email.to_excel(caminho_rr, index=False)
-            
-            nome_comprovante = f"Comprovante_Aprovacao_{regional}.msg"
-            msg.SaveAs(os.path.join(caminho_regional_rede, nome_comprovante), 3)
-            print("✅ E-mail salvo como comprovante (.msg).")
-        else:
-            print("Procurando anexo no e-mail...")
-            anexo_salvo = False
-            for anexo in msg.Attachments:
-                nome_anexo = anexo.FileName.lower()
-                if ".xls" in nome_anexo:
-                    if nome_anexo.endswith(".xls"):
-                        # É um arquivo antigo (.xls). Precisamos converter para .xlsx
-                        caminho_temp = os.path.join(caminho_regional_rede, "temp_rateio.xls")
-                        anexo.SaveAsFile(caminho_temp)
-                        
-                        print("🔄 Convertendo arquivo .xls para .xlsx...")
-                        try:
-                            excel = win32.DispatchEx("Excel.Application")
-                            excel.Visible = False
-                            excel.DisplayAlerts = False
-                            wb = excel.Workbooks.Open(caminho_temp)
-                            wb.SaveAs(caminho_rr, FileFormat=51) # 51 = xlOpenXMLWorkbook (.xlsx)
-                            wb.Close()
-                            excel.Quit()
-                            os.remove(caminho_temp)
-                            anexo_salvo = True
-                            print("✅ Anexo convertido e salvo como 'Rateio Recebido.xlsx'.")
-                        except Exception as e:
-                            print(f"⚠️ Erro ao converter .xls para .xlsx: {e}")
-                            try: excel.Quit() 
-                            except: pass
-                    else:
-                        # Já é .xlsx ou .xlsm, pode salvar direto
-                        anexo.SaveAsFile(caminho_rr)
-                        anexo_salvo = True
-                        print("✅ Anexo salvo como 'Rateio Recebido.xlsx'.")
-                    break
-                    
-            if not anexo_salvo:
-                print("⚠️ Nenhum dado no corpo e nenhum anexo Excel encontrado. Pulando regional.")
-                continue
+        pular_geracao_rateio = False
 
-        print("Gerando RATEIO PAG.xlsx...")
-        try:
-            gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_rateio_pag, debug=False)
-            print("✅ RATEIO PAG gerado com sucesso!")
-        except Exception as e:
-            print(f"⚠️ Erro ao gerar RATEIO PAG: {e}")
-            continue
+        # 🧠 INTELIGÊNCIA DE SUBSTITUIÇÃO DE CC
+        if os.path.exists(caminho_rateio_pag):
+            print("🔍 RATEIO PAG já existe na pasta. Verificando se é um e-mail de substituição...")
+            ccs_antigos, ccs_novos = extrair_substituicao_cc(msg.Body)
+            
+            if ccs_antigos and ccs_novos:
+                print(f"🔄 Substituição detectada! Trocando {ccs_antigos} por {ccs_novos}...")
+                sucesso_troca = atualizar_cc_rateio_pag(caminho_rateio_pag, ccs_antigos, ccs_novos)
+                
+                if sucesso_troca:
+                    print("✅ RATEIO PAG atualizado com o novo Centro de Custo!")
+                    pular_geracao_rateio = True
+                    
+                    # SALVA O E-MAIL DE SUBSTITUIÇÃO COM DATA E HORA PARA NÃO SOBRESCREVER
+                    agora_str = datetime.now().strftime("%d%m%Y_%H%M%S")
+                    nome_substituto = f"Substituto_CC_{regional}_{agora_str}.msg"
+                    msg.SaveAs(os.path.join(caminho_regional_rede, nome_substituto), 3)
+                    print(f"✅ E-mail de substituição salvo como: {nome_substituto}")
+                else:
+                    print(f"⚠️ Os CCs antigos não foram encontrados na planilha. Vou regerar o rateio do zero.")
+            else:
+                print("ℹ️ Não é um e-mail de substituição claro. Regerando rateio...")
+
+        # Se não for substituição, faz o processo normal de ler anexo/corpo e gerar do zero
+        if not pular_geracao_rateio:
+            df_email = extrair_dados_email_inteligente(msg.Body, caminho_correios)
+            
+            if df_email is not None and not df_email.empty:
+                print("✅ Dados extraídos do corpo do e-mail com sucesso!")
+                df_email.to_excel(caminho_rr, index=False)
+                
+                nome_comprovante = f"Comprovante_Aprovacao_{regional}.msg"
+                msg.SaveAs(os.path.join(caminho_regional_rede, nome_comprovante), 3)
+                print("✅ E-mail salvo como comprovante (.msg).")
+            else:
+                print("Procurando anexo no e-mail...")
+                anexo_salvo = False
+                for anexo in msg.Attachments:
+                    nome_anexo = anexo.FileName.lower()
+                    if ".xls" in nome_anexo:
+                        if nome_anexo.endswith(".xls"):
+                            caminho_temp = os.path.join(caminho_regional_rede, "temp_rateio.xls")
+                            anexo.SaveAsFile(caminho_temp)
+                            print("🔄 Convertendo arquivo .xls para .xlsx...")
+                            try:
+                                excel = win32.DispatchEx("Excel.Application")
+                                excel.Visible = False
+                                excel.DisplayAlerts = False
+                                wb = excel.Workbooks.Open(caminho_temp)
+                                wb.SaveAs(caminho_rr, FileFormat=51)
+                                wb.Close()
+                                excel.Quit()
+                                os.remove(caminho_temp)
+                                anexo_salvo = True
+                                print("✅ Anexo convertido e salvo como 'Rateio Recebido.xlsx'.")
+                            except Exception as e:
+                                print(f"⚠️ Erro ao converter .xls para .xlsx: {e}")
+                                try: excel.Quit() 
+                                except: pass
+                        else:
+                            anexo.SaveAsFile(caminho_rr)
+                            anexo_salvo = True
+                            print("✅ Anexo salvo como 'Rateio Recebido.xlsx'.")
+                        break
+                        
+                if not anexo_salvo:
+                    print("⚠️ Nenhum dado no corpo e nenhum anexo Excel encontrado. Pulando regional.")
+                    continue
+
+            print("Gerando RATEIO PAG.xlsx...")
+            try:
+                gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_rateio_pag, debug=False)
+                print("✅ RATEIO PAG gerado com sucesso!")
+            except Exception as e:
+                print(f"⚠️ Erro ao gerar RATEIO PAG: {e}")
+                continue
 
         print("Extraindo dados do Boleto PDF...")
         try:

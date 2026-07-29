@@ -99,6 +99,11 @@ Características:
 - novo fluxo de Rateio de Malote com leitura de dados e consolidação automática;
 - novos scripts adicionados ao repositório para diferentes cenários operacionais.
 
+## Alterações recentes nos robôs
+
+- `robos/robo_faturamento.py`: corrigido parsing de coletor (CC) a partir de e-mails, usando `group(0)` em vez de `group(1)` para evitar erros de extração.
+- `robos/robo_faturamento.py`: atualizado o filtro de idade dos e-mails para ignorar somente mensagens com mais de 5 dias, em vez de 3 dias.
+
 ## Processos disponíveis
 
 ### Correios e Faturamento

@@ -1,149 +1,136 @@
-# Automatizar Mensageria - Versão 2.0
+# Hub Central de Automações MRV - Versão 2.0
 
-Este projeto agora funciona como um aplicativo executável para Windows, reunindo em uma única interface gráfica as automações administrativas mais usadas no dia a dia, com foco em faturamento, mensageria, Podio, Correios e relatórios operacionais.
+Este projeto reúne as automações administrativas mais usadas no dia a dia em uma interface gráfica única para Windows. A versão 2.0 oferece execução mais prática dos robôs, progresso visual em tempo real e controle de cancelamento de processos.
 
-A versão 2.0 foi transformada em um executável pronto para uso, facilitando a abertura e execução sem depender diretamente de um ambiente Python configurado na máquina.
+## O que há de novo
 
-## O que mudou na versão 2.0
-
-- O projeto passou a ser distribuído como executável Windows (.exe).
-- A interface central continua disponível para execução dos robôs a partir de botões na tela.
-- O fluxo de uso ficou mais simples para usuários finais.
-- O aplicativo mantém o mesmo funcionamento das automações, agora com execução mais prática.
-- Durante a execução de cada robô, a interface agora exibe uma barra de progresso visual para indicar o andamento da tarefa.
+- Aplicativo Windows executável (`dist/app_central.exe`).
+- Interface central com botões para cada robô.
+- Barra de progresso visual durante a execução.
+- Console integrado para logs em tempo real.
+- Botão de cancelamento para parar o processo ativo.
+- Tela de configurações para salvar credenciais dos robôs.
 
 ## Objetivo
 
-Automatizar tarefas repetitivas e manuais, como:
+Automatizar tarefas repetitivas como:
 
-- geração de rascunhos no Outlook;
-- criação de planilhas de rateio;
+- geração de rascunhos de e-mail;
+- preparação de planilhas de rateio;
 - lançamento de notas fiscais em portais internos;
-- geração de relatórios de produtividade e encomendas;
-- integração com sistemas como Podio, Agilis e plataformas internas.
+- extração de relatórios de produtividade e correios;
+- integração com sistemas como Podio, Agilis e SAP.
 
 ## Estrutura do projeto
 
-- app_central.py: interface principal em Tkinter com os botões de execução e o controle dos robôs.
-- config.py: configurações locais, como e-mail, senha e caminhos de pasta.
-- config_exemplo.py: modelo de configuração para ser copiado para o arquivo real.
-- treinar_ia.py: referência com dicionários e mapeamentos usados para classificação/treinamento interno.
-- robos/: scripts com as automações organizadas por tema.
-- dist/app_central.exe: executável gerado para uso no Windows.
+- `app_central.py`: interface principal com navegação, painel de robôs, console e controle de execução.
+- `config.py`: lógica de carregamento/salvamento de credenciais e definição de pastas do projeto.
+- `config_exemplo.py`: referência do arquivo de configuração.
+- `treinar_ia.py`: material de apoio com dicionários e mapeamentos usados internamente.
+- `robos/`: scripts de automação organizados por tema.
+- `dist/`: executável gerado para Windows.
+- `build/`: artefatos gerados pelo PyInstaller.
 
 ## Pré-requisitos
 
-Antes de executar, certifique-se de que o ambiente atende aos itens abaixo:
+- Windows.
+- Google Chrome instalado.
+- Outlook instalado e logado.
+- ChromeDriver compatível com a versão do Chrome.
+- Acesso aos sistemas utilizados pelos robôs (Podio, Agilis, portais internos, SAP, etc.).
+- Para executar pelo código-fonte: Python 3.x e dependências necessárias (`customtkinter`, bibliotecas de automação web, Excel, etc.).
 
-- Windows
-- Google Chrome instalado
-- Outlook instalado e logado
-- ChromeDriver compatível com a versão do Chrome
-- Acesso aos sistemas usados pelos robôs (Podio, Agilis, portal interno, etc.)
+## Configuração de credenciais
 
-## Configuração
+O app salva as credenciais em `config_mrv.json` no diretório do projeto.
 
-1. Copie o arquivo de exemplo para o arquivo real:
+### Primeira execução
 
-```bash
-copy config_exemplo.py config.py
-```
-
-2. Edite o arquivo config.py com:
-
-- e-mail corporativo;
-- senha ou credenciais de acesso;
-- caminhos das pastas utilizadas pelo projeto.
-
-> Importante: mantenha o arquivo config.py com as credenciais seguras e não compartilhe esse conteúdo publicamente.
-
-## Como usar a versão 2.0
-
-### Opção 1: executar o executável
-
-Na pasta dist do projeto, execute:
-
-```bash
-dist\app_central.exe
-```
-
-A interface gráfica será aberta com os processos disponíveis. Ao clicar em um botão, o robô correspondente será executado.
-
-### Opção 2: executar a versão em Python
-
-Se quiser rodar diretamente pelo código-fonte:
+1. Execute o aplicativo:
 
 ```bash
 python app_central.py
 ```
 
-## Barra de progresso durante a execução
+ou abra o executável:
 
-Ao iniciar um robô pela interface, uma barra de progresso é exibida na parte superior da tela para mostrar o andamento da automação em tempo real. Isso facilita o acompanhamento da execução e deixa o processo mais transparente para o usuário.
+```bash
+dist\app_central.exe
+```
 
-## Cancelar processo ativo
+2. Vá para a aba `⚙️ Configurações`.
+3. Preencha:
+   - E-mail MRV;
+   - Senha MRV;
+   - Senha Malote Web (se aplicável).
+4. Clique em `Salvar Credenciais`.
 
-A central oferece suporte para cancelamento de processos em execução. Um botão vermelho chamado "🛑 CANCELAR PROCESSO ATIVO" fica localizado na parte superior da interface e se habilita automaticamente quando qualquer automação estiver em execução.
+> Importante: mantenha `config_mrv.json` seguro e não compartilhe suas credenciais publicamente.
 
-Características:
-- funciona com todos os robôs;
-- exibe confirmação antes de interromper;
-- encerra o processo ativo e janelas abertas pelo robô;
-- é útil para parada de emergência ou ajustes rápidos.
+## Como usar
 
-## Novas funcionalidades
+### Executar o executável
 
-- motor universal de processos canceláveis;
-- barra de progresso visual durante a execução dos robôs;
-- melhor tratamento de logs e erros na interface;
-- novo fluxo de Rateio de Malote com leitura de dados e consolidação automática;
-- novos scripts adicionados ao repositório para diferentes cenários operacionais.
+Abra:
 
-## Alterações recentes nos robôs
+```bash
+dist\app_central.exe
+```
 
-- `robos/robo_faturamento.py`: corrigido parsing de coletor (CC) a partir de e-mails, usando `group(0)` em vez de `group(1)` para evitar erros de extração.
-- `robos/robo_faturamento.py`: atualizado o filtro de idade dos e-mails para ignorar somente mensagens com mais de 5 dias, em vez de 3 dias.
+### Executar pelo código-fonte
 
-## Processos disponíveis
+No diretório do projeto:
 
-### Correios e Faturamento
+```bash
+python app_central.py
+```
 
-- Relatório de Encomendas do Dia
-- Rateio de Malote
-- Faturamento 1: gerar rascunhos
-- Faturamento 2: gerar planilha de rateio
-- Faturamento 3: lançar NF no portal
+## Robôs disponíveis
 
-### Podio e Mensageria
+### Correios & Faturamento
+
+- Rateio de Malote (Centros de Custo)
+- Faturamento 1: Gerar rascunhos
+- Faturamento Completo: processo de e-mail para MRV Pag
+
+### Podio & Mensageria
 
 - Relatório Jurídico Montreal
-- Inclusão rápida de correspondências no Podio
+- Incluir correspondências rápidas
 
-### Agilis e produtividade
+### Agilis & Chamados
 
 - Gerar relatório de envio para Correios
-- Gerar Produtividade (Podio/Agilis/SAP)
+- Gerar produtividade (Podio/Agilis/SAP)
 - Fechar chamados a vencer
 
-### Outros sistemas
+### Uber / SAP / Outros
 
-- Relatório de utilização Uber
-- Faturamento transação ZMM180
+- Uber 1: Atualizar responsáveis (SAP)
+- Uber 2: Gerar relatórios e pastas
+- Uber 3: Criar rascunhos de e-mail
+- Faturamento Transação ZMM180
+
+## Modo de execução e controle
+
+- A barra de progresso indica o andamento do processo atual.
+- O console integrado mostra logs e mensagens em tempo real.
+- O botão `CANCELAR PROCESSO ATIVO` interrompe o processo em execução e ajuda a recuperar a interface.
 
 ## Observações importantes
 
-- Alguns processos exigem arquivos específicos nas pastas de entrada, como planilhas Excel e boletos em PDF.
-- O fluxo de faturamento depende de arquivos organizados dentro da pasta arquivos/faturamento.
-- Alguns robôs usam autenticação com MFA, então pode ser necessário aprovar a ação manualmente no celular.
-- Em caso de erro, verifique o console da interface, pois os logs são exibidos ali durante a execução.
+- Alguns robôs exigem arquivos de entrada específicos dentro da pasta `arquivos`.
+- Verifique se as planilhas e PDFs estão nomeados corretamente antes de iniciar.
+- Robôs que acessam portais podem pedir autorização de MFA no celular.
+- Para processos SAP, deixe o sistema aberto e não mexa no mouse/teclado enquanto a automação estiver em execução.
 
 ## Boas práticas
 
-- mantenha os arquivos de entrada bem organizados;
-- confira o nome das planilhas antes de executar;
-- revise os resultados após cada processo;
-- teste os fluxos em ambiente controlado antes de usar com dados críticos.
+- Mantenha os arquivos de entrada organizados.
+- Confirme o nome das planilhas antes de executar.
+- Revise os resultados após cada processo.
+- Teste os fluxos em ambiente controlado antes de usar dados críticos.
 
 ## Resumo
 
-Este repositório funciona como um hub central de automação administrativa, reunindo em um único ponto de acesso os processos mais comuns para execução rápida e padronizada, agora com uma versão 2.0 executável para Windows.
+Este repositório é um hub central de automação administrativa para Windows, com uma interface gráfica que reúne os principais robôs em um único ponto de controle.

@@ -21,12 +21,35 @@ warnings.filterwarnings("ignore")
 
 import config
 # ==============================================================================
-# CONFIGURAÇÃO DE PASTAS DINÂMICAS
+# CONFIGURAÇÃO DE PASTAS DINÂMICAS (REDE MRV)
 # ==============================================================================
 sys.path.insert(0, str(Path(__file__).parent)) 
 sys.path.append(str(Path(__file__).parent.parent)) 
 
-PASTA_MALOTE = Path(config.PASTA_ARQUIVOS) / "rateio_malote"
+PASTA_REDE_CONTRATOS = Path(r"\\Bhz-fls-app1\mrvbh\Gerência Administrativa\Pública\NUCLEO DE CONTRATOS E APOIO A GESTÃO\CONTRATOS\Contratos Serviços")
+PASTA_REDE_FATURAMENTO = PASTA_REDE_CONTRATOS / "1. CORREIOS" / "2. Faturamento"
+
+def obter_pasta_bh_mais_recente():
+    """Navega dinamicamente pelas pastas de Ano e Mês para achar a pasta BH mais recente"""
+    if not PASTA_REDE_FATURAMENTO.exists():
+        return PASTA_REDE_FATURAMENTO / "BH" # Fallback de segurança
+        
+    # 1. Acha a pasta do ano mais recente (ex: "2026")
+    pastas_ano = [d for d in PASTA_REDE_FATURAMENTO.iterdir() if d.is_dir() and d.name.isdigit()]
+    if not pastas_ano:
+        return PASTA_REDE_FATURAMENTO / "BH"
+    ano_mais_recente = max(pastas_ano, key=lambda x: int(x.name))
+    
+    # 2. Acha a pasta do mês mais recente (ex: "08 - Agosto")
+    pastas_mes = [d for d in ano_mais_recente.iterdir() if d.is_dir() and d.name[:2].isdigit()]
+    if not pastas_mes:
+        return ano_mais_recente / "BH"
+    mes_mais_recente = max(pastas_mes, key=lambda x: int(x.name[:2]))
+    
+    # 3. Retorna a pasta BH dentro desse mês
+    return mes_mais_recente / "BH"
+
+PASTA_REDE_BH = obter_pasta_bh_mais_recente()
 
 try:
     from malote_web_scraper import ResolvedorCC, SELENIUM_AVAILABLE
@@ -54,30 +77,63 @@ THIN_BORDER = Border(
 # ============================================================
 
 def find_agilis_file():
-    if not PASTA_MALOTE.exists(): return None
-    for f in PASTA_MALOTE.glob("*.xlsx"):
+    if not PASTA_REDE_BH.exists(): return None
+    for f in PASTA_REDE_BH.glob("*.xlsx"):
         if "agilis" in f.name.lower(): return str(f)
-    for f in PASTA_MALOTE.glob("*.xls"):
+    for f in PASTA_REDE_BH.glob("*.xls"):
         if "agilis" in f.name.lower(): return str(f)
     return None
 
 def find_correios_file():
-    if not PASTA_MALOTE.exists(): return None
-    for f in PASTA_MALOTE.glob("*.xlsx"):
+    if not PASTA_REDE_BH.exists(): return None
+    for f in PASTA_REDE_BH.glob("*.xlsx"):
         if re.match(r'^\d+$', f.stem): return str(f)
-    for f in PASTA_MALOTE.glob("*.xls"):
+    for f in PASTA_REDE_BH.glob("*.xls"):
         if re.match(r'^\d+$', f.stem): return str(f)
     return None
 
 def find_previous_rateios():
     rateios = []
-    pasta_arquivos = PASTA_MALOTE.parent 
-    if not pasta_arquivos.exists(): return rateios
+    if not PASTA_REDE_FATURAMENTO.exists(): 
+        return rateios
+        
+    # Caminho exato do arquivo que vamos gerar AGORA (para não ler ele mesmo)
+    arquivo_atual = (PASTA_REDE_BH / "Rateio Malote.xlsx").absolute()
     
-    for f in pasta_arquivos.rglob("*.xlsx"):
-        if "rateio" in f.name.lower() and f.name != "Rateio Malote.xlsx":
-            rateios.append(str(f))
+    pastas_bh_encontradas = []
+    
+    # 1. Coleta todas as pastas BH com seus respectivos anos e meses para ordenar
+    for pasta_ano in PASTA_REDE_FATURAMENTO.iterdir():
+        if pasta_ano.is_dir() and pasta_ano.name.isdigit():
+            ano = int(pasta_ano.name)
+            
+            for pasta_mes in pasta_ano.iterdir():
+                if pasta_mes.is_dir() and pasta_mes.name[:2].isdigit():
+                    mes = int(pasta_mes.name[:2])
+                    pasta_bh = pasta_mes / "BH"
+                    
+                    if pasta_bh.exists():
+                        pastas_bh_encontradas.append((ano, mes, pasta_bh))
+                        
+    # 2. Ordena da mais recente para a mais antiga (Ano desc, Mês desc)
+    pastas_bh_encontradas.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    
+    # 3. Pega apenas os arquivos "Rateio Malote.xlsx" dos últimos 3 meses válidos
+    meses_lidos = 0
+    for ano, mes, pasta_bh in pastas_bh_encontradas:
+        if meses_lidos >= 3:
+            break # Já pegou o histórico de 3 meses, pode parar!
+            
+        for f in pasta_bh.glob("*.xlsx"):
+            # Procura EXATAMENTE pelo nome do arquivo (ignorando maiúsculas/minúsculas)
+            if f.name.lower() == "rateio malote.xlsx":
+                if f.absolute() != arquivo_atual:
+                    rateios.append(str(f))
+                    meses_lidos += 1 # Conta que achou um mês válido
+                break # Já achou o rateio malote desta pasta, vai para o próximo mês
+                    
     return rateios
+
 
 def get_sheet_with_most_data(wb, preferred_names=None):
     if preferred_names:
@@ -216,36 +272,41 @@ class RateioMalote:
         self.output_path = output_path
 
         # ======================================================================
-        # TRAVA DE SEGURANÇA: VALIDAÇÃO GLOBAL DE ARQUIVOS
+        # TRAVA DE SEGURANÇA: VALIDAÇÃO GLOBAL DE ARQUIVOS NA REDE
         # ======================================================================
         erros_arquivos = []
         
         if not self.agilis_path:
-            erros_arquivos.append("👉 Relatório Agilis (deve conter 'agilis' no nome)")
+            erros_arquivos.append(f"👉 Relatório Agilis (não encontrado na pasta BH)")
             
         if not self.correios_path:
-            erros_arquivos.append("👉 Extrato dos Correios (o nome deve conter APENAS números, ex: '2554871.xlsx')")
+            erros_arquivos.append(f"👉 Extrato dos Correios numérico (não encontrado na pasta BH)")
 
         base_cc_encontrada = False
         vsc_encontrado = False
-        pasta_arquivos = PASTA_MALOTE.parent
         
-        if pasta_arquivos.exists():
-            for f in pasta_arquivos.rglob("*.xlsx"):
+        if PASTA_REDE_CONTRATOS.exists():
+            for f in PASTA_REDE_CONTRATOS.glob("*.xlsx"):
                 fl = f.name.lower()
                 if ("centro" in fl and "custo" in fl) or "diagrama" in fl or ("base" in fl and "cc" in fl):
                     base_cc_encontrada = True
+                    break
+
+        if PASTA_REDE_FATURAMENTO.exists():
+            for f in PASTA_REDE_FATURAMENTO.glob("*.xlsx"):
+                fl = f.name.lower()
                 if "acompanhamento" in fl and "vsc" in fl:
                     vsc_encontrado = True
+                    break
 
         if not base_cc_encontrada:
-            erros_arquivos.append("👉 Base Centro de Custo (deve conter 'base' e 'centro de custo' no nome)")
+            erros_arquivos.append(f"👉 Base Centro de Custo (não encontrada na pasta Contratos Serviços)")
             
         if not vsc_encontrado:
-            erros_arquivos.append("👉 Acompanhamento VSC (deve conter 'acompanhamento' e 'vsc' no nome)")
+            erros_arquivos.append(f"👉 Acompanhamento VSC (não encontrado na pasta 2. Faturamento)")
 
         if erros_arquivos:
-            mensagem_erro = "O robô não pode iniciar porque faltam arquivos obrigatórios:\n\n" + "\n".join(erros_arquivos) + "\n\nPor favor, verifique a pasta 'arquivos/rateio_malote' e tente novamente."
+            mensagem_erro = "O robô não pode iniciar porque faltam arquivos obrigatórios na rede:\n\n" + "\n".join(erros_arquivos) + "\n\nPor favor, verifique as pastas de rede e tente novamente."
             raise RuntimeError(mensagem_erro)
         # ======================================================================
 
@@ -414,7 +475,8 @@ class RateioMalote:
         for filepath in rateio_files:
             print(f"    📄 Lendo: {os.path.basename(filepath)}")
             try:
-                wb = openpyxl.load_workbook(filepath, data_only=True)
+                # 1. read_only=True deixa a leitura incrivelmente mais rápida
+                wb = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
 
                 ws_rateio = None
                 for name in wb.sheetnames:
@@ -424,8 +486,11 @@ class RateioMalote:
 
                 if ws_rateio:
                     headers = []
-                    for cell in ws_rateio[1]:
-                        headers.append(str(cell.value).strip().upper() if cell.value else "")
+                    # No modo read_only, pegamos o cabeçalho assim:
+                    for row in ws_rateio.iter_rows(min_row=1, max_row=1, values_only=True):
+                        for cell in row:
+                            headers.append(str(cell).strip().upper() if cell else "")
+                        break
 
                     col_map = {}
                     for i, h in enumerate(headers):
@@ -444,7 +509,17 @@ class RateioMalote:
                             col_map['utilizacao'] = i
 
                     if 'origem' in col_map and 'destino' in col_map:
+                        vazias_consecutivas = 0
                         for row in ws_rateio.iter_rows(min_row=2, values_only=True):
+                            # 2. Trava contra as "Linhas Fantasmas" do Excel
+                            if not any(row):
+                                vazias_consecutivas += 1
+                                if vazias_consecutivas > 20:
+                                    break # Se achou 20 linhas vazias seguidas, a tabela acabou!
+                                continue
+                            
+                            vazias_consecutivas = 0 # Reseta o contador se achou dados
+                            
                             rl = list(row)
                             if len(rl) <= max(col_map.values()):
                                 continue
@@ -455,24 +530,18 @@ class RateioMalote:
 
                             vsc_val = 0
                             if 'vsc' in col_map:
-                                try:
-                                    vsc_val = float(rl[col_map['vsc']]) if rl[col_map['vsc']] else 0
-                                except:
-                                    vsc_val = 0
+                                try: vsc_val = float(rl[col_map['vsc']]) if rl[col_map['vsc']] else 0
+                                except: vsc_val = 0
 
                             total_val = 0
                             if 'total' in col_map:
-                                try:
-                                    total_val = float(rl[col_map['total']]) if rl[col_map['total']] else 0
-                                except:
-                                    total_val = 0
+                                try: total_val = float(rl[col_map['total']]) if rl[col_map['total']] else 0
+                                except: total_val = 0
 
                             util_val = 0
                             if 'utilizacao' in col_map:
-                                try:
-                                    util_val = float(rl[col_map['utilizacao']]) if rl[col_map['utilizacao']] else 0
-                                except:
-                                    util_val = 0
+                                try: util_val = float(rl[col_map['utilizacao']]) if rl[col_map['utilizacao']] else 0
+                                except: util_val = 0
 
                             if origem or destino:
                                 perc = get_percurso_from_row(origem, destino)
@@ -497,8 +566,10 @@ class RateioMalote:
 
                 if ws_vsc_prev:
                     vsc_headers = []
-                    for cell in ws_vsc_prev[1]:
-                        vsc_headers.append(str(cell.value).strip().upper() if cell.value else "")
+                    for row in ws_vsc_prev.iter_rows(min_row=1, max_row=1, values_only=True):
+                        for cell in row:
+                            vsc_headers.append(str(cell).strip().upper() if cell else "")
+                        break
 
                     vsc_col_map = {}
                     for i, h in enumerate(vsc_headers):
@@ -513,7 +584,16 @@ class RateioMalote:
                             vsc_col_map['valor'] = i
 
                     if 'percurso' in vsc_col_map:
+                        vazias_consecutivas = 0
                         for row in ws_vsc_prev.iter_rows(min_row=2, values_only=True):
+                            if not any(row):
+                                vazias_consecutivas += 1
+                                if vazias_consecutivas > 20:
+                                    break
+                                continue
+                            
+                            vazias_consecutivas = 0
+                            
                             rl = list(row)
                             if len(rl) <= max(vsc_col_map.values()):
                                 continue
@@ -1616,15 +1696,14 @@ class RateioMalote:
 def executar_rateio_malote():
     print("[PROGRESSO: 2]")
     print("=" * 60)
-    print("  RATEIO MALOTE v15")
-    print("  Com resolução avançada de CC e Correção de Valor Órfão")
+    print("  RATEIO MALOTE v16 - Busca Automática na Rede")
     print("=" * 60)
 
-    if not PASTA_MALOTE.exists():
-        PASTA_MALOTE.mkdir(parents=True, exist_ok=True)
-        raise RuntimeError(f"A pasta '{PASTA_MALOTE}' não existia e foi criada.\nColoque os arquivos necessários lá dentro e tente novamente.")
+    if not PASTA_REDE_BH.exists():
+        raise RuntimeError(f"A pasta de rede '{PASTA_REDE_BH}' não está acessível. Verifique sua conexão com a VPN/Rede.")
 
-    output_file = str(PASTA_MALOTE / "Rateio Malote.xlsx")
+    # Salva o resultado direto na pasta de BH na rede!
+    output_file = str(PASTA_REDE_BH / "Rateio Malote.xlsx")
 
     rateio = RateioMalote(output_path=output_file)
     rateio.run()

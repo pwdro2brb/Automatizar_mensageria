@@ -22,9 +22,25 @@ import config
 sys.path.append(str(Path(__file__).parent.parent))
 from config import EMAIL_MRV, SENHA_MALOTE_MRV
 
-# Aponta dinamicamente para a nova pasta usando o Radar do config
-PASTA_MALOTE = Path(config.PASTA_ARQUIVOS) / "rateio_malote"
-CACHE_FILE = str(PASTA_MALOTE / "cache_percursos_cc.json")
+PASTA_REDE_CONTRATOS = Path(r"\\Bhz-fls-app1\mrvbh\Gerência Administrativa\Pública\NUCLEO DE CONTRATOS E APOIO A GESTÃO\CONTRATOS\Contratos Serviços")
+PASTA_REDE_FATURAMENTO = PASTA_REDE_CONTRATOS / "1. CORREIOS" / "2. Faturamento"
+
+def obter_pasta_bh_mais_recente():
+    if not PASTA_REDE_FATURAMENTO.exists():
+        return PASTA_REDE_FATURAMENTO / "BH"
+    pastas_ano = [d for d in PASTA_REDE_FATURAMENTO.iterdir() if d.is_dir() and d.name.isdigit()]
+    if not pastas_ano: return PASTA_REDE_FATURAMENTO / "BH"
+    ano_mais_recente = max(pastas_ano, key=lambda x: int(x.name))
+    
+    pastas_mes = [d for d in ano_mais_recente.iterdir() if d.is_dir() and d.name[:2].isdigit()]
+    if not pastas_mes: return ano_mais_recente / "BH"
+    mes_mais_recente = max(pastas_mes, key=lambda x: int(x.name[:2]))
+    
+    return mes_mais_recente / "BH"
+
+PASTA_REDE_BH = obter_pasta_bh_mais_recente()
+# Salva o cache na pasta raiz de Faturamento para o robô nunca perder a memória!
+CACHE_FILE = str(PASTA_REDE_FATURAMENTO / "cache_percursos_cc_global.json") 
 
 CORREIOS_EMAIL = EMAIL_MRV
 CORREIOS_SENHA = SENHA_MALOTE_MRV
@@ -120,10 +136,9 @@ class BaseCentroCusto:
             print(f"  ⚠️ Erro ao ler base CC: {e}")
 
     def _find_file(self):
-        pasta_arquivos = PASTA_MALOTE.parent 
-        if not pasta_arquivos.exists(): return None
+        if not PASTA_REDE_CONTRATOS.exists(): return None
         
-        for f in pasta_arquivos.rglob("*.xlsx"):
+        for f in PASTA_REDE_CONTRATOS.glob("*.xlsx"):
             fl = f.name.lower()
             if ("centro" in fl and "custo" in fl) or "diagrama" in fl:
                 return str(f)
@@ -293,10 +308,9 @@ class AcompanhamentoVSC:
             print(f"  ⚠️ Erro ao ler Acompanhamento VSC: {e}")
 
     def _find_file(self):
-        pasta_arquivos = PASTA_MALOTE.parent 
-        if not pasta_arquivos.exists(): return None
+        if not PASTA_REDE_FATURAMENTO.exists(): return None
         
-        for f in pasta_arquivos.rglob("*.xlsx"):
+        for f in PASTA_REDE_FATURAMENTO.glob("*.xlsx"):
             fl = f.name.lower()
             if "acompanhamento" in fl and "vsc" in fl:
                 return str(f)

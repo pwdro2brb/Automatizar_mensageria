@@ -398,9 +398,12 @@ def executar_fechamento():
         print("[PROGRESSO: 20]")
 
         # =============================================
-        # LOOP PRINCIPAL
+        # LOOP PRINCIPAL (RODA INFINITAMENTE)
         # =============================================
         while True:
+            # Reinicia a barra de progresso a cada novo ciclo
+            print("[PROGRESSO: 20]") 
+            
             if not verificar_sessao_ativa(driver):
                 print("⚠️ Sessão perdida! Reiniciando o navegador...")
                 try:
@@ -426,16 +429,16 @@ def executar_fechamento():
             if not todos_chamados:
                 print("[PROGRESSO: 100]")
                 print("\n✅ Nenhum chamado para vencer hoje encontrado via API.")
-                print("🛑 Encerrando o robô automaticamente para liberar a central.")
-                break 
+                aguardar_proximo_ciclo(10) # Espera 10 minutos e tenta de novo
+                continue 
 
             proximos = filtrar_proximos_vencer(todos_chamados, minutos=60)
 
             if not proximos:
                 print("[PROGRESSO: 100]")
                 print(f"  ℹ️ {len(todos_chamados)} chamados encontrados, mas nenhum vence em menos de 1 hora.")
-                print("🛑 Encerrando o robô automaticamente para liberar a central.")
-                break
+                aguardar_proximo_ciclo(10) # Espera 10 minutos e tenta de novo
+                continue
 
             print(f"\n  ⚠️ {len(proximos)} chamados para processar:")
             for c in proximos:
@@ -481,7 +484,9 @@ def executar_fechamento():
             print("\n" + "="*60)
             print("CICLO CONCLUÍDO!")
             print("="*60)
-            break # Quebra o loop infinito para o robô poder finalizar e liberar a interface
+            
+            # Em vez de quebrar o loop (break), ele aguarda 10 minutos e recomeça!
+            aguardar_proximo_ciclo(10)
 
     except Exception as e:
         print(f"\n[ERRO FATAL] {e}")

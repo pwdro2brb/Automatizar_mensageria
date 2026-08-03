@@ -354,10 +354,10 @@ def buscar_chamados_vencem_hoje_api(driver, filter_id="3316"):
     print(f"  ✅ Total coletado: {len(todos)} chamados.")
     return todos
 
-def filtrar_proximos_vencer(chamados, minutos=60):
+def filtrar_proximos_vencer(chamados, minutos=60, todos=False):
     """
     Filtra chamados que vencem em menos de X minutos a partir de agora.
-    O campo due_by_time.value vem em milissegundos UTC da API.
+    Se 'todos' for True, ignora o tempo e retorna todos os chamados do dia.
     """
     agora_ms = datetime.now(timezone.utc).timestamp() * 1000
     limite_ms = agora_ms + (minutos * 60 * 1000)
@@ -369,8 +369,9 @@ def filtrar_proximos_vencer(chamados, minutos=60):
         if valor is None:
             continue
         due_ms = float(valor)
-        # Inclui vencidos (due_ms < agora_ms) e próximos de vencer
-        if due_ms <= limite_ms:
+        
+        # Se for para pegar todos OU se estiver dentro do limite de tempo
+        if todos or due_ms <= limite_ms:
             minutos_restantes = (due_ms - agora_ms) / 60000
             proximos.append({
                 "id": c["id"],
@@ -387,7 +388,7 @@ def filtrar_proximos_vencer(chamados, minutos=60):
 # =============================================
 # FUNÇÃO PRINCIPAL (Chamada pela Interface)
 # =============================================
-def executar_fechamento():
+def executar_fechamento(modo="monitorar"):
     print("[PROGRESSO: 5]")
     URL_INICIAL = "https://agilis.mrv.com.br/HomePage.do?view_type=my_view"
     driver = webdriver.Chrome()
@@ -398,29 +399,26 @@ def executar_fechamento():
         print("[PROGRESSO: 20]")
 
         # =============================================
-        # LOOP PRINCIPAL (RODA INFINITAMENTE)
+        # LOOP PRINCIPAL
         # =============================================
         while True:
-            # Reinicia a barra de progresso a cada novo ciclo
             print("[PROGRESSO: 20]") 
             
             if not verificar_sessao_ativa(driver):
                 print("⚠️ Sessão perdida! Reiniciando o navegador...")
-                try:
-                    driver.quit()
-                except:
-                    pass
+                try: driver.quit()
+                except: pass
                 driver = webdriver.Chrome()
                 wait = WebDriverWait(driver, 70)
                 fazer_login(driver, wait)
 
             print(f"\n{'='*60}")
-            print(f"Verificação iniciada às {datetime.now().strftime('%H:%M:%S')}")
+            if modo == "todos_hoje":
+                print(f"Iniciando varredura de TODOS os chamados de hoje às {datetime.now().strftime('%H:%M:%S')}")
+            else:
+                print(f"Verificação de monitoramento iniciada às {datetime.now().strftime('%H:%M:%S')}")
             print(f"{'='*60}")
 
-            # =============================================
-            # COLETA VIA API — substitui toda a paginação DOM
-            # =============================================
             driver.get(URL_INICIAL)
             time.sleep(3)
 
@@ -429,15 +427,21 @@ def executar_fechamento():
             if not todos_chamados:
                 print("[PROGRESSO: 100]")
                 print("\n✅ Nenhum chamado para vencer hoje encontrado via API.")
-                aguardar_proximo_ciclo(10) # Espera 10 minutos e tenta de novo
+                if modo == "todos_hoje":
+                    break # Se for modo único, encerra o robô
+                aguardar_proximo_ciclo(10)
                 continue 
 
-            proximos = filtrar_proximos_vencer(todos_chamados, minutos=60)
+            # Define se vai filtrar por 60 min ou pegar todos
+            pegar_todos = (modo == "todos_hoje")
+            proximos = filtrar_proximos_vencer(todos_chamados, minutos=60, todos=pegar_todos)
 
             if not proximos:
                 print("[PROGRESSO: 100]")
-                print(f"  ℹ️ {len(todos_chamados)} chamados encontrados, mas nenhum vence em menos de 1 hora.")
-                aguardar_proximo_ciclo(10) # Espera 10 minutos e tenta de novo
+                print(f"  ℹ️ {len(todos_chamados)} chamados encontrados, mas nenhum atende ao critério atual.")
+                if modo == "todos_hoje":
+                    break # Se for modo único, encerra o robô
+                aguardar_proximo_ciclo(10)
                 continue
 
             print(f"\n  ⚠️ {len(proximos)} chamados para processar:")
@@ -450,10 +454,10 @@ def executar_fechamento():
             # =============================================
             total_chamados = len(proximos)
             for i, chamado in enumerate(proximos):
-                 # ✅ Verifica se ainda está aberto antes de abrir no navegador
                 if not chamado_ainda_aberto(driver, chamado["id"]):
                     print(f"  ⏭️ Chamado #{chamado['id']} já foi fechado. Pulando...")
                     continue
+                
                 chamado_id = chamado["id"]
                 print(f"\n{'='*60}")
                 print(f"  🔓 Abrindo chamado #{chamado_id} ({chamado['due_display']})...")
@@ -469,11 +473,9 @@ def executar_fechamento():
                 else:
                     print(f"  ❌ Falha ao fechar chamado #{chamado_id}. Pulando...")
 
-                # Volta para a home entre cada chamado
                 driver.get(URL_INICIAL)
                 time.sleep(3)
                 
-                # Progresso dinâmico de 20% a 95%
                 progresso_atual = 20 + int(((i + 1) / total_chamados) * 75)
                 print(f"[PROGRESSO: {progresso_atual}]")
 
@@ -485,8 +487,11 @@ def executar_fechamento():
             print("CICLO CONCLUÍDO!")
             print("="*60)
             
-            # Em vez de quebrar o loop (break), ele aguarda 10 minutos e recomeça!
-            aguardar_proximo_ciclo(10)
+            if modo == "todos_hoje":
+                print("✅ Todos os chamados do dia foram processados. Encerrando o robô.")
+                break # Quebra o loop para finalizar com sucesso na interface
+            else:
+                aguardar_proximo_ciclo(10)
 
     except Exception as e:
         print(f"\n[ERRO FATAL] {e}")
@@ -495,10 +500,8 @@ def executar_fechamento():
 
     finally:
         print("\nFechando o navegador...")
-        try:
-            driver.quit()
-        except:
-            pass
+        try: driver.quit()
+        except: pass
 
 if __name__ == "__main__":
     executar_fechamento()

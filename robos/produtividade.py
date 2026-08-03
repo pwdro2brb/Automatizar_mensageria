@@ -782,6 +782,7 @@ def main(nome_arquivo_base, nome_arquivo_saida):
         "pagnozzi.carolina":    {"p1": "pagnozzi.carolina",          "row_ativ": 34},
         "maria.eduarocha":      {"p1": "maria.eduarocha",            "row_ativ": 39},
         "matheus.lemos.silva":  {"p1": "matheus.lemos.silva MS0075116", "row_ativ": 44},
+        "joao.vifernandes":     {"p1": "joao.vifernandes",           "row_ativ": 49},
     }
 
     SAP_COD_MAP = {

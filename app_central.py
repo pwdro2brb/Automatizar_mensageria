@@ -212,7 +212,7 @@ class CentralAutomacaoMRV:
         frame_agilis = criar_quadro(frame_botoes, "Agilis & Chamados", 1, 0)
         criar_botao(frame_agilis, "Gerar relatório de envio para Correios", lambda: self.executar_processo_cancelavel("Relatório Correios", comando_python="import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()"))
         criar_botao(frame_agilis, "Gerar Produtividade (Podio/Agilis/SAP)", self._chamar_robo_produtividade)
-        criar_botao(frame_agilis, "Fechar Chamados a Vencer", lambda: self.executar_processo_cancelavel("Fechar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento()"))
+        criar_botao(frame_agilis, "Fechar Chamados a Vencer", self._chamar_robo_fechar_chamados)
 
         frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP)", 1, 1)
         criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_pasta_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
@@ -408,6 +408,19 @@ OBSERVAÇÕES IMPORTANTES!!!!
                 self.executar_processo_cancelavel("Produtividade (Completo)", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor(pular_extracao=False)")
         elif resposta is False:
             self.executar_processo_cancelavel("Produtividade (Apenas Edição)", comando_python="import robos.produtividade as rp; rp.executar_robo_produtividade_setor(pular_extracao=True)")
+
+    def _chamar_robo_fechar_chamados(self):
+        resposta = messagebox.askyesnocancel(
+            "Fechar Chamados", 
+            "Escolha o modo de execução do robô:\n\n"
+            "SIM: Monitorar o dia todo (Fecha apenas os que vencem na próxima 1 hora, repetindo a cada 10 min).\n"
+            "NÃO: Fechar TODOS de hoje (Roda uma única vez e fecha todos os chamados do dia).\n"
+            "CANCELAR: Abortar operação."
+        )
+        if resposta is True:
+            self.executar_processo_cancelavel("Monitorar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento(modo='monitorar')")
+        elif resposta is False:
+            self.executar_processo_cancelavel("Fechar Todos de Hoje", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento(modo='todos_hoje')")
             
     def _chamar_robo_incluir_encomendas(self):
         if messagebox.askokcancel("Lembrete - Correspondências", "Você lembrou de preencher a planilha?\n\n• OK para rodar o robô.\n• Cancelar para ABRIR A PLANILHA."):

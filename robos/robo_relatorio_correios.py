@@ -1,6 +1,8 @@
 import time
 import os
 import re
+from pathlib import Path
+from datetime import datetime
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -14,7 +16,9 @@ import win32com.client
 from config import EMAIL_MRV, SENHA_MRV
 
 # --- CONFIGURAÇÃO ---
-PASTA_DOWNLOAD = "C:/Users/pedro.henrsilva/Downloads"
+from pathlib import Path
+
+PASTA_DOWNLOAD = str(Path.home() / "Downloads")
 NOME_ARQUIVO_FINAL = "Produtividade_EDITADO.xlsx"
 PADRAO_RASTREIO = re.compile(r'\b[A-Z]{2}\d{9}[A-Z]{2}\b')
 # --------------------
@@ -507,7 +511,7 @@ def processar_excel_e_validar(driver):
 
         # --- 3. SALVAR O ARQUIVO FINAL ---
         # Defina o caminho (ajuste se necessário)
-        caminho_final = r"C:\Users\pedro.henrsilva\OneDrive - MRV\Área de Trabalho\Downloads"
+        caminho_final = PASTA_DOWNLOAD
         
         # 1. GARANTIA: Se a pasta não existir, o Python cria ela na hora!
         if not os.path.exists(caminho_final):

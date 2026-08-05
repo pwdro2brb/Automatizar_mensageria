@@ -387,40 +387,41 @@ def processar_excel_e_validar(driver):
 
         print("Criando: Layout do Resumo (Título e Cabeçalho)...")
         today_date = time.strftime("%d/%m/%Y")
-        
+
         title_range = ws_summary.Range("A1:D1")
         title_range.Merge()
         title_range.Value = f"MRV - DATA - {today_date}"
         title_range.Font.Bold = True
         title_range.HorizontalAlignment = xlCenter 
-        
+
         ws_summary.Range("A2").Value = "Centro de Custo"
         ws_summary.Range("B2").Value = "Chamado"
         ws_summary.Range("C2").Value = "Serviço"
         ws_summary.Range("D2").Value = "Quantidade"
+
         summary_header = ws_summary.Range("A2:D2")
         summary_header.Font.Bold = True
         summary_header.Font.Color = 16777215 
         summary_header.Interior.Color = 12611584 
-        summary_header.AutoFilter()
         ws_summary.Columns("A:D").ColumnWidth = 22
 
         print("Copiando dados para o Resumo (somente valores)...")
         if last_row > 1:
             dest_last_row = 3 + (last_row - 2)
+
             ws_summary.Range(f"A3:A{dest_last_row}").NumberFormat = "0"
             ws_summary.Range(f"A3:A{dest_last_row}").Value = ws.Range(f"O2:O{last_row}").Value
             ws_summary.Range(f"B3:B{dest_last_row}").Value = ws.Range(f"B2:B{last_row}").Value
             ws_summary.Range(f"C3:C{dest_last_row}").Value = ws.Range(f"Q2:Q{last_row}").Value
             ws_summary.Range(f"D3:D{dest_last_row}").Value = ws.Range(f"S2:S{last_row}").Value
-            
+
             print("Limpando asteriscos, quebras de linha e ajustando altura...")
             intervalo_dados = ws_summary.Range(f"A3:D{dest_last_row}")
             intervalo_dados.Replace("~*", "")
             intervalo_dados.Replace(chr(10), "")
             intervalo_dados.Replace(chr(13), "")
             intervalo_dados.WrapText = False
-            
+
             for row_idx in range(3, dest_last_row + 1):
                 for col_idx in range(1, 5): 
                     val_celula = ws_summary.Cells(row_idx, col_idx).Value
@@ -429,10 +430,21 @@ def processar_excel_e_validar(driver):
 
             ws_summary.Rows(f"3:{dest_last_row}").AutoFit()
             ws_summary.Range(f"A3:B{dest_last_row}").HorizontalAlignment = -4152 
+
+            # Aplicar filtro depois dos dados
+            try:
+                if ws_summary.AutoFilterMode:
+                    ws_summary.AutoFilterMode = False
+
+                ws_summary.Range(f"A2:D{dest_last_row}").AutoFilter()
+                print("Filtro aplicado no Resumo com sucesso.")
+            except Exception as e:
+                print(f"⚠️ Não foi possível aplicar o filtro no Resumo: {e}")
+
             print("Dados copiados e formatados com sucesso.")
         else:
             print("AVISO: Nenhum dado filtrado para copiar.")
-        
+
         excel.Application.CutCopyMode = False
         
         print("Criando: Rodapé do Resumo...")
@@ -512,6 +524,7 @@ def processar_excel_e_validar(driver):
             wb.SaveAs(caminho_completo, FileFormat=51) # 51 = .xlsx
             print(f"\n--- SUCESSO! ---")
             print(f"Arquivo editado e com resumo salvo como: {caminho_completo}")
+            return True
         except Exception as erro_salvar:
             print(f"\n❌ ERRO ESPECÍFICO AO SALVAR O ARQUIVO!")
             print("Verifique se o arquivo 'Produtividade_EDITADO.xlsx' já está ABERTO no seu computador e feche-o.")
@@ -519,6 +532,12 @@ def processar_excel_e_validar(driver):
 
         except Exception as e:
             print(f"ERRO durante a edição no Excel: {e}")
+
+            try:
+                driver.quit()
+            except:
+                pass
+            return False           
             
         finally:
             
@@ -540,15 +559,18 @@ def processar_excel_e_validar(driver):
 # ==============================================================================
 def executar_relatorio_completo():
     print("Etapa 1/2: Baixando relatório no Agilis...")
-    
-    # A função de baixar retorna o navegador aberto
+
     navegador_aberto = baixar_relatorio_agilis()
-    
+
     if navegador_aberto:
         print("Etapa 2/2: Processando a planilha no Excel e validando chamados...")
-        # Passamos o navegador aberto para a função do Excel usar
-        processar_excel_e_validar(navegador_aberto)
-        print("[PROGRESSO: 100]")
-        print("Automação do Relatório dos Correios finalizada!")
+
+        sucesso = processar_excel_e_validar(navegador_aberto)
+
+        if sucesso:
+            print("[PROGRESSO: 100]")
+            print("Automação do Relatório dos Correios finalizada com sucesso!")
+        else:
+            print("A automação foi interrompida por erro durante o processamento da planilha.")
     else:
         print("A automação foi interrompida porque houve um erro no download.")

@@ -43,6 +43,7 @@ try:
     import robos.robo_zmm180
     import robos.malote_web_scraper 
     import robos.criar_rascunhos_uber
+    import robos.robo_macro_contratos
 except ImportError:
     pass 
 
@@ -214,8 +215,12 @@ class CentralAutomacaoMRV:
         criar_botao(frame_agilis, "Gerar Produtividade (Podio/Agilis/SAP)", self._chamar_robo_produtividade)
         criar_botao(frame_agilis, "Fechar Chamados a Vencer", self._chamar_robo_fechar_chamados)
 
-        frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP)", 1, 1)
-        criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_pasta_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
+        frame_outros = criar_quadro(frame_botoes, "Outros (Uber / SAP / Contratos)", 1, 1)
+        
+        # NOVO BOTÃO AQUI:
+        criar_botao(frame_outros, "Atualizar Macro de Contratos", lambda: self.executar_processo_cancelavel("Macro Contratos", comando_python="import robos.robo_macro_contratos as rmc; rmc.executar_macro_contratos()"))
+        
+        criar_botao(frame_outros, "Uber 1: Atualizar Responsáveis (SAP)", lambda: self._verificar_pasta_e_executar("Uber 1", "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()", os.path.join(config.PASTA_ARQUIVOS, "uber")))        
         criar_botao(frame_outros, "Uber 2: Gerar Relatórios e Pastas", lambda: self._verificar_pasta_e_executar("Uber 2", "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
         criar_botao(frame_outros, "Uber 3: Criar Rascunhos de E-mail", lambda: self._verificar_pasta_e_executar("Uber 3", "import robos.criar_rascunhos_uber as rr; rr.criar_rascunhos()", os.path.join(config.PASTA_ARQUIVOS, "uber")))
         criar_botao(frame_outros, "Faturamento Transação ZMM180", self._chamar_robo_zmm180, espaco_extra=True)
@@ -324,6 +329,8 @@ ARQUIVOS OBRIGATÓRIOS PARA CADA ROBÔ!!!!
 planilha relatório agilis (ela se parece com isso Relatório Agilis -  01.05 a 23.06.xlsx), 
 base de centro de custo, e acompanhamento de VSC mais recente. 
 Todos estão dentro da pasta "dist/arquivos/rateio_malote".
+
+• Macro de Contratos: O robô acessa a rede automaticamente, não é necessário colocar arquivos na pasta local. Certifique-se de que o Excel esteja fechado antes de rodar.
 
 • Faturamento 2: Você precisa fazer nada, o código já sabe de onde puxar a planilha da pasta pública, e as respostas do email.
 

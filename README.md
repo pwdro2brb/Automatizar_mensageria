@@ -119,6 +119,22 @@ python app_central.py
 
 ## Observações importantes
 
+## Atualizações (Resumo de mudanças recentes)
+
+- **Configuração:** `config.py` — caminhos dinâmicos, variável `SENHA_MALOTE` e carregamento de `config_mrv.json` para credenciais.
+- **Interface central:** `app_central.py` — integração dos robôs ao empacotamento PyInstaller, barra de progresso, console integrado e controle de cancelamento.
+- **Malote / Rateio:** `robos/robo_rateio_malote.py` (RATEIO MALOTE v15) e `robos/malote_web_scraper.py` (integração/lookup dos Correios) — melhorias em heurísticas de extração e cache, correções de valores órfãos e tratamento de exceções.
+- **Faturamento:** `robos/robo_faturamento.py` — geração de rascunhos no Outlook e nova função end-to-end para processo de e-mail → MRV Pag; extrações inteligentes de valores e rastreios.
+- **Produtividade & Relatórios:** `robos/produtividade.py` e `robos/robo_relatorio_correios.py` — extração automatizada de relatórios (Podio/Agilis), controles de login SSO e exportação para Excel.
+- **Mensageria / Inclusão:** `robos/robo_incluir_encomendas.py` e `robos/criar_rascunhos_uber.py` — criação de rascunhos no Outlook, preenchimento automático de campos no Podio e rotinas para arquivos do Uber.
+- **Chamados / Agilis:** `robos/robo_fechar_chamados.py` — melhorias no fluxo de login SSO, tratamento de MFA, robustez nas interações do Agilis e verificação prévia de status via API, fecha o chamado de acordo com a categoria do mesmo.
+- **Jurídico & Contratos:** `robos/robo_juridico.py` e `robos/robo_macro_contratos.py` — automações específicas para extração e processamento de documentos e cobrança de boletos.
+- **Uber / SAP:** `robos/robo_uber_relatorios.py` — processamento de planilhas do Uber, mapeamento de responsáveis e atualizações com dados do SAP.
+- **ZMM180 / OCR:** `robos/robo_zmm180.py` — automação com PyAutoGUI e suporte a Tesseract OCR (configuração e detecção de idiomas).
+- **Mapeamentos IA:** `treinar_ia.py` — dicionários e mapeamentos (pessoas e origens) usados por vários robôs.
+
+Observação: os itens acima foram extraídos dos scripts na pasta `robos/` e dos arquivos principais do projeto. Se você quiser que eu gere um changelog mais formal (por exemplo, com datas, autores e versões por arquivo), eu posso criar um `CHANGELOG.md` com entradas detalhadas.
+
 - Alguns robôs exigem arquivos de entrada específicos dentro da pasta `arquivos`.
 - Verifique se as planilhas e PDFs estão nomeados corretamente antes de iniciar.
 - Robôs que acessam portais podem pedir autorização de MFA no celular.

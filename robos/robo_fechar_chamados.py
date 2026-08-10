@@ -156,8 +156,9 @@ def chamado_ainda_aberto(driver, chamado_id):
     except:
         return True  # Em caso de dúvida, tenta processar
 
+
 def processar_chamado(driver, wait, max_tentativas=3):
-    """Executa o fluxo completo de fechamento de um chamado."""
+    """Executa o fluxo completo de fechamento de um chamado de forma dinâmica."""
     for tentativa in range(1, max_tentativas + 1):
         try:
             if tentativa > 1:
@@ -166,6 +167,29 @@ def processar_chamado(driver, wait, max_tentativas=3):
                 driver.refresh()
                 time.sleep(5)
 
+            # ========================================================
+            # 1. LER A CATEGORIA E SUBCATEGORIA NA TELA
+            # ========================================================
+            print("    -> Lendo a Categoria e Subcategoria do chamado...")
+            try:
+                categoria_texto = wait.until(EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, "p[data-name='category']")
+                )).text.strip()
+            except:
+                categoria_texto = ""
+                
+            try:
+                subcategoria_texto = wait.until(EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, "p[data-name='subcategory']")
+                )).text.strip()
+            except:
+                subcategoria_texto = ""
+
+            print(f"    -> Categoria: '{categoria_texto}' | Subcategoria: '{subcategoria_texto}'")
+
+            # ========================================================
+            # 2. CLICAR EM RESPONDER
+            # ========================================================
             print("    -> Clicando em 'Responder a todos'...")
             btn_responder = wait.until(EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, "button[data-button-role='reply']")
@@ -173,6 +197,9 @@ def processar_chamado(driver, wait, max_tentativas=3):
             btn_responder.click()
             time.sleep(2)
 
+            # ========================================================
+            # 3. ABRIR DROPDOWN DE MODELOS
+            # ========================================================
             print("    -> Abrindo dropdown de Modelo de Resposta...")
             dropdown_modelo = wait.until(EC.element_to_be_clickable(
                 (By.CSS_SELECTOR, "#s2id_rt_requests .select2-choice")
@@ -180,13 +207,60 @@ def processar_chamado(driver, wait, max_tentativas=3):
             dropdown_modelo.click()
             time.sleep(1.5)
 
-            print("    -> Selecionando 'Encomenda não recebida na mensageria.'...")
-            opcao_encomenda = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//div[contains(@class,'select2-result-label')]//div[@title='Privado' and contains(.,'Encomenda não recebida na mensageria')]")
+            # ========================================================
+            # 4. BUSCAR O MODELO CORRESPONDENTE (Ignorando Maiúsculas/Minúsculas)
+            # ========================================================
+            print("    -> Procurando modelo de resposta correspondente...")
+            
+            # Pega todos os elementos da lista suspensa
+            opcoes_elementos = wait.until(EC.presence_of_all_elements_located(
+                (By.CSS_SELECTOR, ".select2-result-label")
             ))
-            opcao_encomenda.click()
+
+            opcao_escolhida = None
+            
+            # Textos que estamos procurando (tudo em minúsculo para facilitar a comparação)
+            prefixo = "modelo resposta padrão para"
+            alvo_categoria = f"{prefixo} {categoria_texto}".lower()
+            alvo_subcategoria = f"{prefixo} {subcategoria_texto}".lower()
+
+            # Varre a lista de opções do Agilis
+            for opcao in opcoes_elementos:
+                texto_opcao = opcao.text.strip().lower()
+                
+                # Verifica se o texto da opção começa com o alvo da categoria ou subcategoria
+                if categoria_texto and texto_opcao.startswith(alvo_categoria):
+                    opcao_escolhida = opcao
+                    print(f"    -> ✅ Encontrou por Categoria: '{opcao.text.strip()}'")
+                    break
+                elif subcategoria_texto and texto_opcao.startswith(alvo_subcategoria):
+                    opcao_escolhida = opcao
+                    print(f"    -> ✅ Encontrou por Subcategoria: '{opcao.text.strip()}'")
+                    break
+
+            # Fallback de segurança: se não achar o modelo específico, usa um genérico
+            if not opcao_escolhida:
+                print("    ⚠️ Modelo específico não encontrado. Buscando modelo de contingência...")
+                for opcao in opcoes_elementos:
+                    if "encomenda não recebida na mensageria" in opcao.text.strip().lower():
+                        opcao_escolhida = opcao
+                        print(f"    -> ☑️ Usando modelo de contingência: '{opcao.text.strip()}'")
+                        break
+
+            # Se mesmo assim não achar nada, aborta a tentativa
+            if not opcao_escolhida:
+                print("    ❌ Nenhum modelo de resposta válido foi encontrado na lista.")
+                return False
+
+            # Clica na opção encontrada
+            driver.execute_script("arguments[0].scrollIntoView(true);", opcao_escolhida)
+            time.sleep(0.5)
+            opcao_escolhida.click()
             time.sleep(1.5)
 
+            # ========================================================
+            # 5. CONTINUAR O FLUXO DE FECHAMENTO
+            # ========================================================
             print("    -> Aceitando pop-up de confirmação (OK)...")
             try:
                 alert = WebDriverWait(driver, 10).until(EC.alert_is_present())
@@ -198,7 +272,7 @@ def processar_chamado(driver, wait, max_tentativas=3):
                     btn_ok = WebDriverWait(driver, 5).until(EC.element_to_be_clickable(
                         (By.XPATH, "//button[text()='OK']")
                     ))
-                    btn_ok.click ()
+                    btn_ok.click()
                 except:
                     print("    -> Nenhum botão OK encontrado, continuando...")
             time.sleep(2)
@@ -388,7 +462,7 @@ def filtrar_proximos_vencer(chamados, minutos=60, todos=False):
 # =============================================
 # FUNÇÃO PRINCIPAL (Chamada pela Interface)
 # =============================================
-def executar_fechamento(modo="monitorar"):
+def executar_fechamento(modo="monitorar"): 
     print("[PROGRESSO: 5]")
     URL_INICIAL = "https://agilis.mrv.com.br/HomePage.do?view_type=my_view"
     driver = webdriver.Chrome()

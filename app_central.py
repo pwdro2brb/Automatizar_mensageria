@@ -321,7 +321,8 @@ REGRAS DOS PROCESSOS!!!!
 • Correios & Faturamento: Lembre-se de colocar as planilhas e PDFs corretos dentro da pasta "arquivos", ela fica dentro da pasta "dist" antes de rodar os robôs. O robô vai ler os dados de lá.
 • SAP (Produtividade, ZMM180): Quando o robô avisar, deixe o SAP aberto na SEGUNDA TELA e NÃO MEXA no mouse ou teclado enquanto ele trabalha.
 • Podio & Mensageria: O robô fará os downloads e uploads automaticamente, apenas confirme as caixas de aviso que aparecerem na tela.
-
+• O robô de fechar chamados vai monitorar os chamados que estão para vencer na próxima 1 hora, e vai rodar a cada 10 minutos. Se você quiser fechar todos de uma vez, escolha a opção "Fechar TODOS de hoje".
+• O robô de fechar chamados considera o modelo de reposta que começa com "modelo resposta padrão para" e depois do para você coloca o assunto do chamado. Se você quiser mudar o modelo de resposta, altere o texto do modelo no próprio Agilis antes de rodar o robô.
 
 ARQUIVOS OBRIGATÓRIOS PARA CADA ROBÔ!!!!
 
@@ -428,7 +429,7 @@ OBSERVAÇÕES IMPORTANTES!!!!
             self.executar_processo_cancelavel("Monitorar Chamados", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento(modo='monitorar')")
         elif resposta is False:
             self.executar_processo_cancelavel("Fechar Todos de Hoje", comando_python="import robos.robo_fechar_chamados as rfc; rfc.executar_fechamento(modo='todos_hoje')")
-            
+
     def _chamar_robo_incluir_encomendas(self):
         if messagebox.askokcancel("Lembrete - Correspondências", "Você lembrou de preencher a planilha?\n\n• OK para rodar o robô.\n• Cancelar para ABRIR A PLANILHA."):
             self.executar_processo_cancelavel("Incluir Correspondências", comando_python="import robos.robo_incluir_encomendas as rie; rie.executar_inclusao()")

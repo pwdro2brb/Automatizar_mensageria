@@ -44,6 +44,7 @@ try:
     import robos.malote_web_scraper 
     import robos.criar_rascunhos_uber
     import robos.robo_macro_contratos
+    import robos.robo_cobrar_boleto
 except ImportError:
     pass 
 
@@ -205,6 +206,7 @@ class CentralAutomacaoMRV:
         criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", lambda: self._verificar_pasta_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()", os.path.join(config.PASTA_ARQUIVOS, "rateio_malote")))
         criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"))
         criar_botao(frame_correios, "Faturamento 2: Processo Completo (E-mail -> MRV Pag)", lambda: self.executar_processo_cancelavel("Faturamento Completo", comando_python="import robos.robo_faturamento as rf; rf.executar_faturamento_completo()"), espaco_extra=True)
+        criar_botao(frame_correios, "Cobrança de boletos de contratos", lambda: self.executar_processo_cancelavel("Follow-up Boletos", comando_python="import robos.robo_cobrar_boleto as rcb; rcb.executar_cobranca_boletos()"), espaco_extra=True)
 
         frame_podio = criar_quadro(frame_botoes, "Podio & Mensageria", 0, 1)
         criar_botao(frame_podio, "Relatório Jurídico Montreal", self._chamar_robo_juridico)
@@ -323,6 +325,7 @@ REGRAS DOS PROCESSOS!!!!
 • Podio & Mensageria: O robô fará os downloads e uploads automaticamente, apenas confirme as caixas de aviso que aparecerem na tela.
 • O robô de fechar chamados vai monitorar os chamados que estão para vencer na próxima 1 hora, e vai rodar a cada 10 minutos. Se você quiser fechar todos de uma vez, escolha a opção "Fechar TODOS de hoje".
 • O robô de fechar chamados considera o modelo de reposta que começa com "modelo resposta padrão para" e depois do para você coloca o assunto do chamado. Se você quiser mudar o modelo de resposta, altere o texto do modelo no próprio Agilis antes de rodar o robô.
+• O robô de cobrar boletos de contratos vai enviar um email pedindo algum retorno se por acaso o boleto anterior não foi respondido. Para funcionar, é preciso rodar este robor em um PC que tenha acesso a esses emails.
 
 ARQUIVOS OBRIGATÓRIOS PARA CADA ROBÔ!!!!
 

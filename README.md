@@ -92,6 +92,7 @@ python app_central.py
 - Rateio de Malote (Centros de Custo)
 - Faturamento 1: Gerar rascunhos
 - Faturamento Completo: processo de e-mail para MRV Pag
+- Cobrança de boletos de contratos: follow-up automático por rascunho no Outlook após X dias sem retorno
 
 ### Podio & Mensageria
 
@@ -128,7 +129,7 @@ python app_central.py
 - **Produtividade & Relatórios:** `robos/produtividade.py` e `robos/robo_relatorio_correios.py` — extração automatizada de relatórios (Podio/Agilis), controles de login SSO e exportação para Excel.
 - **Mensageria / Inclusão:** `robos/robo_incluir_encomendas.py` e `robos/criar_rascunhos_uber.py` — criação de rascunhos no Outlook, preenchimento automático de campos no Podio e rotinas para arquivos do Uber.
 - **Chamados / Agilis:** `robos/robo_fechar_chamados.py` — melhorias no fluxo de login SSO, tratamento de MFA, robustez nas interações do Agilis e verificação prévia de status via API, fecha o chamado de acordo com a categoria do mesmo.
-- **Jurídico & Contratos:** `robos/robo_juridico.py` e `robos/robo_macro_contratos.py` — automações específicas para extração e processamento de documentos e cobrança de boletos.
+- **Jurídico & Contratos:** `robos/robo_juridico.py`, `robos/robo_macro_contratos.py` e `robos/robo_cobrar_boleto.py` — extração e processamento de documentos, cobrança de boletos e follow-up automático de boletos em aberto.
 - **Uber / SAP:** `robos/robo_uber_relatorios.py` — processamento de planilhas do Uber, mapeamento de responsáveis e atualizações com dados do SAP.
 - **ZMM180 / OCR:** `robos/robo_zmm180.py` — automação com PyAutoGUI e suporte a Tesseract OCR (configuração e detecção de idiomas).
 - **Mapeamentos IA:** `treinar_ia.py` — dicionários e mapeamentos (pessoas e origens) usados por vários robôs.

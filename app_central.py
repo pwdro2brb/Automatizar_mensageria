@@ -45,6 +45,7 @@ try:
     import robos.criar_rascunhos_uber
     import robos.robo_macro_contratos
     import robos.robo_cobrar_boleto
+    import robos.robo_rateio_AGF
 except ImportError:
     pass 
 
@@ -204,6 +205,7 @@ class CentralAutomacaoMRV:
         # --- QUADROS E BOTÕES ---
         frame_correios = criar_quadro(frame_botoes, "Correios & Faturamento", 0, 0)
         criar_botao(frame_correios, "Rateio de Malote (Centros de Custo)", lambda: self._verificar_pasta_e_executar("Rateio de Malote", "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()", os.path.join(config.PASTA_ARQUIVOS, "rateio_malote")))
+        criar_botao(frame_correios, "Rateio AGF", lambda: self._verificar_pasta_e_executar("Rateio AGF", "import robos.robo_rateio_AGF as rra; rra.executar_rateio_AGF()", os.path.join(config.PASTA_ARQUIVOS, "rateio_AGF")))
         criar_botao(frame_correios, "Faturamento 1: Gerar Rascunhos", lambda: self.executar_processo_cancelavel("Faturamento 1", comando_python="import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()"))
         criar_botao(frame_correios, "Faturamento 2: Processo Completo (E-mail -> MRV Pag)", lambda: self.executar_processo_cancelavel("Faturamento Completo", comando_python="import robos.robo_faturamento as rf; rf.executar_faturamento_completo()"), espaco_extra=True)
         criar_botao(frame_correios, "Cobrança de boletos de contratos", lambda: self.executar_processo_cancelavel("Follow-up Boletos", comando_python="import robos.robo_cobrar_boleto as rcb; rcb.executar_cobranca_boletos()"), espaco_extra=True)
@@ -256,60 +258,99 @@ class CentralAutomacaoMRV:
         frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         self.frames["config"] = frame
 
-        lbl_titulo = ctk.CTkLabel(frame, text="⚙️ Configurar Credenciais", font=ctk.CTkFont(size=24, weight="bold"))
-        lbl_titulo.pack(pady=(40, 30))
+        lbl_titulo = ctk.CTkLabel(frame, text="⚙️ Configurar Credenciais do Sistema", font=ctk.CTkFont(size=24, weight="bold"))
+        lbl_titulo.pack(pady=(20, 15))
 
-        container = ctk.CTkFrame(frame, width=500)
-        container.pack(pady=10, padx=20, fill="y")
+        # Container principal dividido em duas colunas
+        container_duplo = ctk.CTkFrame(frame, fg_color="transparent")
+        container_duplo.pack(pady=5, padx=20, fill="both", expand=True)
+        container_duplo.grid_columnconfigure(0, weight=1)
+        container_duplo.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(container, text="E-mail MRV:", font=ctk.CTkFont(weight="bold")).pack(pady=(20, 0))
-        self.entry_email = ctk.CTkEntry(container, width=350)
+        # --- COLUNA ESQUERDA: MRV & AGILIS ---
+        col_esquerda = ctk.CTkFrame(container_duplo)
+        col_esquerda.grid(row=0, column=0, padx=15, pady=10, sticky="nsew")
+
+        ctk.CTkLabel(col_esquerda, text="SISTEMAS MRV & AGILIS", font=ctk.CTkFont(size=14, weight="bold"), text_color=self.COR_MRV).pack(pady=(15, 10))
+
+        ctk.CTkLabel(col_esquerda, text="E-mail MRV:", font=ctk.CTkFont(weight="bold")).pack(pady=(5, 0))
+        self.entry_email = ctk.CTkEntry(col_esquerda, width=280)
         self.entry_email.pack(pady=5)
         self.entry_email.insert(0, config.EMAIL_USER)
 
-        ctk.CTkLabel(container, text="Senha MRV:", font=ctk.CTkFont(weight="bold")).pack(pady=(15, 0))
-        self.entry_senha = ctk.CTkEntry(container, width=350, show="*")
+        ctk.CTkLabel(col_esquerda, text="Senha MRV:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        self.entry_senha = ctk.CTkEntry(col_esquerda, width=280, show="*")
         self.entry_senha.pack(pady=5)
         self.entry_senha.insert(0, config.SENHA_USER)
 
-        ctk.CTkLabel(container, text="Senha Malote Web:", font=ctk.CTkFont(weight="bold")).pack(pady=(15, 0))
-        self.entry_senha_malote = ctk.CTkEntry(container, width=350, show="*")
+        ctk.CTkLabel(col_esquerda, text="Senha Malote Web:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        self.entry_senha_malote = ctk.CTkEntry(col_esquerda, width=280, show="*")
         self.entry_senha_malote.pack(pady=5)
         self.entry_senha_malote.insert(0, getattr(config, "SENHA_MALOTE", ""))
 
-        ctk.CTkLabel(container, text="Chave API Agilis:", font=ctk.CTkFont(weight="bold")).pack(pady=(15, 0))
-        self.entry_API_KEY_AGILIS = ctk.CTkEntry(container, width=350, show="*")
+        ctk.CTkLabel(col_esquerda, text="Chave API Agilis:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        self.entry_API_KEY_AGILIS = ctk.CTkEntry(col_esquerda, width=280, show="*")
         self.entry_API_KEY_AGILIS.pack(pady=5)
-        # Corrigido para buscar CHAVE_API_AGILIS do config.py
         self.entry_API_KEY_AGILIS.insert(0, getattr(config, "CHAVE_API_AGILIS", ""))
+
+        # --- COLUNA DIREITA: CORREIOS ---
+        col_direita = ctk.CTkFrame(container_duplo)
+        col_direita.grid(row=0, column=1, padx=15, pady=10, sticky="nsew")
+
+        ctk.CTkLabel(col_direita, text="CORREIOS (SEDEX REVERSO)", font=ctk.CTkFont(size=14, weight="bold"), text_color="#FFCC00").pack(pady=(15, 10))
+
+        ctk.CTkLabel(col_direita, text="Código Administrativo:", font=ctk.CTkFont(weight="bold")).pack(pady=(5, 0))
+        self.entry_correios_cod = ctk.CTkEntry(col_direita, width=280)
+        self.entry_correios_cod.pack(pady=5)
+        self.entry_correios_cod.insert(0, getattr(config, "CORREIOS_COD_ADM", "14192390"))
+
+        ctk.CTkLabel(col_direita, text="E-mail Correios:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        self.entry_correios_email = ctk.CTkEntry(col_direita, width=280)
+        self.entry_correios_email.pack(pady=5)
+        self.entry_correios_email.insert(0, getattr(config, "CORREIOS_EMAIL", "vitoria.gabriela@mrv.com.br"))
+
+        ctk.CTkLabel(col_direita, text="Senha Correios:", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 0))
+        self.entry_correios_senha = ctk.CTkEntry(col_direita, width=280, show="*")
+        self.entry_correios_senha.pack(pady=5)
+        self.entry_correios_senha.insert(0, getattr(config, "CORREIOS_SENHA", "1234"))
 
         def salvar():
             novo_email = self.entry_email.get().strip()
             nova_senha = self.entry_senha.get().strip()
             nova_senha_malote = self.entry_senha_malote.get().strip()
             nova_api_key_agilis = self.entry_API_KEY_AGILIS.get().strip()
-
-            # 1. Salva fisicamente no arquivo JSON (agora com os 4 parâmetros corretos)
-            config.salvar_credenciais(novo_email, nova_senha, nova_senha_malote, nova_api_key_agilis)
             
-            # 2. Atualiza as variáveis na memória para uso imediato dos robôs
+            novo_correios_cod = self.entry_correios_cod.get().strip()
+            novo_correios_email = self.entry_correios_email.get().strip()
+            novo_correios_senha = self.entry_correios_senha.get().strip()
+
+            # 1. Salva fisicamente no arquivo JSON
+            config.salvar_credenciais(
+                novo_email, nova_senha, nova_senha_malote, nova_api_key_agilis,
+                novo_correios_cod, novo_correios_email, novo_correios_senha
+            )
+            
+            # 2. Atualiza as variáveis na memória para uso imediato
             config.EMAIL_USER = novo_email
             config.SENHA_USER = nova_senha
             config.SENHA_MALOTE = nova_senha_malote
             config.CHAVE_API_AGILIS = nova_api_key_agilis
+            config.CORREIOS_COD_ADM = novo_correios_cod
+            config.CORREIOS_EMAIL = novo_correios_email
+            config.CORREIOS_SENHA = novo_correios_senha
             
-            # 3. Atualiza as variáveis de compatibilidade
+            # Compatibilidade
             config.EMAIL_MRV = novo_email
             config.SENHA_MRV = nova_senha
             config.SENHA_MALOTE_MRV = nova_senha_malote
             config.API_KEY_AGILIS = nova_api_key_agilis
             
-            messagebox.showinfo("Sucesso", "Credenciais salvas com sucesso!")
-            self.selecionar_tela("robos") # Volta para a tela de robôs após salvar
+            messagebox.showinfo("Sucesso", "Todas as credenciais foram salvas com sucesso!")
+            self.selecionar_tela("robos")
 
-        ctk.CTkButton(container, text="Salvar Credenciais", command=salvar, height=40,
+        ctk.CTkButton(frame, text="Salvar Todas as Credenciais", command=salvar, height=45, width=300,
                       fg_color=self.COR_MRV, hover_color=self.COR_MRV_HOVER, 
-                      font=ctk.CTkFont(weight="bold")).pack(pady=(30, 20))
+                      font=ctk.CTkFont(weight="bold")).pack(pady=(10, 20))
 
 
     def _construir_tela_ajuda(self):

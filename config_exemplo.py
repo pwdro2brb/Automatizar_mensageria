@@ -23,17 +23,28 @@ def carregar_credenciais():
                 return json.load(f)
         except:
             pass
-    # Retorna estrutura padrão vazia caso o arquivo não exista ou dê erro
-    return {"email": "", "senha": "", "senha_malote": "", "chave_api_agilis": ""}
+    # Retorna estrutura padrão vazia
+    return {
+        "email": "", 
+        "senha": "", 
+        "senha_malote": "", 
+        "chave_api_agilis": "",
+        "correios_cod_adm": "",
+        "correios_email": "",
+        "correios_senha": ""
+    }
 
-def salvar_credenciais(email, senha, senha_malote, chave_api_agilis):
-    """Salva o e-mail, as senhas e a chave API no arquivo JSON."""
+def salvar_credenciais(email, senha, senha_malote, chave_api_agilis, correios_cod_adm, correios_email, correios_senha):
+    """Salva todas as credenciais no arquivo JSON."""
     with open(ARQUIVO_CONFIG, "w") as f:
         json.dump({
             "email": email, 
             "senha": senha, 
             "senha_malote": senha_malote,
-            "chave_api_agilis": chave_api_agilis
+            "chave_api_agilis": chave_api_agilis,
+            "correios_cod_adm": correios_cod_adm,
+            "correios_email": correios_email,
+            "correios_senha": correios_senha
         }, f)
 
 # Carrega as variáveis para serem usadas pelos robôs
@@ -43,16 +54,21 @@ SENHA_USER = credenciais.get("senha", "")
 SENHA_MALOTE = credenciais.get("senha_malote", "")
 CHAVE_API_AGILIS = credenciais.get("chave_api_agilis", "")
 
+
+CORREIOS_COD_ADM = credenciais.get("correios_cod_adm", "")
+CORREIOS_EMAIL = credenciais.get("correios_email", "")
+CORREIOS_SENHA = credenciais.get("correios_senha", "")
+
 # ==============================================================================
-# 3. MODO DE COMPATIBILIDADE (Para os robôs antigos continuarem funcionando)
+# 3. MODO DE COMPATIBILIDADE
 # ==============================================================================
 EMAIL_MRV = EMAIL_USER
 SENHA_MRV = SENHA_USER
 SENHA_MALOTE_MRV = SENHA_MALOTE
-API_KEY_AGILIS = CHAVE_API_AGILIS  # Define ambas para evitar erros de atributo na interface
+API_KEY_AGILIS = CHAVE_API_AGILIS
 
 # ==============================================================================
-# 4. RADAR DE PASTAS (Ignora a pasta temporária do PyInstaller)
+# 4. RADAR DE PASTAS
 # ==============================================================================
 if getattr(sys, 'frozen', False):
     PASTA_RAIZ = os.path.dirname(sys.executable)

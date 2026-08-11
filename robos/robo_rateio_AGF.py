@@ -1,10 +1,11 @@
-from anyio import Path
 import pandas as pd
 import os
 import re
 import time
 import requests
 import urllib3
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -12,52 +13,13 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import TimeoutException
-import sys
-import glob
-import warnings
-from collections import OrderedDict, defaultdict
-from itertools import combinations
-from difflib import SequenceMatcher
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-warnings.filterwarnings("ignore")
 
 # Importa as configurações globais do Hub
 import config
 
 # Desativa avisos de SSL corporativo se necessário
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-# ==============================================================================
-# CONFIGURAÇÃO DE PASTAS DINÂMICAS (REDE MRV)
-# ==============================================================================
-sys.path.insert(0, str(Path(__file__).parent)) 
-sys.path.append(str(Path(__file__).parent.parent)) 
 
-PASTA_REDE_CONTRATOS = Path(r"\\Bhz-fls-app1\mrvbh\Gerência Administrativa\Pública\NUCLEO DE CONTRATOS E APOIO A GESTÃO\CONTRATOS\Contratos Serviços")
-PASTA_REDE_FATURAMENTO = PASTA_REDE_CONTRATOS / "1. CORREIOS" / "2. Faturamento"
-
-def obter_pasta_bh_mais_recente():
-    """Navega dinamicamente pelas pastas de Ano e Mês para achar a pasta BH mais recente"""
-    if not PASTA_REDE_FATURAMENTO.exists():
-        return PASTA_REDE_FATURAMENTO / "BH" # Fallback de segurança
-        
-    # 1. Acha a pasta do ano mais recente (ex: "2026")
-    pastas_ano = [d for d in PASTA_REDE_FATURAMENTO.iterdir() if d.is_dir() and d.name.isdigit()]
-    if not pastas_ano:
-        return PASTA_REDE_FATURAMENTO / "BH"
-    ano_mais_recente = max(pastas_ano, key=lambda x: int(x.name))
-    
-    # 2. Acha a pasta do mês mais recente (ex: "08 - Agosto")
-    pastas_mes = [d for d in ano_mais_recente.iterdir() if d.is_dir() and d.name[:2].isdigit()]
-    if not pastas_mes:
-        return ano_mais_recente / "BH"
-    mes_mais_recente = max(pastas_mes, key=lambda x: int(x.name[:2]))
-    
-    # 3. Retorna a pasta BH dentro desse mês
-    return mes_mais_recente / "BH"
-
-PASTA_REDE_BH = obter_pasta_bh_mais_recente()
 # ==========================================
 # 0. CONFIGURAÇÕES GERAIS
 # ==========================================
@@ -70,7 +32,7 @@ TECNICOS_VALIDOS = [
 ]
 
 # ==========================================
-# FUNÇÃO DE DESTAQUE (BORDA VERMELHA) - Usada apenas nos Correios
+# FUNÇÃO DE DESTAQUE (BORDA VERMELHA)
 # ==========================================
 def destacar_elemento(driver, elemento):
     """Coloca uma borda vermelha ao redor do elemento para visualização."""
@@ -81,7 +43,7 @@ def destacar_elemento(driver, elemento):
         pass
 
 # ==========================================
-# 🚀 NOVO: FUNÇÕES ULTRA-RÁPIDAS VIA API (AGILIS)
+# 🚀 FUNÇÕES ULTRA-RÁPIDAS VIA API (AGILIS)
 # ==========================================
 def obter_dados_completos_chamado_api(chamado, api_key):
     """Busca os dados principais e todas as conversas do chamado em uma única chamada de API."""
@@ -103,12 +65,10 @@ def obter_dados_completos_chamado_api(chamado, api_key):
         if res_chamado.status_code == 200:
             dados = res_chamado.json().get("request", {})
             
-            # Extrai o Técnico Responsável
             tecnico_obj = dados.get("technician")
             if tecnico_obj and isinstance(tecnico_obj, dict):
                 tecnico_nome = tecnico_obj.get("name", "")
             
-            # Extrai Assunto e Descrição Inicial
             assunto = dados.get("subject", "")
             descricao_html = dados.get("description", "")
             
@@ -117,12 +77,10 @@ def obter_dados_completos_chamado_api(chamado, api_key):
                 desc_limpa = re.sub(r'<[^>]+>', ' ', descricao_html)
                 texto_acumulado.append(desc_limpa)
                 
-                # Extrai o Coletor de Custo ADM da descrição principal
                 match_cc = re.search(r'\*?\s*Coletor de Custo ADM:\s*([A-Za-z0-9]+)', desc_limpa, re.IGNORECASE)
                 if match_cc:
                     coletor_custo = match_cc.group(1).strip().upper()
         else:
-            print(f"      ⚠️ Erro API ao buscar chamado {chamado} (Status: {res_chamado.status_code})")
             return None, "", ""
             
         # 2. Buscar todas as conversas/interações internas
@@ -144,14 +102,12 @@ def obter_dados_completos_chamado_api(chamado, api_key):
                             conteudo_limpo = re.sub(r'<[^>]+>', ' ', conteudo_html)
                             texto_acumulado.append(conteudo_limpo)
                             
-        # Consolida todo o texto do chamado para busca
         texto_completo = " ".join(texto_acumulado)
-        texto_completo = " ".join(texto_completo.split()) # Remove espaços extras
+        texto_completo = " ".join(texto_completo.split())
         
         return tecnico_nome, coletor_custo, texto_completo
         
-    except Exception as e:
-        print(f"      ⚠️ Erro de conexão na API para o chamado {chamado}: {e}")
+    except Exception:
         return None, "", ""
 
 def validar_chamado_no_agilis_api(chamado, etiqueta_planilha, cc_planilha, api_key):
@@ -163,20 +119,17 @@ def validar_chamado_no_agilis_api(chamado, etiqueta_planilha, cc_planilha, api_k
         if tecnico_nome is None:
             return False, cc_planilha, "Erro na validacao"
             
-        # Validação do Técnico
         tecnico_encontrado = any(t.lower() in tecnico_nome.lower() for t in TECNICOS_VALIDOS)
         if not tecnico_encontrado:
             print("      [DESCARTADO] Tecnico responsavel nao autorizado ou nao encontrado.")
             return False, cc_planilha, "Tecnico nao autorizado"
             
-        # Atualização do Centro de Custo
         novo_cc = cc_planilha
         if cc_web:
             cc_planilha_clean = str(cc_planilha).strip().upper()
             if cc_web != cc_planilha_clean:
                 novo_cc = cc_web
                 
-        # Validação do Rastreio no texto consolidado
         etiqueta_limpa = str(etiqueta_planilha).replace(" ", "").lower()
         texto_limpo = texto_completo.replace(" ", "").lower()
         
@@ -187,7 +140,7 @@ def validar_chamado_no_agilis_api(chamado, etiqueta_planilha, cc_planilha, api_k
             print(f"      [AVISO] Tecnico encontrado, mas o rastreio {etiqueta_planilha} NAO consta no chamado.")
             return False, cc_planilha, "Rastreio nao localizado"
             
-    except Exception as e:
+    except Exception:
         return False, cc_planilha, "Erro na validacao"
 
 def validar_chamado_por_nome_agilis_api(chamado, nome_procurado, cc_planilha, api_key):
@@ -199,20 +152,17 @@ def validar_chamado_por_nome_agilis_api(chamado, nome_procurado, cc_planilha, ap
         if tecnico_nome is None:
             return False, cc_planilha, "Erro na validacao"
             
-        # Validação do Técnico
         tecnico_encontrado = any(t.lower() in tecnico_nome.lower() for t in TECNICOS_VALIDOS)
         if not tecnico_encontrado:
             print("      [DESCARTADO] Tecnico responsavel nao autorizado.")
             return False, cc_planilha, "Tecnico nao autorizado"
             
-        # Atualização do Centro de Custo
         novo_cc = cc_planilha
         if cc_web:
             cc_planilha_clean = str(cc_planilha).strip().upper()
             if cc_web != cc_planilha_clean:
                 novo_cc = cc_web
                 
-        # Validação do Nome no texto consolidado
         nome_limpo = str(nome_procurado).replace(" ", "").lower()
         texto_limpo = texto_completo.replace(" ", "").lower()
         
@@ -223,7 +173,7 @@ def validar_chamado_por_nome_agilis_api(chamado, nome_procurado, cc_planilha, ap
             print(f"      [AVISO] Destinatario '{nome_procurado}' NAO consta neste chamado.")
             return False, cc_planilha, "Nome nao localizado"
             
-    except Exception as e:
+    except Exception:
         return False, cc_planilha, "Erro na validacao"
 
 def busca_profunda_agilis_api(chamado, etiquetas_pendentes, api_key):
@@ -238,7 +188,6 @@ def busca_profunda_agilis_api(chamado, etiquetas_pendentes, api_key):
     cc_web = ""
     
     try:
-        # 1. Buscar dados principais (Assunto e Descrição) - Apenas 1 requisição
         url_chamado = f"{base_url}/api/v3/requests/{chamado}"
         res_chamado = requests.get(url_chamado, headers=headers, verify=False)
         if res_chamado.status_code != 200:
@@ -246,14 +195,12 @@ def busca_profunda_agilis_api(chamado, etiquetas_pendentes, api_key):
             
         dados = res_chamado.json().get("request", {})
         
-        # Validação rápida do Técnico
         tecnico_obj = dados.get("technician")
         tecnico_nome = tecnico_obj.get("name", "") if tecnico_obj and isinstance(tecnico_obj, dict) else ""
         tecnico_encontrado = any(t.lower() in tecnico_nome.lower() for t in TECNICOS_VALIDOS)
         if not tecnico_encontrado:
-            return [], "" # Técnico não autorizado, ignora o chamado imediatamente
+            return [], ""
         
-        # Captura o Centro de Custo
         descricao_html = dados.get("description", "")
         assunto = dados.get("subject", "")
         desc_limpa = re.sub(r'<[^>]+>', ' ', descricao_html) if descricao_html else ""
@@ -263,13 +210,11 @@ def busca_profunda_agilis_api(chamado, etiquetas_pendentes, api_key):
         if match_cc:
             cc_web = match_cc.group(1).strip().upper()
         
-        # OTIMIZAÇÃO: Verifica se alguma etiqueta pendente já está na descrição principal
         for etiqueta in etiquetas_pendentes:
             etiqueta_limpa = str(etiqueta).replace(" ", "").lower()
             if etiqueta_limpa in texto_acumulado:
                 etiquetas_encontradas.append(etiqueta)
         
-        # Se ainda restarem etiquetas que não achamos na descrição, aí sim olhamos as conversas
         etiquetas_restantes = [e for e in etiquetas_pendentes if e not in etiquetas_encontradas]
         
         if etiquetas_restantes:
@@ -279,7 +224,7 @@ def busca_profunda_agilis_api(chamado, etiquetas_pendentes, api_key):
                 conversas = res_conversas.json().get("conversations", [])
                 for conv in conversas:
                     if not etiquetas_restantes:
-                        break # Para se já achou todas as pendentes
+                        break
                         
                     content_url = conv.get("content_url")
                     if content_url:
@@ -300,9 +245,106 @@ def busca_profunda_agilis_api(chamado, etiquetas_pendentes, api_key):
         return etiquetas_encontradas, cc_web
     except Exception:
         return [], ""
-    
+
 # ==========================================
-# FUNÇÃO: CORREIOS (SEDEX REVERSO) - Mantida via Selenium
+# 📅 AUXILIARES DINÂMICOS (DATA E PASTAS)
+# ==========================================
+def obter_caminho_pasta_dinamico():
+    """
+    Calcula o caminho da pasta na rede de forma dinâmica considerando o ciclo de faturamento dos Correios.
+    Ciclo fecha dia 22/23. 
+    - Do dia 23 em diante: os arquivos vão para a pasta do PRÓXIMO mês.
+    - Do dia 01 ao dia 22: os arquivos estão na pasta do mês ATUAL.
+    """
+    base_rede = r"\\Bhz-fls-app1\mrvbh\Gerência Administrativa\Pública\NUCLEO DE CONTRATOS E APOIO A GESTÃO\CONTRATOS\Contratos Serviços\1. CORREIOS\2. Faturamento"
+    
+    meses_extenso = {
+        1: "01 - Janeiro", 2: "02 - Fevereiro", 3: "03 - Março", 4: "04 - Abril",
+        5: "05 - Maio", 6: "06 - Junho", 7: "07 - Julho", 8: "08 - Agosto",
+        9: "09 - Setembro", 10: "10 - Outubro", 11: "11 - Novembro", 12: "12 - Dezembro"
+    }
+    
+    hoje = datetime.now()
+    dia = hoje.day
+    
+    # 1. Aplica a Regra do Dia 23 (Cutoff do faturamento)
+    if dia >= 23:
+        # Se for final de dezembro, o próximo mês é Janeiro do ano seguinte
+        if hoje.month == 12:
+            ano_alvo = hoje.year + 1
+            mes_alvo = 1
+        else:
+            ano_alvo = hoje.year
+            mes_alvo = hoje.month + 1
+    else:
+        ano_alvo = hoje.year
+        mes_alvo = hoje.month
+        
+    caminho_alvo = os.path.join(base_rede, str(ano_alvo), meses_extenso[mes_alvo], "BH")
+    
+    # 2. Fallback de Segurança: Se a pasta calculada ainda não existir fisicamente na rede
+    # (ex: se atrasarem a criação da pasta de Setembro no dia 23/24 de Agosto),
+    # o robô retrocede um mês para garantir que encontre uma pasta válida e não quebre.
+    if not os.path.exists(caminho_alvo):
+        print(f"   ⚠️ Pasta calculada ({meses_extenso[mes_alvo]}) não existe na rede ainda.")
+        
+        if mes_alvo == 1:
+            ano_fallback = ano_alvo - 1
+            mes_fallback = 12
+        else:
+            ano_fallback = ano_alvo
+            mes_fallback = mes_alvo - 1
+            
+        caminho_fallback = os.path.join(base_rede, str(ano_fallback), meses_extenso[mes_fallback], "BH")
+        if os.path.exists(caminho_fallback):
+            print(f"   🔄 Usando pasta anterior como fallback: {meses_extenso[mes_fallback]}")
+            return caminho_fallback
+            
+    return caminho_alvo
+
+def localizar_arquivos_inteligente(caminho_pasta):
+    """Varre a pasta e localiza os arquivos corretos por padrão de nome, ignorando acentos e caixa alta/baixa."""
+    if not os.path.exists(caminho_pasta):
+        raise FileNotFoundError(f"A pasta de faturamento não foi encontrada: {caminho_pasta}")
+        
+    arquivos = os.listdir(caminho_pasta)
+    
+    arquivo_agf = None
+    arquivo_consulta = None
+    arquivo_agilis = None
+    
+    for arq in arquivos:
+        arq_lower = arq.lower()
+        
+        # 1. Arquivo AGF (Exatamente 7 dígitos numéricos, ex: 2576410.xlsx)
+        if re.match(r"^\d{7}\.xlsx?$", arq):
+            arquivo_agf = os.path.join(caminho_pasta, arq)
+            
+        # 2. Consulta Postal (Contém "consulta" e "postal")
+        elif "consulta" in arq_lower and "postal" in arq_lower and arq_lower.endswith(('.xlsx', '.xls')):
+            arquivo_consulta = os.path.join(caminho_pasta, arq)
+            
+        # 3. Relatório Agilis (Contém "relatorio" ou "relatório" e "agilis")
+        elif ("relatorio" in arq_lower or "relatório" in arq_lower) and "agilis" in arq_lower and arq_lower.endswith(('.xlsx', '.xls')):
+            arquivo_agilis = os.path.join(caminho_pasta, arq)
+            
+    return arquivo_agf, arquivo_consulta, arquivo_agilis
+
+def obter_ultimos_meses_busca(qtd=3):
+    """Gera dinamicamente os nomes dos últimos meses em extenso para busca nos Correios."""
+    nomes_meses = [
+        "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+        "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO"
+    ]
+    hoje = datetime.now()
+    resultado = []
+    for i in range(qtd):
+        mes_idx = (hoje.month - 1 - i) % 12
+        resultado.append(nomes_meses[mes_idx])
+    return resultado
+
+# ==========================================
+# FUNÇÃO: CORREIOS (SEDEX REVERSO)
 # ==========================================
 def processar_correios_reverso(aba_5, driver, wait):
     print("\n" + "="*50)
@@ -320,7 +362,6 @@ def processar_correios_reverso(aba_5, driver, wait):
         cod_adm = wait_correios.until(EC.presence_of_element_located((By.ID, "tx_codigo")))
         destacar_elemento(driver, cod_adm)
         cod_adm.clear()
-        # LENDO DO CONFIG:
         cod_adm.send_keys(config.CORREIOS_COD_ADM)
         time.sleep(1)
         
@@ -340,14 +381,12 @@ def processar_correios_reverso(aba_5, driver, wait):
         email_field = wait_correios.until(EC.presence_of_element_located((By.XPATH, "//input[@type='text' and contains(@name, 'mail')] | //input[@type='email']")))
         destacar_elemento(driver, email_field)
         email_field.clear()
-        # LENDO DO CONFIG:
         email_field.send_keys(config.CORREIOS_EMAIL)
         time.sleep(1)
         
         senha_field = driver.find_element(By.XPATH, "//input[@type='password']")
         destacar_elemento(driver, senha_field)
         senha_field.clear()
-        # LENDO DO CONFIG:
         senha_field.send_keys(config.CORREIOS_SENHA)
         time.sleep(1)
         
@@ -375,7 +414,8 @@ def processar_correios_reverso(aba_5, driver, wait):
         print("   - Aguardando a pagina atualizar apos selecionar Autorizacao de Postagem...")
         time.sleep(3) 
         
-        meses_busca = ["JULHO", "JUNHO", "MAIO"]
+        # 📅 OTIMIZAÇÃO: Meses de busca agora são calculados dinamicamente!
+        meses_busca = obter_ultimos_meses_busca(3)
         
         for mes_alvo in meses_busca:
             pendentes = 0
@@ -497,7 +537,7 @@ def processar_correios_reverso(aba_5, driver, wait):
                         driver.switch_to.window(janela_resultados)
                         time.sleep(1)
                         
-                    except Exception as e:
+                    except Exception:
                         pass
                         
             except TimeoutException:
@@ -519,21 +559,39 @@ def processar_correios_reverso(aba_5, driver, wait):
 # ==========================================
 def executar_rateio_AGF():
     print("[PROGRESSO: 5]")
-    print("Iniciando processamento do Rateio de Malote...")
+    print("Iniciando processamento do Rateio AGF...")
     
-    # Validação da Chave API
     api_key = getattr(config, "CHAVE_API_AGILIS", "")
     if not api_key:
         print("❌ ERRO: Chave API do Agilis não configurada! Vá na aba Configurações e salve-a.")
         return False
 
-    # 1. CAMINHOS E ARQUIVOS
-    caminho_pasta = PASTA_REDE_BH
-
-    caminho_arquivo_agf = os.path.join(caminho_pasta, "2576410.xlsx")
-    caminho_consulta = os.path.join(caminho_pasta, "Consulta Postal.xlsx")
-    caminho_agilis = os.path.join(caminho_pasta, "Relatório Agilis.xlsx")
-    caminho_novo_arquivo = os.path.join(caminho_pasta, "Rateio_AGF_Separado_novo_codigo.xlsx")
+    # 📅 1. CAMINHOS E ARQUIVOS DINÂMICOS
+    try:
+        caminho_pasta = obter_caminho_pasta_dinamico()
+        print(f"📂 Pasta de trabalho identificada: {caminho_pasta}")
+        
+        caminho_arquivo_agf, caminho_consulta, caminho_agilis = localizar_arquivos_inteligente(caminho_pasta)
+        caminho_novo_arquivo = os.path.join(caminho_pasta, "Rateio_AGF_Separado.xlsx")
+        
+        # Validações de existência dos arquivos
+        if not caminho_arquivo_agf:
+            print("❌ ERRO: Arquivo AGF (numérico de 7 dígitos) não encontrado na pasta!")
+            return False
+        if not caminho_consulta:
+            print("❌ ERRO: Arquivo 'Consulta Postal' não encontrado na pasta!")
+            return False
+        if not caminho_agilis:
+            print("❌ ERRO: Arquivo 'Relatório Agilis' não encontrado na pasta!")
+            return False
+            
+        print(f"   ✅ Arquivo AGF localizado: {os.path.basename(caminho_arquivo_agf)}")
+        print(f"   ✅ Consulta Postal localizada: {os.path.basename(caminho_consulta)}")
+        print(f"   ✅ Relatório Agilis localizado: {os.path.basename(caminho_agilis)}")
+        
+    except Exception as e:
+        print(f"❌ ERRO ao mapear arquivos na pasta: {e}")
+        return False
 
     # 2. LER O ARQUIVO AGF ORIGINAL
     print("Lendo o arquivo AGF original...")
@@ -547,7 +605,7 @@ def executar_rateio_AGF():
             return False
             
     except PermissionError:
-        print(f"❌ ERRO: O arquivo '2576410.xlsx' esta aberto. Feche-o e tente novamente.")
+        print(f"❌ ERRO: O arquivo '{os.path.basename(caminho_arquivo_agf)}' esta aberto. Feche-o e tente novamente.")
         return False
     except Exception as e:
         print(f"❌ ERRO ao ler planilha base: {e}")
@@ -685,7 +743,6 @@ def executar_rateio_AGF():
 
     print("\n--- ETAPA 1: Validando chamados ja preenchidos (Agilis API) ---")
     for index, row in aba_4.iterrows():
-        # Atualiza progresso dinâmico de 10% a 40%
         progresso = 10 + int((index / total_linhas_aba4) * 30)
         print(f"[PROGRESSO: {progresso}]")
 
@@ -705,7 +762,6 @@ def executar_rateio_AGF():
         valor_chamado = str(chamado).strip()
 
         if re.fullmatch(r'\d{7}', valor_chamado):
-            # Chamada de API substituindo o Selenium
             manter, novo_cc, status = validar_chamado_no_agilis_api(valor_chamado, etiqueta, cc_atual, api_key)
             aba_4.at[index, 'Validação'] = status
             if manter:
@@ -714,9 +770,6 @@ def executar_rateio_AGF():
             if status in ["Tecnico nao autorizado", "Localizado", "Rastreio nao localizado"]:
                 chamados_ja_verificados.append(valor_chamado)
 
-     # ==========================================================================
-    # --- ETAPA 2: Busca Profunda Paralelizada (Agilis API) ---
-    # ==========================================================================
     print("\n--- ETAPA 2: Busca Profunda Paralelizada (Agilis API) ---")
     print("[PROGRESSO: 45]")
     
@@ -729,25 +782,19 @@ def executar_rateio_AGF():
         todos_chamados_agilis = df_agilis['Identificação da solicitação'].dropna().unique()
         chamados_para_pesquisar = [c for c in todos_chamados_agilis if str(c).strip() not in chamados_ja_verificados]
         
-        # Limite de threads simultâneas para não sobrecarregar o servidor do Agilis
         MAX_THREADS = 10
-        
         print(f"   - Pesquisando {len(etiquetas_pendentes)} etiquetas pendentes em {len(chamados_para_pesquisar)} chamados...")
         print(f"   - Executando busca paralela com {MAX_THREADS} conexões simultâneas...")
         
         with ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
-            # Envia todas as tarefas de busca para a fila de execução paralela
             futuros = {
                 executor.submit(busca_profunda_agilis_api, str(chamado).strip(), etiquetas_pendentes, api_key): str(chamado).strip()
                 for chamado in chamados_para_pesquisar
                 if re.fullmatch(r'\d{7}', str(chamado).strip())
             }
             
-            # Processa os resultados conforme eles vão terminando
             for futuro in as_completed(futuros):
                 chamado_str = futuros[futuro]
-                
-                # Se já localizamos todas as etiquetas pendentes, podemos parar de olhar os resultados
                 if not etiquetas_pendentes:
                     break
                     
@@ -799,7 +846,6 @@ def executar_rateio_AGF():
                     
                     print(f"   -> Testando chamado candidato: {chamado_candidato}")
                     
-                    # Chamadas de API substituindo o Selenium
                     if etiqueta.startswith('BN'):
                         manter, novo_cc, status = validar_chamado_por_nome_agilis_api(chamado_candidato, nome_busca, cc_atual, api_key)
                     else:
@@ -817,7 +863,7 @@ def executar_rateio_AGF():
                     aba_4.at[index, 'Validação'] = "Não localizado"
 
     # ==========================================================================
-    # 🌐 4.4 PARTE 2: CORREIOS (ABA 5) - Selenium iniciado apenas se necessário
+    # 🌐 4.4 PARTE 2: CORREIOS (SEDEX REVERSO)
     # ==========================================================================
     print("\n" + "="*50)
     print("INICIANDO ETAPA DOS CORREIOS (SEDEX REVERSO)")

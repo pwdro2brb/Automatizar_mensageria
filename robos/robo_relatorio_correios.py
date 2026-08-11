@@ -11,9 +11,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException
 from selenium.webdriver.common.keys import Keys
 import win32com.client
+import requests
+import urllib3
 
 # Importando as credenciais do seu arquivo config.py
-from config import EMAIL_MRV, SENHA_MRV
+from config import EMAIL_MRV, SENHA_MRV, CHAVE_API_AGILIS
 
 # --- CONFIGURAÇÃO ---
 from pathlib import Path
@@ -21,119 +23,139 @@ from pathlib import Path
 PASTA_DOWNLOAD = str(Path.home() / "Downloads")
 NOME_ARQUIVO_FINAL = "Produtividade_EDITADO.xlsx"
 PADRAO_RASTREIO = re.compile(r'\b[A-Z]{2}\d{9}[A-Z]{2}\b')
+  # Substitua pela sua chave real
+
+
 # --------------------
 
-# ==============================================================================
-# FUNÇÃO 1: VALIDAÇÃO DE CHAMADOS (Ferramenta auxiliar)
-# ==============================================================================
-def validar_chamado_no_agilis(chamado, driver, wait):
+
+# DICA: Se o Agilis da MRV usar um certificado SSL interno/corporativo que cause erros no Python,
+# você pode descomentar as duas linhas abaixo e alterar para verify=False nas requisições.
+# urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+def validar_chamado_via_api(chamado, api_key):
+    base_url = "https://agilis.mrv.com.br"
+    headers = {
+        "authtoken": api_key,
+        "Accept": "application/vnd.manageengine.sdp.v3+json"
+    }
+    
+    # Define o arquivo de log na sua pasta de Downloads
+    pasta_downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+    arquivo_debug = os.path.join(pasta_downloads, "debug_respostas_agilis.txt")
+    
     try:
-        print(f"   Validando chamado: {chamado}")
-
-        # --- PASSO 1: Clicar na LUPA ---
-        print("   - Clicando na lupa...")
-        lupa_clicada = False
-        estrategias_lupa = [
-            (By.XPATH, "//*[@aria-label='Pesquisa']"),
-            (By.XPATH, "//span[.//*[@aria-label='Pesquisa']]"),
-            (By.XPATH, "//*[@viewBox='0 0 24 24']"),
-            (By.XPATH, "//span[.//*[@viewBox='0 0 24 24']]"),
-            (By.XPATH, "//*[contains(@class,'header-menu-icons')]"),
-            (By.XPATH, "//span[.//*[contains(@class,'header-menu-icons')]]"),
-            (By.XPATH, "//span[contains(@class,'search')]"),
-            (By.XPATH, "//input[@id='subheader_search_box']/preceding-sibling::*[1]"),
-            (By.XPATH, "//*[@role='img'][@aria-label='Pesquisa']"),
-            (By.XPATH, "//*[contains(@style,'stroke-miterlimit')]/ancestor::span[1]"),
-        ]
-
-        for i, (by, seletor) in enumerate(estrategias_lupa, 1):
-            try:
-                elemento = WebDriverWait(driver, 5).until(
-                    EC.element_to_be_clickable((by, seletor))
-                )
-                driver.execute_script("arguments[0].click();", elemento)
-                lupa_clicada = True
-                print(f"   ✅ Lupa clicada na tentativa {i}.")
-                break
-            except Exception:
-                continue
-
-        if not lupa_clicada:
-            raise Exception("Não foi possível clicar na lupa após todas as tentativas.")
-
-        time.sleep(0.8)
-
-        # --- PASSO 2: Limpar e digitar o chamado ---
-        print(f"   - Digitando chamado {chamado}...")
-        campo_busca = wait.until(EC.element_to_be_clickable((By.ID, "subheader_search_box")))
-        campo_busca.click()
-        campo_busca.send_keys(Keys.CONTROL + "a")
-        campo_busca.send_keys(Keys.DELETE)
-        campo_busca.send_keys(str(chamado))
-        campo_busca.send_keys(Keys.RETURN)
-        time.sleep(2)
-
-        # --- PASSO 3 e 4: Encontrar TODOS os painéis de resposta e iterar sobre eles ---
-        print("   - Procurando painéis de conversa...")
-        try:
-            paineis = wait.until(EC.presence_of_all_elements_located(
-                (By.CSS_SELECTOR, "z-collapsiblepanel[data-conv_type='reply']")
-            ))
-            print(f"   - Encontrados {len(paineis)} painéis de resposta. Verificando um por um...")
-
-            for index, painel in enumerate(paineis):
-                print(f"   - Analisando painel {index + 1} de {len(paineis)}...")
+        # Abre o arquivo de debug em modo "append" (adiciona ao final)
+        with open(arquivo_debug, "a", encoding="utf-8") as f_debug:
+            f_debug.write(f"\n======================================================================\n")
+            f_debug.write(f"🔍 ANALISANDO CHAMADO: {chamado} | DATA: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+            f_debug.write(f"======================================================================\n")
+            
+            print(f"   [API] Validando chamado: {chamado}")
+            
+            # ------------------------------------------------------------------
+            # PASSO 1: BUSCAR E ANALISAR A DESCRIÇÃO PRINCIPAL DO CHAMADO
+            # ------------------------------------------------------------------
+            url_chamado = f"{base_url}/api/v3/requests/{chamado}"
+            res_chamado = requests.get(url_chamado, headers=headers, verify=True)
+            
+            if res_chamado.status_code == 200:
+                dados_chamado = res_chamado.json().get("request", {})
+                assunto = dados_chamado.get("subject", "Sem Assunto")
+                descricao_html = dados_chamado.get("description", "")
                 
-                aria_expanded = painel.get_attribute("aria-expanded")
-                if aria_expanded != "true":
-                    try:
-                        header = painel.find_element(
-                            By.CSS_SELECTOR,
-                            "div.zcollapsiblepanel__header.zcollapsiblepanel--toggleableheader"
-                        )
-                        driver.execute_script("arguments[0].click();", header)
-                        time.sleep(0.5) 
-                    except Exception as e:
-                        print(f"     ⚠️ Erro ao expandir painel {index + 1}: {e}")
+                # Limpa tags HTML básicas para salvar no log de forma legível
+                descricao_limpa = re.sub(r'<[^>]+>', ' ', descricao_html)
+                descricao_limpa = " ".join(descricao_limpa.split()) # Remove espaços extras
                 
-                try:
-                    painel_body = WebDriverWait(driver, 8).until(
-                        EC.presence_of_element_located(
-                            (By.CSS_SELECTOR, "z-collapsiblepanel[data-conv_type='reply'] div.panel-body.p0")
-                        )
-                    )
-
-                    conteudo = painel_body.text
-                    conteudo_lower = conteudo.lower()
+                f_debug.write(f"[1. DADOS DE ABERTURA]\n")
+                f_debug.write(f"Assunto: {assunto}\n")
+                f_debug.write(f"Descrição Inicial:\n{descricao_limpa}\n\n")
+                
+                # Validação na descrição principal
+                conteudo_lower = descricao_limpa.lower()
+                codigo_encontrado = PADRAO_RASTREIO.search(descricao_limpa)
+                
+                if codigo_encontrado:
+                    print(f"   ✅ Chamado {chamado} MANTIDO (Rastreio encontrado na Abertura: {codigo_encontrado.group()}).")
+                    f_debug.write(f"👉 RESULTADO: MANTIDO (Rastreio '{codigo_encontrado.group()}' na abertura)\n")
+                    return True
                     
-                    codigo_encontrado = PADRAO_RASTREIO.search(conteudo)
-                    if codigo_encontrado:
-                        print(f"   ✅ Chamado {chamado} MANTIDO (código de rastreio encontrado no painel {index + 1}: {codigo_encontrado.group()}).")
-                        return True
+                if "encomenda enviada" in conteudo_lower or "encomenda recebida" in conteudo_lower or "segue o código de rastreio:" in conteudo_lower:
+                    print(f"   ✅ Chamado {chamado} MANTIDO (Termo chave encontrado na Abertura).")
+                    f_debug.write(f"👉 RESULTADO: MANTIDO (Termo chave na abertura)\n")
+                    return True
+            else:
+                f_debug.write(f"⚠️ Erro ao buscar dados de abertura. Status: {res_chamado.status_code}\n\n")
 
-                    if "encomenda enviada" in conteudo_lower or "encomenda recebida" in conteudo_lower:
-                        print(f"   ✅ Chamado {chamado} MANTIDO (contém 'encomenda enviada' ou 'encomenda recebida' no painel {index + 1}).")
-                        return True
-
-                    if "segue o código de rastreio:" in conteudo_lower:
-                        print(f"   ✅ Chamado {chamado} MANTIDO (contém 'segue o código de rastreio' no painel {index + 1}).")
-                        return True
-
-                except Exception as e:
-                    print(f"     ⚠️ Não foi possível ler o corpo do painel {index + 1}.")
-                    continue 
-
-            print(f"   ❌ Nenhum critério de manutenção encontrado nos {len(paineis)} painéis.")
-
-        except TimeoutException:
-            print("   - Nenhum painel de resposta encontrado. Indo para verificação de status...")
+            # ------------------------------------------------------------------
+            # PASSO 2: BUSCAR E ANALISAR AS CONVERSAS (INTERAÇÕES)
+            # ------------------------------------------------------------------
+            url_conversas = f"{base_url}/api/v3/requests/{chamado}/conversations"
+            res_conversas = requests.get(url_conversas, headers=headers, verify=True)
+            
+            if res_conversas.status_code != 200:
+                print(f"   ⚠️ Erro ao acessar conversas do chamado {chamado} (Status: {res_conversas.status_code}).")
+                f_debug.write(f"⚠️ Erro ao buscar conversas. Status: {res_conversas.status_code}\n")
+                f_debug.write(f"👉 RESULTADO: MANTIDO por segurança (erro de API)\n")
+                return True # Mantém por segurança se a API falhar
+                
+            conversas = res_conversas.json().get("conversations", [])
+            f_debug.write(f"[2. CONVERSAS INTERNAS ({len(conversas)} encontradas)]\n")
+            
+            for idx, conv in enumerate(conversas, 1):
+                tipo_conv = conv.get("type", "Desconhecido")
+                content_url = conv.get("content_url")
+                
+                f_debug.write(f"--- Interação {idx} (Tipo: {tipo_conv}) ---\n")
+                
+                if content_url:
+                    full_content_url = content_url if content_url.startswith("http") else f"{base_url}{content_url}"
+                    res_content = requests.get(full_content_url, headers=headers, verify=True)
+                    
+                    if res_content.status_code == 200:
+                        conv_data = res_content.json()
+                        notification = conv_data.get("notification", {})
+                        conteudo_html = notification.get("description", "")
+                        
+                        # Limpa HTML para o log
+                        conteudo_limpo = re.sub(r'<[^>]+>', ' ', conteudo_html)
+                        conteudo_limpo = " ".join(conteudo_limpo.split())
+                        
+                        f_debug.write(f"Conteúdo:\n{conteudo_limpo}\n\n")
+                        
+                        # Validação na conversa
+                        conteudo_lower = conteudo_limpo.lower()
+                        codigo_encontrado = PADRAO_RASTREIO.search(conteudo_limpo)
+                        
+                        if codigo_encontrado:
+                            print(f"   ✅ Chamado {chamado} MANTIDO (Rastreio encontrado na Interação {idx}: {codigo_encontrado.group()}).")
+                            f_debug.write(f"👉 RESULTADO: MANTIDO (Rastreio '{codigo_encontrado.group()}' na interação {idx})\n")
+                            return True
+                            
+                        if "encomenda enviada" in conteudo_lower or "encomenda recebida" in conteudo_lower or "segue o código de rastreio:" in conteudo_lower:
+                            print(f"   ✅ Chamado {chamado} MANTIDO (Termo chave encontrado na Interação {idx}).")
+                            f_debug.write(f"👉 RESULTADO: MANTIDO (Termo chave na interação {idx})\n")
+                            return True
+                    else:
+                        f_debug.write(f"⚠️ Erro ao ler conteúdo da interação {idx}. Status: {res_content.status_code}\n\n")
+                else:
+                    f_debug.write(f"Sem URL de conteúdo disponível.\n\n")
+            
+            # Se chegou até aqui, realmente não achou nada
+            print(f"   ❌ Nenhum critério de manutenção encontrado no chamado {chamado}.")
+            f_debug.write(f"👉 RESULTADO: DELETADO (Nenhum critério atendido)\n")
             return False
-        
-    except TimeoutException:
-        print(f"   ⚠️ Timeout ao validar chamado {chamado}. Removendo por falta de resposta.")
-        return False
+
     except Exception as e:
-        print(f"   ⚠️ Erro inesperado ao validar chamado {chamado}: {e}")
+        print(f"   ⚠️ Erro inesperado ao validar chamado {chamado} via API: {e}")
+        # Em caso de erro no script, grava no log e mantém o chamado por segurança
+        try:
+            with open(arquivo_debug, "a", encoding="utf-8") as f_debug:
+                f_debug.write(f"💥 ERRO NO SCRIPT: {str(e)}\n")
+                f_debug.write(f"👉 RESULTADO: MANTIDO por segurança devido a erro interno\n")
+        except:
+            pass
         return True
 
 # ==============================================================================
@@ -474,40 +496,44 @@ def processar_excel_e_validar(driver):
         
         # --- VALIDAÇÃO DOS CHAMADOS NO AGILIS ---
         print("[PROGRESSO: 50]")
-        print("\n--- Iniciando validação dos chamados no Agilis ---")
-        wait_validacao = WebDriverWait(driver, 1)
-
+        
+        # FECHA O NAVEGADOR AQUI! Não precisamos mais dele para validar.
         try:
-            driver.get("https://agilis.mrv.com.br/HomePage.do?view_type=my_view")
-            last_summary_row = ws_summary.Cells(ws_summary.Rows.Count, "B").End(xlUp).Row
-            total_chamados = last_summary_row - 2
-            print(f"Total de chamados para validar: {total_chamados}")
+            driver.quit()
+            print("Navegador Selenium fechado. Iniciando validação ultra-rápida via API...")
+        except:
+            pass
 
-            for i in range(last_summary_row, 2, -1): 
-                chamado = ws_summary.Cells(i, 2).Value 
+        print("\n--- Iniciando validação dos chamados no Agilis via API ---")
+        
+        last_summary_row = ws_summary.Cells(ws_summary.Rows.Count, "B").End(xlUp).Row
+        total_chamados = last_summary_row - 2
+        print(f"Total de chamados para validar: {total_chamados}")
 
-                if chamado:
-                    chamado_str = str(chamado).strip()
-                    if chamado_str.endswith('.0'):
-                        chamado_str = chamado_str[:-2] 
+        for i in range(last_summary_row, 2, -1): 
+            chamado = ws_summary.Cells(i, 2).Value 
 
-                    if chamado_str: 
-                        manter = validar_chamado_no_agilis(chamado_str, driver, wait_validacao)
-                        if not manter:
-                            ws_summary.Rows(i).Delete()
-                            print(f"   Linha {i} deletada do Resumo.")
-                else:
-                    print(f"   Linha {i} ignorada (chamado vazio).")
-                    
-                # Progresso dinâmico de 50% a 95%
-                if total_chamados > 0:
-                    chamados_processados = last_summary_row - i + 1
-                    progresso_atual = 50 + int((chamados_processados / total_chamados) * 45)
-                    print(f"[PROGRESSO: {progresso_atual}]")
+            if chamado:
+                chamado_str = str(chamado).strip()
+                if chamado_str.endswith('.0'):
+                    chamado_str = chamado_str[:-2] 
 
-        finally:
-            driver.quit() # AQUI O NAVEGADOR É FECHADO DEFINITIVAMENTE
-            print("--- Validação dos chamados concluída ---")
+                if chamado_str: 
+                    # Chamando a nova função via API!
+                    manter = validar_chamado_via_api(chamado_str, CHAVE_API_AGILIS)
+                    if not manter:
+                        ws_summary.Rows(i).Delete()
+                        print(f"   Linha {i} deletada do Resumo.")
+            else:
+                print(f"   Linha {i} ignorada (chamado vazio).")
+                
+            # Progresso dinâmico de 50% a 95%
+            if total_chamados > 0:
+                chamados_processados = last_summary_row - i + 1
+                progresso_atual = 50 + int((chamados_processados / total_chamados) * 45)
+                print(f"[PROGRESSO: {progresso_atual}]")
+
+        print("--- Validação dos chamados concluída ---")
 
         # --- 3. SALVAR O ARQUIVO FINAL ---
         # Defina o caminho (ajuste se necessário)

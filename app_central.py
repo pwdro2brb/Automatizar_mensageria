@@ -277,15 +277,32 @@ class CentralAutomacaoMRV:
         self.entry_senha_malote.pack(pady=5)
         self.entry_senha_malote.insert(0, getattr(config, "SENHA_MALOTE", ""))
 
+        ctk.CTkLabel(container, text="Chave API Agilis:", font=ctk.CTkFont(weight="bold")).pack(pady=(15, 0))
+        self.entry_API_KEY_AGILIS = ctk.CTkEntry(container, width=350, show="*")
+        self.entry_API_KEY_AGILIS.pack(pady=5)
+        # Corrigido para buscar CHAVE_API_AGILIS do config.py
+        self.entry_API_KEY_AGILIS.insert(0, getattr(config, "CHAVE_API_AGILIS", ""))
+
         def salvar():
             novo_email = self.entry_email.get().strip()
             nova_senha = self.entry_senha.get().strip()
             nova_senha_malote = self.entry_senha_malote.get().strip()
+            nova_api_key_agilis = self.entry_API_KEY_AGILIS.get().strip()
+
+            # 1. Salva fisicamente no arquivo JSON (agora com os 4 parâmetros corretos)
+            config.salvar_credenciais(novo_email, nova_senha, nova_senha_malote, nova_api_key_agilis)
             
-            config.salvar_credenciais(novo_email, nova_senha, nova_senha_malote)
+            # 2. Atualiza as variáveis na memória para uso imediato dos robôs
             config.EMAIL_USER = novo_email
             config.SENHA_USER = nova_senha
             config.SENHA_MALOTE = nova_senha_malote
+            config.CHAVE_API_AGILIS = nova_api_key_agilis
+            
+            # 3. Atualiza as variáveis de compatibilidade
+            config.EMAIL_MRV = novo_email
+            config.SENHA_MRV = nova_senha
+            config.SENHA_MALOTE_MRV = nova_senha_malote
+            config.API_KEY_AGILIS = nova_api_key_agilis
             
             messagebox.showinfo("Sucesso", "Credenciais salvas com sucesso!")
             self.selecionar_tela("robos") # Volta para a tela de robôs após salvar
@@ -293,6 +310,7 @@ class CentralAutomacaoMRV:
         ctk.CTkButton(container, text="Salvar Credenciais", command=salvar, height=40,
                       fg_color=self.COR_MRV, hover_color=self.COR_MRV_HOVER, 
                       font=ctk.CTkFont(weight="bold")).pack(pady=(30, 20))
+
 
     def _construir_tela_ajuda(self):
         frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")

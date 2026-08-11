@@ -342,10 +342,12 @@ def preencher_concatenado(ws, consolidados, mes_numero, ano):
 
 def preencher_macro(ws, consolidados, mes_numero, ano):
     logging.info("Atualizando Macro...")
+
     ultima_antiga = ultima_linha_real(ws, (7, 8, 10))
     ultima_nova = len(consolidados) + 1
 
     if consolidados:
+
         if ultima_nova >= 3:
             ws.Range("A2:M2").AutoFill(
                 Destination=ws.Range(f"A2:M{ultima_nova}"),
@@ -353,11 +355,22 @@ def preencher_macro(ws, consolidados, mes_numero, ano):
             )
 
         lojas = [[c.loja] for c in consolidados]
-        vencimentos = [[f"{c.vencimento:02d}.{mes_numero:02d}.{ano}"] for c in consolidados]
+
+        vencimentos = [[
+            f"{c.vencimento:02d}.{mes_numero:02d}.{ano}"
+        ] for c in consolidados]
+
         despesas = [[c.despesas] for c in consolidados]
-        escrever_matriz(ws, 2, 7, lojas)
-        escrever_matriz(ws, 2, 8, vencimentos)
-        escrever_matriz(ws, 2, 10, despesas)
+
+        # NOVO
+        enderecos = [[c.endereco] for c in consolidados]
+
+        escrever_matriz(ws, 2, 7, lojas)       # G
+        escrever_matriz(ws, 2, 8, vencimentos) # H
+        escrever_matriz(ws, 2, 10, despesas)   # J
+
+        # L = Endereço Completo
+        escrever_matriz(ws, 2, 12, enderecos)
 
     if ultima_antiga > ultima_nova:
         ws.Range(

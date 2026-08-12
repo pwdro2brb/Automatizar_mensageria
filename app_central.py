@@ -99,6 +99,8 @@ class CentralAutomacaoMRV:
 
         self.PASTA_BASE = getattr(config, "PASTA_PROJETO", os.path.dirname(os.path.abspath(__file__)))
         self.ARQUIVO_HISTORICO = os.path.join(self.PASTA_BASE, "historico_execucoes.json")
+        self.ARQUIVO_ACOES_RAPIDAS = os.path.join(self.PASTA_BASE, "acoes_rapidas.json")
+
 
         # Cores
         self.COR_BG = "#202020"
@@ -524,35 +526,43 @@ class CentralAutomacaoMRV:
         self.card_total_robos = self._criar_card_metricas(cards, 0, "🤖", "Robôs disponíveis", "0")
         self.card_ultimo_robo = self._criar_card_metricas(cards, 1, "🕒", "Última execução", "Nenhuma")
         self.card_status = self._criar_card_metricas(cards, 2, "🔐", "Credenciais", "Verificando")
-        self.card_versao = self._criar_card_metricas(cards, 3, "🚀", "Versão", "3.0")
 
+        self.card_versao = self._criar_card_metricas(cards, 3, "🚀", "Versão", "3.0")
         secao_rapida = self._card(container)
         secao_rapida.pack(fill=tk.X, pady=(0, 18))
 
+        header_rapido = ctk.CTkFrame(secao_rapida, fg_color="transparent")
+        header_rapido.pack(fill=tk.X, padx=18, pady=(16, 4))
+
         ctk.CTkLabel(
-            secao_rapida,
+            header_rapido,
             text="Ações rápidas",
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color=self.COR_TEXTO
-        ).pack(anchor="w", padx=18, pady=(16, 4))
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            header_rapido,
+            text="Configurar",
+            width=120,
+            height=30,
+            fg_color=self.COR_CINZA,
+            hover_color="#4A5560",
+            command=self._abrir_config_acoes_rapidas
+        ).pack(side="right")
 
         ctk.CTkLabel(
             secao_rapida,
-            text="Atalhos para os fluxos mais usados no dia a dia.",
+            text="Escolha os robôs que devem aparecer como atalhos na tela inicial.",
             font=ctk.CTkFont(size=13),
             text_color=self.COR_TEXTO_FRACO
         ).pack(anchor="w", padx=18, pady=(0, 10))
 
-        grid_rapido = ctk.CTkFrame(secao_rapida, fg_color="transparent")
-        grid_rapido.pack(fill=tk.X, padx=18, pady=(0, 18))
-        grid_rapido.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        self.grid_rapido = ctk.CTkFrame(secao_rapida, fg_color="transparent")
+        self.grid_rapido.pack(fill=tk.X, padx=18, pady=(0, 18))
+        self.grid_rapido.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
-        favoritos = ["Produtividade", "Rateio de Malote", "Uber 1", "Fechar Chamados"]
-        for i, nome in enumerate(favoritos):
-            robo = self._buscar_robo_por_nome(nome)
-            if robo:
-                self._criar_botao_acao_rapida(grid_rapido, robo, i)
-
+        self._renderizar_acoes_rapidas()
         historico_card = self._card(container)
         historico_card.pack(fill=tk.BOTH, expand=True)
 
@@ -631,6 +641,8 @@ class CentralAutomacaoMRV:
 
         for item in historico[:8]:
             self._linha_historico(self.frame_historico, item)
+            
+        self._renderizar_acoes_rapidas()
 
     def _linha_historico(self, parent, item):
         status = item.get("status", "")
@@ -1479,6 +1491,164 @@ class CentralAutomacaoMRV:
         except Exception:
             pass
 
+
+    # ==========================================================================
+    # AÇÕES RÁPIDAS
+    # ==========================================================================
+    def _acoes_rapidas_padrao(self):
+        return ["Produtividade", "Rateio de Malote", "Uber 1", "Fechar Chamados"]
+
+
+    def _carregar_acoes_rapidas(self):
+        if not os.path.exists(self.ARQUIVO_ACOES_RAPIDAS):
+            return self._acoes_rapidas_padrao()
+
+        try:
+            with open(self.ARQUIVO_ACOES_RAPIDAS, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+
+            if isinstance(dados, list) and dados:
+                return dados
+
+            return self._acoes_rapidas_padrao()
+
+        except Exception:
+            return self._acoes_rapidas_padrao()
+
+
+    def _salvar_acoes_rapidas(self, lista_robos):
+        try:
+            with open(self.ARQUIVO_ACOES_RAPIDAS, "w", encoding="utf-8") as f:
+                json.dump(lista_robos, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showerror("Erro", f"Não foi possível salvar as ações rápidas:\n\n{e}")
+
+
+    def _renderizar_acoes_rapidas(self):
+        if not hasattr(self, "grid_rapido"):
+            return
+
+        for widget in self.grid_rapido.winfo_children():
+            widget.destroy()
+
+        nomes_acoes = self._carregar_acoes_rapidas()
+        col = 0
+
+        for nome in nomes_acoes:
+            robo = self._buscar_robo_por_nome(nome)
+
+            if not robo:
+                continue
+
+            self._criar_botao_acao_rapida(self.grid_rapido, robo, col)
+            col += 1
+
+            if col >= 4:
+                break
+
+        if col == 0:
+            ctk.CTkLabel(
+                self.grid_rapido,
+                text="Nenhuma ação rápida configurada.",
+                text_color=self.COR_TEXTO_FRACO,
+                font=ctk.CTkFont(size=13)
+            ).grid(row=0, column=0, sticky="w", padx=6, pady=8)
+
+
+    def _abrir_config_acoes_rapidas(self):
+        janela = ctk.CTkToplevel(self.root)
+        janela.title("Configurar Ações Rápidas")
+        janela.geometry("520x580")
+        janela.resizable(False, False)
+        janela.attributes("-topmost", True)
+
+        ctk.CTkLabel(
+            janela,
+            text="Configurar ações rápidas",
+            font=ctk.CTkFont(size=22, weight="bold"),
+            text_color=self.COR_TEXTO
+        ).pack(anchor="w", padx=22, pady=(20, 4))
+
+        ctk.CTkLabel(
+            janela,
+            text="Escolha até 4 robôs para aparecerem na tela inicial.",
+            font=ctk.CTkFont(size=13),
+            text_color=self.COR_TEXTO_FRACO
+        ).pack(anchor="w", padx=22, pady=(0, 14))
+
+        frame_lista = ctk.CTkScrollableFrame(janela, fg_color=self.COR_CARD, corner_radius=12)
+        frame_lista.pack(fill=tk.BOTH, expand=True, padx=22, pady=(0, 14))
+
+        selecionados_atuais = set(self._carregar_acoes_rapidas())
+        variaveis = {}
+
+        for robo in self.robos:
+            var = tk.BooleanVar(value=robo["nome"] in selecionados_atuais)
+            variaveis[robo["nome"]] = var
+
+            texto = f"{robo['icone']}  {robo['nome']}  •  {robo['categoria']}"
+
+            chk = ctk.CTkCheckBox(
+                frame_lista,
+                text=texto,
+                variable=var,
+                font=ctk.CTkFont(size=13),
+                checkbox_width=20,
+                checkbox_height=20
+            )
+            chk.pack(anchor="w", padx=14, pady=7)
+
+        frame_botoes = ctk.CTkFrame(janela, fg_color="transparent")
+        frame_botoes.pack(fill=tk.X, padx=22, pady=(0, 20))
+
+        def salvar():
+            escolhidos = [
+                nome for nome, var in variaveis.items()
+                if var.get()
+            ]
+
+            if len(escolhidos) == 0:
+                messagebox.showwarning(
+                    "Ações rápidas",
+                    "Selecione pelo menos 1 robô para aparecer nas ações rápidas."
+                )
+                return
+
+            if len(escolhidos) > 4:
+                messagebox.showwarning(
+                    "Ações rápidas",
+                    "Selecione no máximo 4 robôs."
+                )
+                return
+
+            self._salvar_acoes_rapidas(escolhidos)
+            self._renderizar_acoes_rapidas()
+            janela.destroy()
+
+        def restaurar_padrao():
+            self._salvar_acoes_rapidas(self._acoes_rapidas_padrao())
+            self._renderizar_acoes_rapidas()
+            janela.destroy()
+
+        ctk.CTkButton(
+            frame_botoes,
+            text="Salvar",
+            height=40,
+            fg_color=self.COR_MRV,
+            hover_color=self.COR_MRV_HOVER,
+            font=ctk.CTkFont(weight="bold"),
+            command=salvar
+        ).pack(side="left", fill=tk.X, expand=True, padx=(0, 6))
+
+        ctk.CTkButton(
+            frame_botoes,
+            text="Restaurar padrão",
+            height=40,
+            fg_color=self.COR_CINZA,
+            hover_color="#4A5560",
+            font=ctk.CTkFont(weight="bold"),
+            command=restaurar_padrao
+        ).pack(side="left", fill=tk.X, expand=True, padx=(6, 0))
     # ==========================================================================
     # STATUS E UTILITÁRIOS
     # ==========================================================================

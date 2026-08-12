@@ -96,6 +96,7 @@ class CentralAutomacaoMRV:
         self.tela_atual = None
         self.logs_visiveis = True
         self.robos_filtrados = []
+        self._resize_after_id = None
 
         self.PASTA_BASE = getattr(config, "PASTA_PROJETO", os.path.dirname(os.path.abspath(__file__)))
         self.ARQUIVO_HISTORICO = os.path.join(self.PASTA_BASE, "historico_execucoes.json")
@@ -553,7 +554,7 @@ class CentralAutomacaoMRV:
 
         ctk.CTkLabel(
             secao_rapida,
-            text="Escolha os robôs que devem aparecer como atalhos na tela inicial.",
+            text="Escolha os robôs que devem aparecer como atalhos. Ao iniciar, o Hub abrirá a tela de execução automaticamente.",
             font=ctk.CTkFont(size=13),
             text_color=self.COR_TEXTO_FRACO
         ).pack(anchor="w", padx=18, pady=(0, 10))
@@ -641,7 +642,7 @@ class CentralAutomacaoMRV:
 
         for item in historico[:8]:
             self._linha_historico(self.frame_historico, item)
-            
+
         self._renderizar_acoes_rapidas()
 
     def _linha_historico(self, parent, item):
@@ -671,29 +672,47 @@ class CentralAutomacaoMRV:
     def _construir_tela_robos(self):
         frame = self._criar_frame_base("robos")
 
-        container = ctk.CTkFrame(frame, fg_color=self.COR_BG)
-        container.pack(fill=tk.BOTH, expand=True, padx=26, pady=18)
+        # Layout principal da aba Robôs
+        frame.grid_rowconfigure(0, weight=0)  # Header
+        frame.grid_rowconfigure(1, weight=0)  # Busca
+        frame.grid_rowconfigure(2, weight=1)  # Lista de robôs
+        frame.grid_rowconfigure(3, weight=0)  # Execução/log
+        frame.grid_columnconfigure(0, weight=1)
 
-        header = ctk.CTkFrame(container, fg_color="transparent")
-        header.pack(fill=tk.X)
+        # =========================
+        # HEADER
+        # =========================
+        header = ctk.CTkFrame(frame, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=26, pady=(18, 8))
+        header.grid_columnconfigure(0, weight=1)
 
-        self._label_titulo(header, "🤖 Central de Robôs - Administrativo MRV").pack(anchor="w")
+        self._label_titulo(
+            header,
+            "🤖 Central de Robôs - Administrativo MRV"
+        ).grid(row=0, column=0, sticky="w")
 
         self._label_sub(
             header,
             "Escolha um robô, confira os requisitos e acompanhe a execução em tempo real."
-        ).pack(anchor="w", pady=(4, 12))
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
 
-        barra_busca = ctk.CTkFrame(container, fg_color="transparent")
-        barra_busca.pack(fill=tk.X, pady=(0, 12))
+        # =========================
+        # BUSCA
+        # =========================
+        barra_busca = ctk.CTkFrame(frame, fg_color="transparent")
+        barra_busca.grid(row=1, column=0, sticky="ew", padx=26, pady=(0, 8))
+        barra_busca.grid_columnconfigure(0, weight=1)
 
         self.entry_busca_robos = ctk.CTkEntry(
             barra_busca,
             placeholder_text="Buscar robô por nome, categoria ou requisito...",
             height=38
         )
-        self.entry_busca_robos.pack(side="left", fill=tk.X, expand=True)
-        self.entry_busca_robos.bind("<KeyRelease>", lambda e: self._renderizar_robos())
+        self.entry_busca_robos.grid(row=0, column=0, sticky="ew")
+
+        # Busca com pequeno debounce para não renderizar a cada tecla imediatamente
+        self._busca_after_id = None
+        self.entry_busca_robos.bind("<KeyRelease>", self._on_busca_robos)
 
         ctk.CTkButton(
             barra_busca,
@@ -703,23 +722,34 @@ class CentralAutomacaoMRV:
             fg_color=self.COR_CINZA,
             hover_color="#4A5560",
             command=self._limpar_busca_robos
-        ).pack(side="right", padx=(10, 0))
+        ).grid(row=0, column=1, padx=(10, 0))
 
-        self.frame_botoes_robos = ctk.CTkScrollableFrame(container, fg_color="transparent", height=360)
-        self.frame_botoes_robos.pack(fill=tk.BOTH, expand=True)
+        # =========================
+        # LISTA DE ROBÔS
+        # =========================
+        self.frame_botoes_robos = ctk.CTkScrollableFrame(
+            frame,
+            fg_color="transparent"
+        )
+        self.frame_botoes_robos.grid(row=2, column=0, sticky="nsew", padx=18, pady=(0, 8))
 
-        self.frame_execucao = self._card(container)
-        self.frame_execucao.pack(fill=tk.X, pady=(12, 0))
+        # =========================
+        # ÁREA DE EXECUÇÃO FIXA NO RODAPÉ
+        # =========================
+        self.frame_execucao = self._card(frame)
+        self.frame_execucao.grid(row=3, column=0, sticky="ew", padx=26, pady=(0, 14))
+        self.frame_execucao.grid_columnconfigure(0, weight=1)
 
         topo_exec = ctk.CTkFrame(self.frame_execucao, fg_color="transparent")
-        topo_exec.pack(fill=tk.X, padx=14, pady=(12, 6))
+        topo_exec.grid(row=0, column=0, sticky="ew", padx=14, pady=(10, 4))
+        topo_exec.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
             topo_exec,
             text="Execução",
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=self.COR_TEXTO
-        ).pack(side="left")
+        ).grid(row=0, column=0, sticky="w")
 
         self.btn_toggle_logs = ctk.CTkButton(
             topo_exec,
@@ -730,7 +760,7 @@ class CentralAutomacaoMRV:
             hover_color="#4A5560",
             command=self._alternar_logs
         )
-        self.btn_toggle_logs.pack(side="right")
+        self.btn_toggle_logs.grid(row=0, column=1, sticky="e")
 
         self.btn_cancelar = ctk.CTkButton(
             self.frame_execucao,
@@ -738,11 +768,11 @@ class CentralAutomacaoMRV:
             fg_color=self.COR_CANCELAR,
             hover_color=self.COR_CANCELAR_HOVER,
             font=ctk.CTkFont(size=13, weight="bold"),
-            height=38,
+            height=36,
             command=self.cancelar_processo,
             state="disabled"
         )
-        self.btn_cancelar.pack(fill=tk.X, padx=14, pady=(0, 8))
+        self.btn_cancelar.grid(row=1, column=0, sticky="ew", padx=14, pady=(0, 6))
 
         self.progressbar = ctk.CTkProgressBar(
             self.frame_execucao,
@@ -750,22 +780,24 @@ class CentralAutomacaoMRV:
             height=8,
             progress_color=self.COR_MRV
         )
-        self.progressbar.pack(fill=tk.X, padx=14, pady=(0, 8))
+        self.progressbar.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 6))
         self.progressbar.set(0)
 
         self.console_container = ctk.CTkFrame(self.frame_execucao, fg_color="transparent")
-        self.console_container.pack(fill=tk.X, padx=14, pady=(0, 14))
+        self.console_container.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 12))
+        self.console_container.grid_columnconfigure(0, weight=1)
 
         self.console = ctk.CTkTextbox(
             self.console_container,
-            height=130,
+            height=95,
             font=ctk.CTkFont(family="Consolas", size=12),
             text_color="#00FF66",
             fg_color="#141414",
             border_width=1,
             border_color="#3A3A3A"
         )
-        self.console.pack(fill=tk.X)
+        self.console.grid(row=0, column=0, sticky="ew")
+
         self.console.configure(state="disabled")
 
         sys.stdout = PrintRedirector(self.console)
@@ -783,6 +815,8 @@ class CentralAutomacaoMRV:
 
         for widget in self.frame_botoes_robos.winfo_children():
             widget.destroy()
+
+        self.todos_botoes = []
 
         termo = ""
         if hasattr(self, "entry_busca_robos"):
@@ -906,12 +940,20 @@ class CentralAutomacaoMRV:
         self.logs_visiveis = not self.logs_visiveis
 
         if self.logs_visiveis:
-            self.console_container.pack(fill=tk.X, padx=14, pady=(0, 14))
+            self.console_container.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 12))
             self.btn_toggle_logs.configure(text="Ocultar logs")
         else:
-            self.console_container.pack_forget()
+            self.console_container.grid_remove()
             self.btn_toggle_logs.configure(text="Mostrar logs")
 
+    def _on_busca_robos(self, event=None):
+        if hasattr(self, "_busca_after_id") and self._busca_after_id:
+            try:
+                self.root.after_cancel(self._busca_after_id)
+            except Exception:
+                pass
+
+        self._busca_after_id = self.root.after(120, self._renderizar_robos)
     # ==========================================================================
     # CONFIGURAÇÕES
     # ==========================================================================
@@ -1306,6 +1348,8 @@ class CentralAutomacaoMRV:
         if not comando_python:
             messagebox.showerror("Erro", "Comando do robô não informado.")
             return
+        
+        self._preparar_tela_execucao()
 
         for btn in self.todos_botoes:
             try:
@@ -1453,6 +1497,18 @@ class CentralAutomacaoMRV:
 
         if self.tela_atual == "inicio":
             self._atualizar_dashboard()
+
+    def _preparar_tela_execucao(self):
+        if self.tela_atual != "robos":
+            self.selecionar_tela("robos")
+
+        if hasattr(self, "console_container") and not self.logs_visiveis:
+            self._alternar_logs()
+
+        try:
+            self.root.update_idletasks()
+        except Exception:
+            pass
 
     # ==========================================================================
     # HISTÓRICO
@@ -1649,9 +1705,39 @@ class CentralAutomacaoMRV:
             font=ctk.CTkFont(weight="bold"),
             command=restaurar_padrao
         ).pack(side="left", fill=tk.X, expand=True, padx=(6, 0))
+
+  
+        if not hasattr(self, "frame_botoes_robos") or not hasattr(self, "console"):
+            return
+
+        try:
+            altura_janela = self.root.winfo_height()
+        except Exception:
+            return
+
+        if altura_janela <= 720:
+            altura_lista = 210
+            altura_console = 75
+        elif altura_janela <= 820:
+            altura_lista = 260
+            altura_console = 90
+        elif altura_janela <= 920:
+            altura_lista = 320
+            altura_console = 110
+        else:
+            altura_lista = 380
+            altura_console = 130
+
+        try:
+            self.frame_botoes_robos.configure(height=altura_lista)
+            self.console.configure(height=altura_console)
+        except Exception:
+            pass
+
     # ==========================================================================
     # STATUS E UTILITÁRIOS
     # ==========================================================================
+
     def _credenciais_ok(self):
         email = getattr(config, "EMAIL_MRV", "") or getattr(config, "EMAIL_USER", "")
         senha = getattr(config, "SENHA_MRV", "") or getattr(config, "SENHA_USER", "")

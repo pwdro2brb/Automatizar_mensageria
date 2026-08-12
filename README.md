@@ -1,15 +1,17 @@
-# Hub Central de Automações MRV - Versão 2.0
+# Hub Central de Automações MRV - Versão 3.0
 
-Este projeto reúne as automações administrativas mais usadas no dia a dia em uma interface gráfica única para Windows. A versão 2.0 oferece execução mais prática dos robôs, progresso visual em tempo real e controle de cancelamento de processos.
+Este projeto reúne as automações administrativas mais usadas no dia a dia em uma interface gráfica única para Windows. A versão 2.1 traz uma interface renovada, novos fluxos e mais robustez na execução dos robôs.
 
 ## O que há de novo
 
 - Aplicativo Windows executável (`dist/app_central.exe`).
-- Interface central com botões para cada robô.
+- Interface central renovada com sidebar e abas Início / Robôs / Configurações / Ajuda.
+- Botões dedicados para cada fluxo, incluindo Rateio AGF e Atualizar Macro de Contratos.
 - Barra de progresso visual durante a execução.
 - Console integrado para logs em tempo real.
 - Botão de cancelamento para parar o processo ativo.
 - Tela de configurações para salvar credenciais dos robôs.
+- Import hooks para empacotamento com PyInstaller e melhor compatibilidade de deployment.
 
 ## Objetivo
 
@@ -122,19 +124,21 @@ python app_central.py
 
 ## Atualizações (Resumo de mudanças recentes)
 
-- **Configuração:** `config.py` — caminhos dinâmicos, variável `SENHA_MALOTE` e carregamento de `config_mrv.json` para credenciais.
-- **Interface central:** `app_central.py` — integração dos robôs ao empacotamento PyInstaller, barra de progresso, console integrado e controle de cancelamento.
-- **Malote / Rateio:** `robos/robo_rateio_malote.py` (RATEIO MALOTE v15) e `robos/malote_web_scraper.py` (integração/lookup dos Correios) — melhorias em heurísticas de extração e cache, correções de valores órfãos e tratamento de exceções.
-- **Faturamento:** `robos/robo_faturamento.py` — geração de rascunhos no Outlook e nova função end-to-end para processo de e-mail → MRV Pag; extrações inteligentes de valores e rastreios.
-- **Produtividade & Relatórios:** `robos/produtividade.py` e `robos/robo_relatorio_correios.py` — extração automatizada de relatórios (Podio/Agilis), controles de login SSO e exportação para Excel.
-- **Mensageria / Inclusão:** `robos/robo_incluir_encomendas.py` e `robos/criar_rascunhos_uber.py` — criação de rascunhos no Outlook, preenchimento automático de campos no Podio e rotinas para arquivos do Uber.
-- **Chamados / Agilis:** `robos/robo_fechar_chamados.py` — melhorias no fluxo de login SSO, tratamento de MFA, robustez nas interações do Agilis e verificação prévia de status via API, fecha o chamado de acordo com a categoria do mesmo.
-- **Jurídico & Contratos:** `robos/robo_juridico.py`, `robos/robo_macro_contratos.py` e `robos/robo_cobrar_boleto.py` — extração e processamento de documentos, cobrança de boletos e follow-up automático de boletos em aberto.
-- **Uber / SAP:** `robos/robo_uber_relatorios.py` — processamento de planilhas do Uber, mapeamento de responsáveis e atualizações com dados do SAP.
-- **ZMM180 / OCR:** `robos/robo_zmm180.py` — automação com PyAutoGUI e suporte a Tesseract OCR (configuração e detecção de idiomas).
-- **Mapeamentos IA:** `treinar_ia.py` — dicionários e mapeamentos (pessoas e origens) usados por vários robôs.
+- **Configuração:** `config.py` — carregamento e salvamento de credenciais em `config_mrv.json`, caminhos dinâmicos para `Downloads` e `produtividade`, e variáveis de compatibilidade para os robôs.
+- **Interface central:** `app_central.py` — nova interface com sidebar Início/Robôs/Config/Ajuda, botões para cada fluxo, barra de progresso visual, console em tempo real, botão de cancelamento de processo e import hooks para empacotamento com PyInstaller.
+- **Novos fluxos:** inclusão de `Rateio AGF` e `Atualizar Macro de Contratos` na interface principal.
+- **Malote / Correios:** `robos/robo_rateio_malote.py` e `robos/malote_web_scraper.py` — melhorias no fluxo de rateio de malote e integração de consulta/lookup dos Correios.
+- **Faturamento:** `robos/robo_faturamento.py` — gerar rascunhos no Outlook e executar faturamento completo para MRV Pag.
+- **Cobrança de boletos:** `robos/robo_cobrar_boleto.py` — follow-up automático por rascunho no Outlook para boletos em aberto.
+- **Produtividade & Relatórios:** `robos/produtividade.py` e `robos/robo_relatorio_correios.py` — extração de relatórios Podio/Agilis/SAP e geração de exportações.
+- **Mensageria & Inclusão:** `robos/robo_incluir_encomendas.py` e `robos/criar_rascunhos_uber.py` — criação de correspondências rápidas e rascunhos de e-mail para Uber.
+- **Chamados / Agilis:** `robos/robo_fechar_chamados.py` — fechamento de chamados a vencer com maior robustez no login e no fluxo de status.
+- **Jurídico & Contratos:** `robos/robo_juridico.py` e `robos/robo_macro_contratos.py` — processamento de documentos jurídicos e atualização de macros de contratos.
+- **Uber / SAP:** `robos/robo_uber_relatorios.py` — geração de relatórios e pastas, além de atualização de responsáveis com base em dados SAP.
+- **ZMM180 / OCR:** `robos/robo_zmm180.py` — automação com PyAutoGUI e suporte a OCR para processos ZMM180.
+- **Mapeamentos IA:** `treinar_ia.py` — dicionários e mapeamentos usados pelos robôs.
 
-Observação: os itens acima foram extraídos dos scripts na pasta `robos/` e dos arquivos principais do projeto. Se você quiser que eu gere um changelog mais formal (por exemplo, com datas, autores e versões por arquivo), eu posso criar um `CHANGELOG.md` com entradas detalhadas.
+Observação: itens acima refletem os scripts e a interface atual do projeto. Se quiser, posso também criar um `CHANGELOG.md` com entradas detalhadas, datas e versões por arquivo.
 
 - Alguns robôs exigem arquivos de entrada específicos dentro da pasta `arquivos`.
 - Verifique se as planilhas e PDFs estão nomeados corretamente antes de iniciar.

@@ -187,7 +187,7 @@ class CentralAutomacaoMRV:
                 "icone": "📦",
                 "cor": self.COR_AZUL,
                 "tempo": "2 a 10 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["Excel", "Arquivos locais", "Correios"],
                 "descricao": "Gera a planilha de rateio de malote por centro de custo.",
                 "comando": "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()",
@@ -196,13 +196,14 @@ class CentralAutomacaoMRV:
             },
             {
                 "nome": "Rateio AGF",
+                "requer_api_agilis": True,
                 "titulo": "Rateio AGF",
                 "categoria": "Correios & Faturamento",
                 "icone": "📮",
                 "cor": self.COR_AZUL,
                 "tempo": "3 a 10 min",
-                "risco": "Médio",
-                "requisitos": ["Excel", "Arquivos locais"],
+                "Prioridade": "Média",
+                "requisitos": ["Excel", "Arquivos locais","API Agilis"],
                 "descricao": "Processa os arquivos de rateio AGF.",
                 "comando": "import robos.robo_rateio_AGF as rra; rra.executar_rateio_AGF()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "rateio_AGF"),
@@ -215,7 +216,7 @@ class CentralAutomacaoMRV:
                 "icone": "✉️",
                 "cor": self.COR_ROXO,
                 "tempo": "1 a 2 min",
-                "risco": "Baixo",
+                "Prioridade": "Baixo",
                 "requisitos": ["Outlook"],
                 "descricao": "Cria rascunhos de e-mail no Outlook.",
                 "comando": "import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()",
@@ -228,7 +229,7 @@ class CentralAutomacaoMRV:
                 "icone": "💰",
                 "cor": self.COR_ROXO,
                 "tempo": "2 a 5 min",
-                "risco": "Alto",
+                "Prioridade": "Alto",
                 "requisitos": ["Outlook", "MRV Pag", "Rede"],
                 "descricao": "Executa o fluxo completo de e-mail até MRV Pag.",
                 "comando": "import robos.robo_faturamento as rf; rf.executar_faturamento_completo()",
@@ -241,7 +242,7 @@ class CentralAutomacaoMRV:
                 "icone": "📨",
                 "cor": self.COR_ROXO,
                 "tempo": "2 a 5 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["Outlook", "E-mails acessíveis"],
                 "descricao": "Cria follow-up automático para boletos sem retorno.",
                 "comando": "import robos.robo_cobrar_boleto as rcb; rcb.executar_cobranca_boletos()",
@@ -254,7 +255,7 @@ class CentralAutomacaoMRV:
                 "icone": "⚖️",
                 "cor": self.COR_VINHO,
                 "tempo": "1 a 3 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["Podio", "Excel", "MFA"],
                 "descricao": "Baixa ou formata relatório jurídico Montreal.",
                 "handler": self._chamar_robo_juridico,
@@ -267,7 +268,7 @@ class CentralAutomacaoMRV:
                 "icone": "📬",
                 "cor": self.COR_VINHO,
                 "tempo": "3 a 12 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["Planilha encomendas", "Podio"],
                 "descricao": "Inclui correspondências a partir da planilha encomendas.xlsx.",
                 "handler": self._chamar_robo_incluir_encomendas,
@@ -275,13 +276,14 @@ class CentralAutomacaoMRV:
             },
             {
                 "nome": "Relatório Correios",
+                "requer_api_agilis": True,
                 "titulo": "Gerar relatório de envio para Correios",
                 "categoria": "Agilis & Chamados",
                 "icone": "📊",
                 "cor": self.COR_MRV,
                 "tempo": "1 a 3 min",
-                "risco": "Médio",
-                "requisitos": ["Agilis", "Excel"],
+                "Prioridade": "Média",
+                "requisitos": ["Agilis", "Excel", "API Agilis"],
                 "descricao": "Gera relatório de envios para os Correios.",
                 "comando": "import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()",
                 "tipo": "direto",
@@ -293,7 +295,7 @@ class CentralAutomacaoMRV:
                 "icone": "📈",
                 "cor": self.COR_MRV,
                 "tempo": "5 a 10 min",
-                "risco": "Alto",
+                "Prioridade": "Alto",
                 "requisitos": ["Podio", "Agilis", "SAP", "Bússola", "MFA"],
                 "descricao": "Gera produtividade consolidando Podio, Agilis e SAP.",
                 "handler": self._chamar_robo_produtividade,
@@ -306,7 +308,7 @@ class CentralAutomacaoMRV:
                 "icone": "✅",
                 "cor": self.COR_MRV,
                 "tempo": "Variável",
-                "risco": "Alto",
+                "Prioridade": "Alto",
                 "requisitos": ["Agilis", "MFA"],
                 "descricao": "Fecha chamados a vencer ou monitora chamados durante o dia.",
                 "handler": self._chamar_robo_fechar_chamados,
@@ -319,7 +321,7 @@ class CentralAutomacaoMRV:
                 "icone": "📑",
                 "cor": self.COR_LARANJA,
                 "tempo": "2 a 4 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["Excel fechado", "Rede"],
                 "descricao": "Atualiza macros de contratos usando arquivos de rede.",
                 "comando": "import robos.robo_macro_contratos as rmc; rmc.executar_macro_contratos()",
@@ -332,7 +334,7 @@ class CentralAutomacaoMRV:
                 "icone": "🚗",
                 "cor": self.COR_LARANJA,
                 "tempo": "1 a 4 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["SAP", "Excel", "Arquivos Uber"],
                 "descricao": "Atualiza responsáveis com base na exportação do SAP.",
                 "comando": "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()",
@@ -346,7 +348,7 @@ class CentralAutomacaoMRV:
                 "icone": "📁",
                 "cor": self.COR_LARANJA,
                 "tempo": "2 a 4 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["Excel", "Arquivos Uber"],
                 "descricao": "Gera relatórios, planilhas e pastas do fluxo Uber.",
                 "comando": "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()",
@@ -360,7 +362,7 @@ class CentralAutomacaoMRV:
                 "icone": "📧",
                 "cor": self.COR_LARANJA,
                 "tempo": "1 a 4 min",
-                "risco": "Médio",
+                "Prioridade": "Média",
                 "requisitos": ["Outlook", "Arquivos Uber"],
                 "descricao": "Cria rascunhos de e-mail a partir dos arquivos gerados.",
                 "comando": "import robos.criar_rascunhos_uber as rr; rr.criar_rascunhos()",
@@ -374,7 +376,7 @@ class CentralAutomacaoMRV:
                 "icone": "🧾",
                 "cor": self.COR_AMARELO,
                 "tempo": "20 a 40 min",
-                "risco": "Alto",
+                "Prioridade": "Alto",
                 "requisitos": ["SAP", "Edge", "OCR", "Não mexer no mouse"],
                 "descricao": "Automação SAP/ZMM180 com PyAutoGUI e OCR.",
                 "handler": self._chamar_robo_zmm180,
@@ -609,8 +611,8 @@ class CentralAutomacaoMRV:
             parent,
             text=f"{robo['icone']}  {robo['nome']}",
             height=52,
-            fg_color=robo["cor"],
-            hover_color=self._escurecer_cor(robo["cor"]),
+            fg_color=self.COR_MRV,
+            hover_color=self.COR_MRV_HOVER,
             font=ctk.CTkFont(size=13, weight="bold"),
             command=lambda r=robo: self._executar_robo(r)
         )
@@ -896,10 +898,10 @@ class CentralAutomacaoMRV:
             text_color=self.COR_TEXTO
         ).pack(side="left", anchor="w")
 
-        risco = robo.get("risco", "Médio")
-        cor_risco = self.COR_MRV if risco == "Baixo" else self.COR_AMARELO if risco == "Médio" else self.COR_CANCELAR
+        Prioridade = robo.get("Prioridade", "Média")
+        cor_Prioridade = self.COR_MRV if Prioridade == "Baixo" else self.COR_AMARELO if Prioridade == "Médio" else self.COR_CANCELAR
 
-        self._criar_chip(topo, f"Risco {risco}", cor_risco).pack(side="right")
+        self._criar_chip(topo, f"Prioridade {Prioridade}", cor_Prioridade).pack(side="right")
 
         ctk.CTkLabel(
             linha,
@@ -924,8 +926,8 @@ class CentralAutomacaoMRV:
             text="Executar",
             width=100,
             height=30,
-            fg_color=robo["cor"],
-            hover_color=self._escurecer_cor(robo["cor"]),
+            fg_color=self.COR_MRV,
+            hover_color=self.COR_MRV_HOVER,
             font=ctk.CTkFont(size=12, weight="bold"),
             command=lambda r=robo: self._executar_robo(r)
         )
@@ -1009,6 +1011,16 @@ class CentralAutomacaoMRV:
         self.entry_senha = self._campo_config(col_esq, "Senha MRV:", getattr(config, "SENHA_USER", ""), senha=True)
         self.entry_senha_malote = self._campo_config(col_esq, "Senha Malote Web:", getattr(config, "SENHA_MALOTE", ""), senha=True)
         self.entry_API_KEY_AGILIS = self._campo_config(col_esq, "Chave API Agilis:", getattr(config, "CHAVE_API_AGILIS", ""), senha=True)
+
+        ctk.CTkButton(
+            col_esq,
+            text="Como gerar a chave API do Agilis?",
+            height=32,
+            fg_color=self.COR_CINZA,
+            hover_color="#4A5560",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._abrir_tutorial_api_agilis
+        ).pack(anchor="w", padx=28, pady=(0, 12))
 
         ctk.CTkLabel(
             col_dir,
@@ -1154,6 +1166,7 @@ class CentralAutomacaoMRV:
         self.secoes_ajuda = {
             "Primeiros passos": self._texto_ajuda_primeiros_passos(),
             "Credenciais": self._texto_ajuda_credenciais(),
+            "Chave API Agilis": self._texto_ajuda_api_agilis(),
             "Correios e Faturamento": self._texto_ajuda_correios(),
             "Agilis e Chamados": self._texto_ajuda_agilis(),
             "Uber, SAP e Contratos": self._texto_ajuda_uber_sap(),
@@ -1174,6 +1187,36 @@ class CentralAutomacaoMRV:
 
         self._mostrar_secao_ajuda("Primeiros passos")
 
+    def _texto_ajuda_api_agilis(self):
+        return """CHAVE API AGILIS
+
+    Alguns robôs precisam da Chave API do Agilis para consultar informações automaticamente.
+
+    Robôs que dependem da chave:
+
+    - Gerar relatório de envio para Correios
+    - Rateio AGF
+
+    Como gerar:
+
+    1. Acesse o Agilis normalmente.
+    2. Clique no ícone do perfil no canto superior direito.
+    3. Clique em "Gerar chave API".
+    4. Selecione "Nunca expira".
+    5. Clique em "Gerar" ou "Regerar".
+    6. Copie a chave gerada.
+    7. Volte ao Hub Central MRV.
+    8. Vá em Configurações.
+    9. Cole a chave no campo "Chave API Agilis".
+    10. Clique em "Salvar Todas as Credenciais".
+
+    Observação:
+    Na primeira geração, o botão pode aparecer com outro nome. Se a chave já existir, normalmente aparece como "Regerar". O processo é o mesmo.
+
+    Importante:
+    Não compartilhe sua chave API. Se esquecer a chave, gere uma nova.
+    """
+
     def _mostrar_secao_ajuda(self, nome):
         self.textbox_ajuda.configure(state="normal")
         self.textbox_ajuda.delete("1.0", tk.END)
@@ -1190,12 +1233,18 @@ class CentralAutomacaoMRV:
     # EXECUÇÃO DOS ROBÔS
     # ==========================================================================
     def _executar_robo(self, robo):
+        if robo.get("requer_api_agilis") and not self._validar_api_agilis():
+            return
+
         if robo.get("tipo") == "especial":
             handler = robo.get("handler")
             if handler:
                 handler()
             else:
-                messagebox.showerror("Erro", f"O robô '{robo.get('nome')}' não possui função de execução configurada.")
+                messagebox.showerror(
+                    "Erro",
+                    f"O robô '{robo.get('nome')}' não possui função de execução configurada."
+                )
             return
 
         if robo.get("tipo") == "pasta":
@@ -1939,6 +1988,114 @@ Depende. Robôs de navegador geralmente permitem. Robôs SAP/PyAutoGUI não perm
 No arquivo historico_execucoes.json, dentro da pasta base do projeto.
 """
 
+    def _abrir_tutorial_api_agilis(self):
+        janela = ctk.CTkToplevel(self.root)
+        janela.title("Como gerar a Chave API do Agilis")
+        janela.geometry("720x560")
+        janela.minsize(650, 500)
+        janela.attributes("-topmost", True)
+
+        janela.grid_columnconfigure(0, weight=1)
+        janela.grid_rowconfigure(1, weight=1)
+
+        header = ctk.CTkFrame(janela, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=22, pady=(20, 10))
+        header.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            header,
+            text="🔑 Como gerar a Chave API do Agilis",
+            font=ctk.CTkFont(size=22, weight="bold"),
+            text_color=self.COR_TEXTO
+        ).grid(row=0, column=0, sticky="w")
+
+        ctk.CTkLabel(
+            header,
+            text="Use este passo a passo para configurar a chave usada pelos robôs Relatório Correios e Rateio AGF.",
+            font=ctk.CTkFont(size=13),
+            text_color=self.COR_TEXTO_FRACO,
+            wraplength=650,
+            justify="left"
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+
+        corpo = ctk.CTkScrollableFrame(janela, fg_color=self.COR_CARD, corner_radius=12)
+        corpo.grid(row=1, column=0, sticky="nsew", padx=22, pady=(0, 14))
+
+        texto = """
+    PASSO A PASSO
+
+    1. Acesse o Agilis normalmente pelo navegador.
+
+    2. Na tela inicial do Agilis, clique no ícone do seu perfil no canto superior direito.
+
+    3. No menu lateral que abrir, clique na opção "Gerar chave API".
+
+    4. Na tela de geração da chave, selecione a opção "Nunca expira".
+
+    5. Clique no botão "Gerar" ou "Regerar".
+
+    Observação:
+    Se for a primeira vez que você gera a chave, o botão pode aparecer com outro nome, como "Gerar". 
+    Se a chave já existir, o botão costuma aparecer como "Regerar". O processo é o mesmo.
+
+    6. Copie a chave gerada.
+
+    7. Volte para o Hub Central MRV.
+
+    8. Acesse a aba "Configurações".
+
+    9. Cole a chave no campo "Chave API Agilis".
+
+    10. Clique em "Salvar Todas as Credenciais".
+
+    ROBÔS QUE DEPENDEM DESSA CHAVE
+
+    - Gerar relatório de envio para Correios
+    - Rateio AGF
+
+    IMPORTANTE
+
+    - Não compartilhe sua chave API.
+    - Se esquecer a chave, gere uma nova no Agilis.
+    - Sempre prefira a opção "Nunca expira", para evitar que os robôs parem de funcionar futuramente.
+    """
+
+        ctk.CTkLabel(
+            corpo,
+            text=texto.strip(),
+            font=ctk.CTkFont(size=14),
+            text_color=self.COR_TEXTO,
+            justify="left",
+            wraplength=640
+        ).pack(anchor="w", padx=18, pady=18)
+
+        botoes = ctk.CTkFrame(janela, fg_color="transparent")
+        botoes.grid(row=2, column=0, sticky="ew", padx=22, pady=(0, 18))
+        botoes.grid_columnconfigure((0, 1), weight=1)
+
+        def ir_configuracoes():
+            janela.destroy()
+            self.selecionar_tela("config")
+
+        ctk.CTkButton(
+            botoes,
+            text="Ir para Configurações",
+            height=40,
+            fg_color=self.COR_MRV,
+            hover_color=self.COR_MRV_HOVER,
+            font=ctk.CTkFont(weight="bold"),
+            command=ir_configuracoes
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+
+        ctk.CTkButton(
+            botoes,
+            text="Fechar",
+            height=40,
+            fg_color=self.COR_CINZA,
+            hover_color="#4A5560",
+            font=ctk.CTkFont(weight="bold"),
+            command=janela.destroy
+        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
 
 class JanelaBusca:
     def __init__(self, parent, textbox):

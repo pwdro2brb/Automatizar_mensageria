@@ -1,6 +1,6 @@
 # Hub Central de Automações MRV - Versão 3.0
 
-Este projeto reúne as automações administrativas mais usadas no dia a dia em uma interface gráfica única para Windows. A versão 2.1 traz uma interface renovada, novos fluxos e mais robustez na execução dos robôs.
+Este projeto reúne as automações administrativas mais usadas no dia a dia em uma interface gráfica única para Windows. A versão 3.0 traz uma interface renovada, novos fluxos e mais robustez na execução dos robôs.
 
 ## O que há de novo
 
@@ -44,7 +44,7 @@ Automatizar tarefas repetitivas como:
 
 ## Configuração de credenciais
 
-O app salva as credenciais em `config_mrv.json` no diretório do projeto.
+O app salva as credenciais em `config_mrv.json` no diretório do projeto quando executado pelo código-fonte, e em `dist/config_mrv.json` quando executado como o executável (`dist\app_central.exe`).
 
 ### Primeira execução
 

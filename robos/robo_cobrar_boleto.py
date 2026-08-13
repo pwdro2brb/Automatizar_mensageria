@@ -1,12 +1,14 @@
 import win32com.client
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
 import os
 import traceback
 
 # Importa as configurações do Hub Central
 import config
+
+DATA_CORTE = datetime.now() - timedelta(days=30)
 
 def executar_cobranca_boletos():
     print("[PROGRESSO: 5]")
@@ -16,12 +18,26 @@ def executar_cobranca_boletos():
     # CONFIGURAÇÕES
     # ==========================
     DIAS_SEM_RETORNO = 5
-    MARCADOR_ROBO = "[FOLLOW-UP BOLETO]"
-    REMETENTES_FATURAMENTO = {
-        "faturamentoadm@mrv.com.br",
-        "matheus.lemos.silva@mrv.com.br",
-        "pagnozzi.carolina@mrv.com.br",
-        "maria.eduarocha@mrv.com.br"
+    MARCADOR_ROBO = "[RECOBRANÇA BOLETO]"
+
+    USUARIOS_MRV = [
+    "Maria Eduarda Soares Rocha",
+    "Matheus Silva De Lemos",
+    "Carolina Pagnozzi Silva",
+    ]
+
+    DESTINATARIOS_INTERNOS = {
+    "Maria Eduarda Soares Rocha",
+    "Matheus Silva De Lemos",
+    "Carolina Pagnozzi Silva",
+    "faturamentoadm",
+    "reajuste",
+    }       
+
+    EQUIPE_FATURAMENTO = {
+    "Maria Eduarda Soares Rocha",
+    "Matheus Silva De Lemos",
+    "Carolina Pagnozzi Silva",
     }
 
     # Define a pasta onde o log será salvo (dist/arquivos/faturamento)
@@ -32,24 +48,65 @@ def executar_cobranca_boletos():
     # ==========================
     # FUNÇÕES INTERNAS
     # ==========================
-    def email_remetente(mail):
+
+    def obter_data_email(email):
+        """
+        Retorna a data do email independente da pasta.
+        """
         try:
-            return mail.SenderEmailAddress.lower().strip()
+            return email.ReceivedTime
         except:
-            return ""
+            pass
+
+        try:
+            return email.SentOn
+        except:
+            pass
+
+        return None
+
+
+    def eh_email_valido(item):
+        """
+        Filtra somente MailItems do Outlook.
+        """
+        try:
+            return item.Class == 43  # olMail
+        except:
+            return False           
 
     def extrair_dados(corpo):
+
         loja = ""
         vencimento = ""
-        loja_match = re.search(r"referente a\s+(.*?)\s+com vencimento em", corpo, re.IGNORECASE | re.DOTALL)
-        vencimento_match = re.search(r"com vencimento em\s+(\d{2}\.\d{2}\.\d{4})", corpo, re.IGNORECASE)
-        
-        if loja_match:
-            loja = " ".join(loja_match.group(1).split())
-        if vencimento_match:
-            vencimento = vencimento_match.group(1)
-            
+
+        try:
+
+            loja_match = re.search(
+                r"referente a\s+(.*?)\s+com vencimento em",
+                corpo,
+                re.IGNORECASE | re.DOTALL
+            )
+
+            vencimento_match = re.search(
+                r"com vencimento em\s+(\d{2}\.\d{2}\.\d{4})",
+                corpo,
+                re.IGNORECASE
+            )
+
+            if loja_match:
+                loja = " ".join(
+                    loja_match.group(1).split()
+                )
+
+            if vencimento_match:
+                vencimento = vencimento_match.group(1)
+
+        except:
+            pass
+
         return loja, vencimento
+
 
     try:
         print("[PROGRESSO: 10]")
@@ -57,8 +114,22 @@ def executar_cobranca_boletos():
         outlook = win32com.client.Dispatch("Outlook.Application")
         namespace = outlook.GetNamespace("MAPI")
 
-        caixa_entrada = namespace.GetDefaultFolder(6)
+        caixa_principal = namespace.Folders.Item(1)
+
+        try:
+            pasta_faturamento = caixa_principal.Folders["faturamentoadm"]
+
+        except Exception:
+
+            print(
+                f"A pasta 'faturamentoadm' não foi encontrada "
+                f"na caixa '{caixa_principal.Name}'."
+            )
+
+            return
+
         itens_enviados = namespace.GetDefaultFolder(5)
+
         rascunhos = namespace.GetDefaultFolder(16)
 
         # ==========================
@@ -94,21 +165,42 @@ def executar_cobranca_boletos():
         print("[PROGRESSO: 30]")
         print("Lendo Caixa de Entrada e Itens Enviados...")
         conversas = {}
-        pastas = [caixa_entrada, itens_enviados]
+        pastas = [pasta_faturamento, itens_enviados]
 
         for pasta in pastas:
-            for email in pasta.Items:
+            for item in pasta.Items:
                 try:
-                    assunto = str(email.Subject)
+
+                    if not eh_email_valido(item):
+                        continue
+                    data_email = obter_data_email(item)
+
+                    if data_email is None:
+                        continue
+
+                    data_email = data_email.replace(tzinfo=None)
+
+                    if data_email < DATA_CORTE:
+                        continue
+
+
+                    assunto = str(item.Subject or "")
+
                     if "BOLETO" not in assunto.upper():
                         continue
 
-                    conv_id = email.ConversationID
+                    conv_id = str(item.ConversationID)
+
+                    if not conv_id:
+                        continue
+
                     if conv_id not in conversas:
                         conversas[conv_id] = []
-                    conversas[conv_id].append(email)
-                except:
-                    pass
+
+                    conversas[conv_id].append(item)
+
+                except Exception as erro:
+                    print(f"Erro ao ler item Outlook: {erro}")
 
         total_conversas = len(conversas)
         print(f"Conversas encontradas: {total_conversas}")
@@ -122,36 +214,213 @@ def executar_cobranca_boletos():
 
         for i, (conv_id, emails) in enumerate(conversas.items()):
             try:
-                emails.sort(key=lambda x: x.ReceivedTime)
-                primeira = emails[0]
-                ultima = emails[-1]
+                emails_validos = []
+
+                for e in emails:
+                    try:
+                        _ = e.ReceivedTime
+                        emails_validos.append(e)
+                    except:
+                        pass
+
+                if not emails_validos:
+                    continue
+
+                emails_validos.sort(key=lambda x: x.ReceivedTime)
+
+                primeira = emails_validos[0]
+                ultima = emails_validos[-1]
+
+                emails_validos = []
+
+                for email in emails:
+                    data_email = obter_data_email(email)
+
+                    if data_email is not None:
+                        emails_validos.append(email)
+
+                if not emails_validos:
+                    continue
+
+                emails_validos.sort(
+                    key=lambda x: obter_data_email(x)
+                )
+
+                primeira = emails_validos[0]
+                ultima = emails_validos[-1]
                 assunto_original = primeira.Subject
+
+                if assunto_original.upper().startswith("ENC:"):
+                    print("Ignorado -> Email encaminhado")
+                    continue
 
                 # evita criar duas vezes
                 if assunto_original in assuntos_ja_criados:
                     continue
 
-                remetente_final = email_remetente(ultima)
+                nome_remetente = str(
+                                    ultima.SenderName or ""
+                )
 
-                # se última mensagem não é do faturamento, existe retorno do fornecedor
-                if remetente_final not in REMETENTES_FATURAMENTO:
+
+                ultima_eh_mrv = any(
+                    pessoa.lower() in nome_remetente.lower()
+                    for pessoa in USUARIOS_MRV
+                )
+
+                if not ultima_eh_mrv:
                     continue
 
-                data_final = ultima.ReceivedTime.replace(tzinfo=None)
-                dias_sem_retorno = (datetime.now() - data_final).days
+
+                # ==================================================
+                # REGRA 2
+                # MAIS DE 5 DIAS
+                # ==================================================
+
+                data_final = obter_data_email(ultima)
+
+                if data_final is None:
+                    continue
+
+                data_final = data_final.replace(tzinfo=None)
+
+                dias_sem_retorno = (
+                    datetime.now() - data_final
+                ).days
 
                 if dias_sem_retorno < DIAS_SEM_RETORNO:
+                    print(f"Ignorado -> Apenas {dias_sem_retorno} dias")
                     continue
 
+
+                # ==================================================
+                # REGRA 3
+                # NÃO PODE EXISTIR PDF
+                # ==================================================
+
+                tem_pdf = False
+
+                for email in emails_validos:
+
+                    try:
+
+                        total_anexos = email.Attachments.Count
+
+                        for i in range(1, total_anexos + 1):
+
+                            nome_arquivo = (
+                                email.Attachments.Item(i)
+                                .FileName
+                                .lower()
+                            )
+
+                            if nome_arquivo.endswith(".pdf"):
+
+                                tem_pdf = True
+                                break
+
+                        if tem_pdf:
+                            break
+
+                    except:
+                        pass
+
+                if tem_pdf:
+                    print("Ignorado -> Encontrou PDF")
+                    continue
+
+
+                # ==================================================
+                # REGRA 4
+                # NÃO PODE SER CONVERSA APENAS ENTRE
+                # MATHEUS / CAROLINA / MARIA
+                # ==================================================
+
+                destinatarios = []
+
+                try:
+
+                    for r in ultima.Recipients:
+
+                        try:
+
+                            nome = str(r.Name).strip()
+
+                            if nome:
+                                destinatarios.append(nome)
+
+                        except:
+                            pass
+
+                except:
+                    pass
+
+                destinatarios = list(set(destinatarios))
+
+                print("\nDESTINATÁRIOS DA ÚLTIMA MENSAGEM:")
+
+                for nome in destinatarios:
+                    print(repr(nome))
+                if destinatarios:
+
+                    somente_faturamento = all(
+                        nome in EQUIPE_FATURAMENTO
+                        for nome in destinatarios
+                    )
+
+                somente_interno = False
+
+                if destinatarios:
+
+                    somente_interno = all(
+                        nome in DESTINATARIOS_INTERNOS
+                        for nome in destinatarios
+                    )
+
+                if somente_interno:
+
+                    print(
+                        f"Ignorado -> Conversa interna: "
+                        f"{destinatarios}"
+                    )
+
+                    continue
+                # NOVA PROTEÇÃO
+
+                if len(emails_validos) > 15:
+
+                    print(
+                    f"Atenção -> Conversa longa"
+                    f"({len(emails_validos)} emails)"
+                    )
+
                 loja, vencimento = extrair_dados(primeira.Body)
+
+                print("=" * 60)
+                print("ASSUNTO:", assunto_original)
+                print("LOJA:", loja)
+                print("VENCIMENTO:", vencimento)
+
                 if not loja:
+
+                    print(
+                        f"Ignorado -> Loja não encontrada | {assunto_original}"
+                    )
+
                     continue
                     
                 ja_processado = df_log["ConversationID"].astype(str).eq(str(conv_id))
                 if ja_processado.any():
                     print(f"  -> Conversa já registrada: {assunto_original}")
                     continue
-                    
+
+                print("=" * 80)
+                print("FOLLOW-UP VÁLIDO")
+                print("ASSUNTO:", assunto_original)
+                print("DIAS:", dias_sem_retorno)
+                print("DESTINATÁRIOS:", destinatarios)
+                print("=" * 80)    
+
                 resposta = ultima.ReplyAll()
                 resposta.Subject = f"{MARCADOR_ROBO} {resposta.Subject}"
                 resposta.HTMLBody = f"""
@@ -179,7 +448,8 @@ def executar_cobranca_boletos():
                 print(f"  ✅ Rascunho criado | {loja} | {dias_sem_retorno} dias")
 
             except Exception as erro:
-                print(f"  ❌ Erro ao processar conversa: {erro}")
+                print(f"\n❌ Erro na conversa: {assunto_original if 'assunto_original' in locals() else 'Sem assunto'}")
+                traceback.print_exc()
 
             # Atualiza a barra de progresso (de 40% a 90%)
             progresso_atual = 40 + int(((i + 1) / total_conversas) * 50)

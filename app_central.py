@@ -171,6 +171,9 @@ class CentralAutomacaoMRV:
 
         self.root.bind("<Control-f>", self._atalho_busca)
         self.root.bind("<Control-F>", self._atalho_busca)
+        
+        # Vincula o evento de redimensionamento da janela
+        self.root.bind("<Configure>", self._on_resize)
 
         self.selecionar_tela("inicio")
         self.root.after(900, self._verificar_credenciais_iniciais)
@@ -205,7 +208,7 @@ class CentralAutomacaoMRV:
                 "Prioridade": "Média",
                 "requisitos": ["Excel", "Arquivos locais","API Agilis"],
                 "descricao": "Processa os arquivos de rateio AGF.",
-                "comando": "import robos.robo_rateio_AGF as rra; rra.executar_rateio_AGF()",
+                "comando": "import robos.robo_rateio_AGF as rra; rra.executar_rateio_malote()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "rateio_AGF"),
                 "tipo": "pasta",
             },
@@ -793,7 +796,7 @@ class CentralAutomacaoMRV:
             self.console_container,
             height=95,
             font=ctk.CTkFont(family="Consolas", size=12),
-            text_color="#00FF66",
+            text_color="#00FF06",
             fg_color="#141414",
             border_width=1,
             border_color="#3A3A3A"
@@ -956,6 +959,7 @@ class CentralAutomacaoMRV:
                 pass
 
         self._busca_after_id = self.root.after(120, self._renderizar_robos)
+        
     # ==========================================================================
     # CONFIGURAÇÕES
     # ==========================================================================
@@ -1755,10 +1759,24 @@ class CentralAutomacaoMRV:
             command=restaurar_padrao
         ).pack(side="left", fill=tk.X, expand=True, padx=(6, 0))
 
-  
+    # ==========================================================================
+    # REDIMENSIONAMENTO DA JANELA (RESIZE)
+    # ==========================================================================
+    def _on_resize(self, event=None):
+        """Gerencia o redimensionamento da janela com debounce para evitar travamentos."""
         if not hasattr(self, "frame_botoes_robos") or not hasattr(self, "console"):
             return
 
+        if self._resize_after_id:
+            try:
+                self.root.after_cancel(self._resize_after_id)
+            except Exception:
+                pass
+
+        self._resize_after_id = self.root.after(100, self._ajustar_alturas_resize)
+
+    def _ajustar_alturas_resize(self):
+        """Ajusta dinamicamente a altura da lista de robôs e do console com base na janela."""
         try:
             altura_janela = self.root.winfo_height()
         except Exception:
@@ -1786,6 +1804,18 @@ class CentralAutomacaoMRV:
     # ==========================================================================
     # STATUS E UTILITÁRIOS
     # ==========================================================================
+    def _validar_api_agilis(self):
+        """Verifica se a chave API do Agilis está configurada."""
+        api_key = getattr(config, "CHAVE_API_AGILIS", "") or getattr(config, "API_KEY_AGILIS", "")
+        if not api_key or api_key.strip() == "":
+            messagebox.showwarning(
+                "Chave API Agilis Ausente",
+                "Este robô requer a Chave API do Agilis para funcionar.\n\n"
+                "Por favor, configure sua chave API na aba 'Configurações' antes de continuar."
+            )
+            self.selecionar_tela("config")
+            return False
+        return True
 
     def _credenciais_ok(self):
         email = getattr(config, "EMAIL_MRV", "") or getattr(config, "EMAIL_USER", "")

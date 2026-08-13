@@ -27,7 +27,21 @@ PADRAO_RASTREIO = re.compile(r'\b[A-Z]{2}\d{9}[A-Z]{2}\b')
 
 
 # --------------------
+import shutil
+import tempfile
 
+def limpar_cache_win32com():
+    """Apaga o cache gen_py para evitar erros de CLSIDToClassMap."""
+    try:
+        caminho_cache = os.path.join(tempfile.gettempdir(), "gen_py")
+        if os.path.exists(caminho_cache):
+            shutil.rmtree(caminho_cache)
+            print("🧹 Cache do win32com limpo com sucesso!")
+    except Exception as e:
+        print(f"⚠️ Não foi possível limpar o cache temporário: {e}")
+
+# Chame essa função logo no início da execução do seu robô!
+limpar_cache_win32com()
 
 # DICA: Se o Agilis da MRV usar um certificado SSL interno/corporativo que cause erros no Python,
 # você pode descomentar as duas linhas abaixo e alterar para verify=False nas requisições.

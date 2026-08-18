@@ -22,6 +22,33 @@ import config
 # Configuração de caminhos dinâmicos
 from config import EMAIL_MRV, SENHA_MRV 
 
+FERIADOS = {
+    "01-01",
+    "21-04",
+    "01-05",
+    "07-09",
+    "12-10",
+    "02-11",
+    "15-11",
+    "25-12",
+}
+
+def obter_data_referencia(pular_download=False):
+
+    data = datetime.now()
+
+    if not pular_download:
+        return data
+
+    while True:
+        data -= timedelta(days=1)
+
+        eh_fim_semana = data.weekday() >= 5
+        eh_feriado = data.strftime("%d-%m") in FERIADOS
+
+        if not eh_fim_semana and not eh_feriado:
+            return data
+
 def normalizar_texto(s: str) -> str:
     if s is None:
         return ""
@@ -34,6 +61,11 @@ def normalizar_texto(s: str) -> str:
 def executar_juridico(pular_download=False):
     print("[PROGRESSO: 5]")
     print("Iniciando automação do Jurídico Montreal...")
+
+    data_referencia = obter_data_referencia(pular_download)
+    data_formatada = data_referencia.strftime("%d/%m/%Y")
+
+    print(f"Data de referência do relatório: {data_formatada}")
     
     if not pular_download:
         print("Opção: Baixar do Podio ativada. Abrindo navegador...")
@@ -425,8 +457,10 @@ def executar_juridico(pular_download=False):
             cell.fill = header_fill
             cell.font = header_font
             
-        today_date = time.strftime("%d-%m-%Y") 
-        nome_arquivo_final = f"juridico montreal - {today_date}.xlsx"
+        nome_arquivo_final = (
+            f"juridico montreal - "
+            f"{data_referencia.strftime('%d-%m-%Y')}.xlsx"
+        )
         
         excel_file_path = os.path.join(download_dir, nome_arquivo_final)
         workbook.save(excel_file_path) 
@@ -457,8 +491,6 @@ def executar_juridico(pular_download=False):
             )
             mail.CC = "correiosbh@mrv.com.br"
 
-            hoje = datetime.now()
-            data_formatada = hoje.strftime("%d/%m/%Y")
             mail.Subject = f"Jurídico Montreal - {data_formatada}"
 
             if tem_dados_juridico:

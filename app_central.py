@@ -240,7 +240,7 @@ class CentralAutomacaoMRV:
             },
             {
                 "nome": "Follow-up Boletos",
-                "titulo": "Cobrança de boletos de contratos",
+                "titulo": "Cobrança de boletos",
                 "categoria": "Correios & Faturamento",
                 "icone": "📨",
                 "cor": self.COR_ROXO,
@@ -1275,9 +1275,9 @@ class CentralAutomacaoMRV:
         resposta = messagebox.askyesnocancel(
             "Relatório Jurídico Montreal",
             "Você deseja que o robô baixe a planilha do Podio automaticamente?\n\n"
-            "SIM: O robô fará tudo.\n"
-            "NÃO: Eu já baixei manualmente.\n"
-            "CANCELAR: Abortar operação."
+            "SIM: Baixar relatório de hoje.\n"
+            "NÃO: Utilizar relatório já baixado.\n"
+            "CANCELAR: Sair."
         )
 
         if resposta is True:

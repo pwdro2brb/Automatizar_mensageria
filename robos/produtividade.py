@@ -414,6 +414,143 @@ def extrair_dados_sistemas():
 # ==============================================================================
 # FUNÇÕES AUXILIARES E DE PROCESSAMENTO (AGORA FORA DA EXTRAÇÃO)
 # ==============================================================================
+def descobrir_faixas_atividades(ws):
+    """
+    Descobre dinamicamente as linhas de atividades de cada colaborador.
+
+    Considera como atividade:
+    - Agilis;
+    - Sedex/Pac/Malote;
+    - Lançamentos;
+    - SAP.
+
+    Não inclui a linha Total.
+    """
+
+    atividades_validas = (
+        "agilis",
+        "sedex",
+        "lancamentos",
+        "sap"
+    )
+
+    faixas = []
+    linha_colaborador = None
+    linhas_atividades = []
+
+    for row in range(2, ws.max_row + 1):
+        valor_colaborador = ws.cell(row=row, column=2).value
+        valor_atividade = ws.cell(row=row, column=3).value
+
+        if valor_colaborador not in (None, ""):
+            # Salva o bloco anterior.
+            if linha_colaborador is not None and linhas_atividades:
+                faixas.append(
+                    (min(linhas_atividades), max(linhas_atividades))
+                )
+
+            linha_colaborador = row
+            linhas_atividades = []
+
+        if linha_colaborador is None or valor_atividade is None:
+            continue
+
+        atividade_norm = norm_key(valor_atividade)
+
+        if atividade_norm == "total":
+            if linhas_atividades:
+                faixas.append(
+                    (min(linhas_atividades), max(linhas_atividades))
+                )
+
+            linha_colaborador = None
+            linhas_atividades = []
+            continue
+
+        if any(
+            chave in atividade_norm
+            for chave in atividades_validas
+        ):
+            linhas_atividades.append(row)
+
+    if linha_colaborador is not None and linhas_atividades:
+        faixas.append(
+            (min(linhas_atividades), max(linhas_atividades))
+        )
+
+    # Remove duplicações, preservando a ordem.
+    return list(dict.fromkeys(faixas))
+
+def localizar_bloco_colaborador(ws, texto_busca):
+    """
+    Localiza um colaborador na coluna B.
+
+    A busca é normalizada, ignorando:
+    - maiúsculas e minúsculas;
+    - acentos;
+    - espaços nas extremidades.
+
+    Retorna a linha do colaborador ou None.
+    """
+
+    busca = norm_key(texto_busca)
+
+    if not busca:
+        return None
+
+    for row in range(2, ws.max_row + 1):
+        valor = ws.cell(row=row, column=2).value
+
+        if valor is None:
+            continue
+
+        valor_norm = norm_key(valor)
+
+        if busca == valor_norm or busca in valor_norm:
+            return row
+
+    return None
+
+def localizar_linha_atividade(ws, linha_colaborador, atividade):
+    """
+    Localiza uma atividade na coluna C dentro do bloco do colaborador.
+
+    A busca termina quando:
+    - encontra a atividade;
+    - encontra outro colaborador na coluna B;
+    - encontra a linha Total;
+    - percorre no máximo 8 linhas.
+    """
+
+    if not linha_colaborador:
+        return None
+
+    atividade_norm = norm_key(atividade)
+
+    limite = min(linha_colaborador + 8, ws.max_row + 1)
+
+    for row in range(linha_colaborador, limite):
+        # Se encontrou outro colaborador, saiu do bloco atual.
+        if row > linha_colaborador:
+            outro_colaborador = ws.cell(row=row, column=2).value
+
+            if outro_colaborador not in (None, ""):
+                break
+
+        valor_atividade = ws.cell(row=row, column=3).value
+
+        if valor_atividade is None:
+            continue
+
+        texto = norm_key(valor_atividade)
+
+        if texto == "total":
+            break
+
+        if atividade_norm in texto:
+            return row
+
+    return None
 
 def find_column_ignore_case(df, column_name):
     for col in df.columns:
@@ -483,7 +620,7 @@ def step_1_prepare_and_rename_reports(diretorio):
         nome_arquivo = os.path.basename(arquivo)
         if nome_arquivo.startswith('Mensageria - Última vista'):
             processar_mensageria(arquivo, os.path.join(diretorio, 'Relatório - Sedex.Malote.xlsx'))
-        elif nome_arquivo.startswith('export') or nome_arquivo.startswith('EXPORT') and nome_arquivo.endswith('.xlsx'):
+        elif (nome_arquivo.lower().startswith("export")and nome_arquivo.lower().endswith(".xlsx")):
             processar_produtividade(arquivo, os.path.join(diretorio, 'Relatório - SAP.xlsx'))
         elif nome_arquivo.startswith('REL_PRLPGT'):
             processar_relatorio_pedidos(arquivo, os.path.join(diretorio, 'Relatório - Lançamentos.xlsx'))
@@ -630,26 +767,123 @@ def clear_month_data_in_blocks(ws, row_ranges, start_col_letter="D", end_col_let
     return cleared
 
 def fill_agilis_same_row(ws, header_map, df_long, AGILIS_POS):
-    if df_long.empty: return 0
-    grp_exact = {norm_key(n): sub for n, sub in df_long.groupby(df_long['nome'].apply(norm_key))}
-    grp_ukey  = {extract_user_key(n): sub for n, sub in df_long.groupby(df_long['nome'].apply(extract_user_key))}
+    if df_long.empty:
+        print("⚠️ Relatório do Agilis sem dados.")
+        return 0
+
+    grp_exact = {
+        norm_key(nome): grupo
+        for nome, grupo in df_long.groupby(
+            df_long["nome"].apply(norm_key)
+        )
+    }
+
+    grp_ukey = {
+        chave: grupo
+        for chave, grupo in df_long.groupby(
+            df_long["nome"].apply(extract_user_key)
+        )
+        if chave
+    }
+
     total_writes = 0
+
     for item in AGILIS_POS:
-        p2, p1, row_agilis, min_idx = item["p2"], item["p1"], item["row_nome"], col_letter_to_index(item["min_col_letter"])
-        if min_idx > ws.max_column: min_idx = 1
+        p2 = item["p2"]
+        p1 = item["p1"]
+
+        # Coluna mínima configurada para o colaborador.
+        min_idx = col_letter_to_index(
+            item.get("min_col_letter", "D")
+        )
+
+        # A área mensal atual termina em AH. Se a configuração antiga
+        # apontar para uma coluna inexistente, começa pela coluna D.
+        if min_idx > ws.max_column:
+            min_idx = col_letter_to_index("D")
+
+        linha_colaborador = localizar_bloco_colaborador(
+            ws,
+            p1
+        )
+
+        if linha_colaborador is None:
+            print(
+                f"⚠️ Agilis: colaborador não encontrado na planilha: {p1}"
+            )
+            continue
+
+        row_agilis = localizar_linha_atividade(
+            ws,
+            linha_colaborador,
+            "Agilis"
+        )
+
+        if row_agilis is None:
+            print(
+                f"⚠️ Agilis: atividade não encontrada para {p1}"
+            )
+            continue
+
+        # Primeiro tenta encontrar pelo nome exato do relatório.
         sub = grp_exact.get(norm_key(p2))
-        if (sub is None) or sub.empty: sub = grp_ukey.get(extract_user_key(p2))
-        if sub is None or sub.empty: continue
+
+        # Se não encontrar, tenta pelo login extraído.
+        if sub is None or sub.empty:
+            chave_usuario = extract_user_key(p2)
+            sub = grp_ukey.get(chave_usuario)
+
+        if sub is None or sub.empty:
+            print(
+                f"ℹ️ Agilis: nenhum registro encontrado para "
+                f"{p2}."
+            )
+            continue
+
         writes = 0
+
         for _, reg in sub.iterrows():
-            col_idx = next((header_map.get(k) for k in date_keys(reg["data_obj"]) if header_map.get(k)), None)
-            if not col_idx or col_idx < min_idx: continue
-            val = int(reg["valor"])
-            if val != 0:
-                ws.cell(row=row_agilis, column=col_idx, value=val)
+            col_idx = next(
+                (
+                    header_map.get(chave)
+                    for chave in date_keys(reg["data_obj"])
+                    if header_map.get(chave) is not None
+                ),
+                None
+            )
+
+            if col_idx is None:
+                continue
+
+            if col_idx < min_idx:
+                continue
+
+            try:
+                valor = int(reg["valor"])
+            except (TypeError, ValueError):
+                valor = 0
+
+            if valor != 0:
+                ws.cell(
+                    row=row_agilis,
+                    column=col_idx,
+                    value=valor
+                )
                 writes += 1
+
+        print(
+            f"✅ Agilis: {p1} | linha {row_agilis} | "
+            f"{writes} valores preenchidos."
+        )
+
         total_writes += writes
+
+    print(
+        f"✅ Total Agilis: {total_writes} valores preenchidos."
+    )
+
     return total_writes
+
 
 def fill_sedex(ws, header_map, df_long, MAP_SEDEX):
     if df_long.empty: return 0
@@ -674,63 +908,241 @@ def fill_sedex(ws, header_map, df_long, MAP_SEDEX):
     return total_writes
 
 def fill_lanctos_fixed(ws, header_map, df_long, LANCTOS_USER_MAP):
-    if df_long.empty or "user_key" not in df_long.columns: return 0
-    grp = {uk: sub for uk, sub in df_long.groupby(df_long['user_key'])}
+    if df_long.empty or "user_key" not in df_long.columns:
+        print("⚠️ Relatório de Lançamentos sem dados.")
+        return 0
+
+    grp = {
+        norm_key(ukey): sub
+        for ukey, sub in df_long.groupby(df_long["user_key"].apply(norm_key))
+    }
+
     total_writes = 0
+
     for ukey, meta in LANCTOS_USER_MAP.items():
-        row_ativ = meta["row_ativ"]
-        sub = grp.get(ukey)
-        if sub is None or sub.empty: continue
+        linha_colaborador = localizar_bloco_colaborador(
+            ws,
+            meta["p1"]
+        )
+
+        if linha_colaborador is None:
+            print(
+                f"⚠️ Lançamentos: colaborador não encontrado na planilha: "
+                f"{meta['p1']}"
+            )
+            continue
+
+        row_ativ = localizar_linha_atividade(
+            ws,
+            linha_colaborador,
+            "Lançamentos"
+        )
+
+        if row_ativ is None:
+            print(
+                f"⚠️ Lançamentos: atividade não encontrada para "
+                f"{meta['p1']}"
+            )
+            continue
+
+        sub = grp.get(norm_key(ukey))
+
+        if sub is None or sub.empty:
+            print(
+                f"ℹ️ Lançamentos: nenhum registro encontrado para {ukey}."
+            )
+            continue
+
         writes = 0
+
         for _, reg in sub.iterrows():
-            col_idx = next((header_map.get(k) for k in date_keys(reg["data_obj"]) if header_map.get(k)), None)
-            if not col_idx: continue
-            val = int(reg["valor"])
-            if val != 0:
-                ws.cell(row=row_ativ, column=col_idx, value=val)
+            col_idx = next(
+                (
+                    header_map.get(k)
+                    for k in date_keys(reg["data_obj"])
+                    if header_map.get(k) is not None
+                ),
+                None
+            )
+
+            if col_idx is None:
+                continue
+
+            try:
+                valor = int(reg["valor"])
+            except (TypeError, ValueError):
+                valor = 0
+
+            if valor != 0:
+                ws.cell(
+                    row=row_ativ,
+                    column=col_idx,
+                    value=valor
+                )
                 writes += 1
+
+        print(
+            f"✅ Lançamentos: {meta['p1']} | "
+            f"linha {row_ativ} | {writes} valores preenchidos."
+        )
+
         total_writes += writes
+
     return total_writes
+
 
 def fill_sap_fixed(ws, header_map, df_long, SAP_COD_MAP):
-    if df_long.empty or "nome" not in df_long.columns: return 0
-    cod_grp = {cod: df_long[df_long['nome'].str.contains(cod, case=False, regex=True, na=False)] for cod in SAP_COD_MAP.keys()}
+    if df_long.empty or "nome" not in df_long.columns:
+        print("⚠️ Relatório SAP sem dados.")
+        return 0
+
     total_writes = 0
-    for cod, meta in SAP_COD_MAP.items():
-        row_ativ = meta["row_ativ"]
-        sub = cod_grp.get(cod)
-        if sub is None or sub.empty: continue
+
+    for codigo, meta in SAP_COD_MAP.items():
+        linha_colaborador = localizar_bloco_colaborador(
+            ws,
+            meta["p1"]
+        )
+
+        if linha_colaborador is None:
+            print(
+                f"⚠️ SAP: colaborador não encontrado na planilha: "
+                f"{meta['p1']}"
+            )
+            continue
+
+        row_ativ = localizar_linha_atividade(
+            ws,
+            linha_colaborador,
+            "SAP"
+        )
+
+        if row_ativ is None:
+            print(
+                f"⚠️ SAP: atividade não encontrada para "
+                f"{meta['p1']}"
+            )
+            continue
+
+        # regex=False evita interpretar caracteres do código como regex.
+        sub = df_long[
+            df_long["nome"].astype(str).str.contains(
+                codigo,
+                case=False,
+                regex=False,
+                na=False
+            )
+        ]
+
+        if sub.empty:
+            print(
+                f"ℹ️ SAP: nenhum registro encontrado para "
+                f"{codigo} - {meta['p1']}."
+            )
+            continue
+
         writes = 0
+
         for _, reg in sub.iterrows():
-            col_idx = next((header_map.get(k) for k in date_keys(reg["data_obj"]) if header_map.get(k)), None)
-            if not col_idx: continue
-            val = int(reg["valor"])
-            if val != 0:
-                ws.cell(row=row_ativ, column=col_idx, value=val)
+            col_idx = next(
+                (
+                    header_map.get(k)
+                    for k in date_keys(reg["data_obj"])
+                    if header_map.get(k) is not None
+                ),
+                None
+            )
+
+            if col_idx is None:
+                continue
+
+            try:
+                valor = int(reg["valor"])
+            except (TypeError, ValueError):
+                valor = 0
+
+            if valor != 0:
+                ws.cell(
+                    row=row_ativ,
+                    column=col_idx,
+                    value=valor
+                )
                 writes += 1
+
+        print(
+            f"✅ SAP: {meta['p1']} | "
+            f"linha {row_ativ} | {writes} valores preenchidos."
+        )
+
         total_writes += writes
+
     return total_writes
 
-def fill_fsf_flags(ws, header_map):
-    row_ranges = [(2, 5), (7, 10), (12, 15), (17, 20), (22, 25), (27, 30), (32, 35), (37, 40), (42, 45), (47, 50), (52,52)]
+def fill_fsf_flags(ws, header_map, row_ranges):
     cols_to_process = {}
+
     for date_str, col_idx in header_map.items():
         try:
-            dt = pd.to_datetime(date_str, errors='coerce') if isinstance(date_str, str) and "-" in date_str and date_str.index("-") == 4 else pd.to_datetime(date_str, dayfirst=True, errors='coerce')
-            if pd.notna(dt): cols_to_process[col_idx] = dt.date()
-        except: continue
+            if (
+                isinstance(date_str, str)
+                and "-" in date_str
+                and date_str.index("-") == 4
+            ):
+                dt = pd.to_datetime(
+                    date_str,
+                    errors="coerce"
+                )
+            else:
+                dt = pd.to_datetime(
+                    date_str,
+                    dayfirst=True,
+                    errors="coerce"
+                )
+
+            if pd.notna(dt):
+                cols_to_process[col_idx] = dt.date()
+
+        except Exception:
+            continue
 
     total_writes = 0
+
     for col_idx, data_atual in cols_to_process.items():
-        is_weekend = (data_atual.weekday() >= 5)
-        dia_teve_producao = any(ws.cell(row=r, column=col_idx).value not in (None, "", 0, "0") for start_row, end_row in row_ranges for r in range(start_row, end_row + 1) if r <= ws.max_row)
+        is_weekend = data_atual.weekday() >= 5
+
+        dia_teve_producao = any(
+            ws.cell(row=r, column=col_idx).value
+            not in (None, "", 0, "0")
+            for start_row, end_row in row_ranges
+            for r in range(start_row, end_row + 1)
+            if r <= ws.max_row
+        )
+
         if is_weekend or not dia_teve_producao:
             for start_row, end_row in row_ranges:
-                if not any(ws.cell(row=r, column=col_idx).value not in (None, "", 0, "0") for r in range(start_row, end_row + 1) if r <= ws.max_row):
-                    for r in range(start_row, end_row + 1):
-                        if r <= ws.max_row and not isinstance(ws.cell(row=r, column=col_idx), MergedCell) and ws.cell(row=r, column=col_idx).value in (None, "", 0):
-                            ws.cell(row=r, column=col_idx).value = "0"
-                            total_writes += 1
+                bloco_teve_producao = any(
+                    ws.cell(row=r, column=col_idx).value
+                    not in (None, "", 0, "0")
+                    for r in range(start_row, end_row + 1)
+                    if r <= ws.max_row
+                )
+
+                if bloco_teve_producao:
+                    continue
+
+                for r in range(start_row, end_row + 1):
+                    if r > ws.max_row:
+                        continue
+
+                    cell = ws.cell(row=r, column=col_idx)
+
+                    if isinstance(cell, MergedCell):
+                        continue
+
+                    if cell.value in (None, "", 0):
+                        cell.value = "0"
+                        total_writes += 1
+
     return total_writes
 
 # ==============================================================================
@@ -759,37 +1171,66 @@ def main(nome_arquivo_base, nome_arquivo_saida):
     }
 
     AGILIS_POS = [
-        {"p2": "Alfredo Henrique Goncalves Pereira", "p1": "Alfredo.pereira MS0069532",  "row_nome":  2, "min_col_letter": "CO"},
-        {"p2": "Gabriel Figueiredo Emiliano",        "p1": "gabriel.emiliano MS0073186", "row_nome":  7, "min_col_letter": "CO"},
-        {"p2": "Ellen Gabrielle De Morais Gomes Da Silva", "p1": "ellen.morais",          "row_nome": 12, "min_col_letter": "CO"},
-        {"p2": "maria.delgado",                       "p1": "maria.delgado",               "row_nome": 17, "min_col_letter": "CO"},
-        {"p2": "Pedro Henrique Soares Silva",        "p1": "pedro.henrsilva MS0073814",  "row_nome": 22, "min_col_letter": "CO"},
-        {"p2": "Pedro Henrique Marques",             "p1": "pedro.hmarques",             "row_nome": 27, "min_col_letter": "CO"},
-        {"p2": "Carolina Pagnozzi Silva",            "p1": "pagnozzi.carolina",          "row_nome": 32, "min_col_letter": "CO"},
-        {"p2": "maria.eduarocha",                    "p1": "maria.eduarocha",             "row_nome": 37, "min_col_letter": "CO"},
-        {"p2": "Matheus Silva De Lemos",             "p1": "matheus.lemos.silva",        "row_nome": 42, "min_col_letter": "CO"},
-        {"p2": "Joao Vitor Barbosa Fernandes",       "p1": "joao.vifernandes",           "row_nome": 47, "min_col_letter": "CO"},
-        {"p2": "Vanessa De Brito Rodrigues",         "p1": "Vanessa",                    "row_nome": 52, "min_col_letter": "C"},
+        {"p2": "Alfredo Henrique Goncalves Pereira", "p1": "Alfredo.pereira MS0069532", "min_col_letter": "CO"},
+        {"p2": "Gabriel Figueiredo Emiliano",        "p1": "gabriel.emiliano MS0073186", "min_col_letter": "CO"},
+        {"p2": "Ellen Gabrielle De Morais Gomes Da Silva", "p1": "ellen.morais",          "min_col_letter": "CO"},
+        {"p2": "maria.delgado",                       "p1": "maria.delgado",               "min_col_letter": "CO"},
+        {"p2": "Pedro Henrique Soares Silva",        "p1": "pedro.henrsilva MS0073814",  "min_col_letter": "CO"},
+        {"p2": "Pedro Henrique Marques",             "p1": "pedro.hmarques",              "min_col_letter": "CO"},
+        {"p2": "Carolina Pagnozzi Silva",            "p1": "pagnozzi.carolina",        "min_col_letter": "CO"},
+        {"p2": "maria.eduarocha",                    "p1": "maria.eduarocha",             "min_col_letter": "CO"},
+        {"p2": "Matheus Silva De Lemos",             "p1": "matheus.lemos.silva MS0075116",        "min_col_letter": "CO"},
+        {"p2": "Joao Vitor Barbosa Fernandes",       "p1": "joao.vifernandes",           "min_col_letter": "CO"},
+        {"p2": "Vanessa De Brito Rodrigues",         "p1": "Vanessa",                    "min_col_letter": "C"},
     ]
 
     LANCTOS_USER_MAP = {
-        "alfredo.pereira":      {"p1": "Alfredo.pereira MS0069532",  "row_ativ":  4},
-        "gabriel.emiliano":     {"p1": "gabriel.emiliano MS0073186", "row_ativ":  9},
-        "ellen.morais":         {"p1": "ellen.morais",               "row_ativ": 14},
-        "maria.delgado":        {"p1": "maria.delgado",              "row_ativ": 19},
-        "pedro.henrsilva":      {"p1": "pedro.henrsilva MS0073814",  "row_ativ": 24},
-        "pedro.hmarques":       {"p1": "pedro.hmarques",             "row_ativ": 29},
-        "pagnozzi.carolina":    {"p1": "pagnozzi.carolina",          "row_ativ": 34},
-        "maria.eduarocha":      {"p1": "maria.eduarocha",            "row_ativ": 39},
-        "matheus.lemos.silva":  {"p1": "matheus.lemos.silva MS0075116", "row_ativ": 44},
-        "joao.vifernandes":     {"p1": "joao.vifernandes",           "row_ativ": 49},
+        "alfredo.pereira": {
+            "p1": "Alfredo.pereira MS0069532"
+        },
+        "gabriel.emiliano": {
+            "p1": "gabriel.emiliano MS0073186"
+        },
+        "ellen.morais": {
+            "p1": "ellen.morais"
+        },
+        "maria.delgado": {
+            "p1": "maria.delgado"
+        },
+        "pedro.henrsilva": {
+            "p1": "pedro.henrsilva MS0073814"
+        },
+        "pedro.hmarques": {
+            "p1": "pedro.hmarques"
+        },
+        "pagnozzi.carolina": {
+            "p1": "pagnozzi.carolina"
+        },
+        "maria.eduarocha": {
+            "p1": "maria.eduarocha"
+        },
+        "matheus.lemos.silva": {
+            "p1": "matheus.lemos.silva MS0075116"
+        },
+        "joao.vifernandes": {
+            "p1": "joao.vifernandes"
+        },
     }
 
+
     SAP_COD_MAP = {
-        "MS0069532": {"p1": "Alfredo.pereira MS0069532",  "row_ativ":  5},
-        "MS0073186": {"p1": "gabriel.emiliano MS0073186", "row_ativ": 10},
-        "MS0073814": {"p1": "pedro.henrsilva MS0073814",  "row_ativ": 25},
-        "MS0075116": {"p1": "matheus.lemos.silva MS0075116", "row_ativ": 45},
+        "MS0069532": {
+            "p1": "Alfredo.pereira MS0069532"
+        },
+        "MS0073186": {
+            "p1": "gabriel.emiliano MS0073186"
+        },
+        "MS0073814": {
+            "p1": "pedro.henrsilva MS0073814"
+        },
+        "MS0075116": {
+            "p1": "matheus.lemos.silva MS0075116"
+        },
     }
 
     wb = load_workbook(PROD_PATH)
@@ -797,7 +1238,14 @@ def main(nome_arquivo_base, nome_arquivo_saida):
 
     ano, mes, qtd_dias = update_headers_to_previous_month(ws, header_row=1, start_col_letter="D", end_col_letter="AH")
     
-    ROW_RANGES_ATIV = [(2, 5), (7, 10), (12, 15), (17, 20), (22, 25), (27, 30), (32, 35), (37, 40), (42, 45), (47, 50), (52,52)]
+    ROW_RANGES_ATIV = descobrir_faixas_atividades(ws)
+
+    print(
+        f"✅ Foram encontrados {len(ROW_RANGES_ATIV)} "
+        f"blocos de colaboradores."
+    )
+    print(f"Faixas identificadas: {ROW_RANGES_ATIV}")
+
     clear_month_data_in_blocks(ws, ROW_RANGES_ATIV, start_col_letter="D", end_col_letter="AH")
     
     print("[PROGRESSO: 85]")
@@ -815,7 +1263,7 @@ def main(nome_arquivo_base, nome_arquivo_saida):
     fill_sap_fixed(ws, header_map, df_sap, SAP_COD_MAP)
     
     print("[PROGRESSO: 95]")
-    fill_fsf_flags(ws, header_map)
+    fill_fsf_flags(ws, header_map, ROW_RANGES_ATIV)
 
     wb.save(OUT_PATH)
     print(f"✅ Planilha salva com sucesso em: {OUT_PATH}")

@@ -414,6 +414,107 @@ def extrair_dados_sistemas():
 # ==============================================================================
 # FUNÇÕES AUXILIARES E DE PROCESSAMENTO (AGORA FORA DA EXTRAÇÃO)
 # ==============================================================================
+def gerar_sap_map(colaboradores):
+
+    retorno = {}
+
+    for c in colaboradores:
+
+        if not c["matricula"]:
+            continue
+
+        retorno[c["matricula"]] = {
+            "p1": (
+                f"{c['login']} {c['matricula']}"
+            )
+        }
+
+    return retorno
+
+def gerar_cadastro_agilis(colaboradores):
+
+    retorno = []
+
+    for c in colaboradores:
+
+        identificador = c["login"]
+
+        if c["matricula"]:
+            identificador += f" {c['matricula']}"
+
+        retorno.append({
+            "p2": c["nome"],
+            "p1": identificador,
+            "min_col_letter": "D"
+        })
+
+    return retorno
+
+def gerar_lanctos_map(colaboradores):
+
+    retorno = {}
+
+    for c in colaboradores:
+
+        retorno[c["login"]] = {
+            "p1": (
+                f"{c['login']} {c['matricula']}"
+                if c["matricula"]
+                else c["login"]
+            )
+        }
+
+    return retorno
+
+def gerar_sedex_map(colaboradores):
+
+    retorno = {}
+
+    for c in colaboradores:
+
+        identificador = c["login"]
+
+        if c["matricula"]:
+            identificador += f" {c['matricula']}"
+
+        retorno[c["nome"]] = identificador
+
+    return retorno
+
+def carregar_cadastro_colaboradores(prod_path):
+
+    df = pd.read_excel(
+        prod_path,
+        sheet_name="Nomes"
+    )
+
+    colaboradores = []
+
+    for _, row in df.iterrows():
+
+        nome = str(
+            row["Nome Completo"]
+        ).strip()
+
+        login = str(
+            row["Login"]
+        ).strip()
+
+        matricula = ""
+
+        if pd.notna(row["Matrícula"]):
+            matricula = str(
+                row["Matrícula"]
+            ).strip()
+
+        colaboradores.append({
+            "nome": nome,
+            "login": login,
+            "matricula": matricula
+        })
+
+    return colaboradores
+
 def descobrir_faixas_atividades(ws):
     """
     Descobre dinamicamente as linhas de atividades de cada colaborador.
@@ -1162,79 +1263,41 @@ def main(nome_arquivo_base, nome_arquivo_saida):
     LANCTOS_PATH = os.path.join(PASTA_PRODUTIVIDADE, "Relatório - Lançamentos.xlsx")
     SAP_PATH     = os.path.join(PASTA_PRODUTIVIDADE, "Relatório - SAP.xlsx")
 
-    MAP_SEDEX = {
-        "Alfredo Henrique Goncalves Pereira": "Alfredo.pereira MS0069532",
-        "Gabriel Figueiredo Emiliano":        "gabriel.emiliano MS0073186",
-        "Pedro Henrique Soares Silva":        "pedro.henrsilva MS0073814",
-        "Joao Vitor Barbosa Fernandes":       "joao.vifernandes",
-        "Matheus Silva De Lemos":             "matheus.lemos.silva MS0075116",
-    }
-
-    AGILIS_POS = [
-        {"p2": "Alfredo Henrique Goncalves Pereira", "p1": "Alfredo.pereira MS0069532", "min_col_letter": "CO"},
-        {"p2": "Gabriel Figueiredo Emiliano",        "p1": "gabriel.emiliano MS0073186", "min_col_letter": "CO"},
-        {"p2": "Ellen Gabrielle De Morais Gomes Da Silva", "p1": "ellen.morais",          "min_col_letter": "CO"},
-        {"p2": "maria.delgado",                       "p1": "maria.delgado",               "min_col_letter": "CO"},
-        {"p2": "Pedro Henrique Soares Silva",        "p1": "pedro.henrsilva MS0073814",  "min_col_letter": "CO"},
-        {"p2": "Pedro Henrique Marques",             "p1": "pedro.hmarques",              "min_col_letter": "CO"},
-        {"p2": "Carolina Pagnozzi Silva",            "p1": "pagnozzi.carolina",        "min_col_letter": "CO"},
-        {"p2": "maria.eduarocha",                    "p1": "maria.eduarocha",             "min_col_letter": "CO"},
-        {"p2": "Matheus Silva De Lemos",             "p1": "matheus.lemos.silva MS0075116",        "min_col_letter": "CO"},
-        {"p2": "Joao Vitor Barbosa Fernandes",       "p1": "joao.vifernandes",           "min_col_letter": "CO"},
-        {"p2": "Vanessa De Brito Rodrigues",         "p1": "Vanessa",                    "min_col_letter": "C"},
-    ]
-
-    LANCTOS_USER_MAP = {
-        "alfredo.pereira": {
-            "p1": "Alfredo.pereira MS0069532"
-        },
-        "gabriel.emiliano": {
-            "p1": "gabriel.emiliano MS0073186"
-        },
-        "ellen.morais": {
-            "p1": "ellen.morais"
-        },
-        "maria.delgado": {
-            "p1": "maria.delgado"
-        },
-        "pedro.henrsilva": {
-            "p1": "pedro.henrsilva MS0073814"
-        },
-        "pedro.hmarques": {
-            "p1": "pedro.hmarques"
-        },
-        "pagnozzi.carolina": {
-            "p1": "pagnozzi.carolina"
-        },
-        "maria.eduarocha": {
-            "p1": "maria.eduarocha"
-        },
-        "matheus.lemos.silva": {
-            "p1": "matheus.lemos.silva MS0075116"
-        },
-        "joao.vifernandes": {
-            "p1": "joao.vifernandes"
-        },
-    }
-
-
-    SAP_COD_MAP = {
-        "MS0069532": {
-            "p1": "Alfredo.pereira MS0069532"
-        },
-        "MS0073186": {
-            "p1": "gabriel.emiliano MS0073186"
-        },
-        "MS0073814": {
-            "p1": "pedro.henrsilva MS0073814"
-        },
-        "MS0075116": {
-            "p1": "matheus.lemos.silva MS0075116"
-        },
-    }
-
     wb = load_workbook(PROD_PATH)
     ws = wb["Plan1"]
+
+    COLABORADORES = carregar_cadastro_colaboradores(
+        PROD_PATH
+    )
+
+    print(
+        f"✅ {len(COLABORADORES)} colaboradores carregados."
+    )
+
+    print("\n=== CADASTRO CARREGADO ===")
+
+    for c in COLABORADORES:
+        print(c)
+
+    print("=========================\n")
+
+    MAP_SEDEX = gerar_sedex_map(
+        COLABORADORES
+    )
+
+    AGILIS_POS = gerar_cadastro_agilis(
+        COLABORADORES
+    )
+
+    LANCTOS_USER_MAP = gerar_lanctos_map(
+        COLABORADORES
+    )
+
+    SAP_COD_MAP = gerar_sap_map(
+        COLABORADORES
+    )
+
+    print(f"✅ {len(COLABORADORES)} colaboradores carregados.")
 
     ano, mes, qtd_dias = update_headers_to_previous_month(ws, header_row=1, start_col_letter="D", end_col_letter="AH")
     

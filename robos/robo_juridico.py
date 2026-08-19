@@ -17,8 +17,16 @@ import unicodedata
 import re
 import sys
 from pathlib import Path
-import config
+import json
 
+
+CAMINHO_CONFIG_EMAILS = Path(__file__).parent.parent / "config_emails.json"
+# (ajuste a navegação de pastas conforme a localização do script)
+
+with open(CAMINHO_CONFIG_EMAILS, "r", encoding="utf-8") as f:
+    CONFIG_JURIDICO = json.load(f)["robo_juridico"]
+    
+import config
 # Configuração de caminhos dinâmicos
 from config import EMAIL_MRV, SENHA_MRV 
 
@@ -484,12 +492,9 @@ def executar_juridico(pular_download=False):
             outlook = win32com.client.Dispatch("Outlook.Application")
             mail = outlook.CreateItem(0)
 
-            mail.To = (
-                "kelly.paixao@parceiro.mrv.com.br;"
-                "reinaldo.reis@parceiro.mrv.com.br;"
-                "maria.rferreira@parceiro.mrv.com.br"
-            )
-            mail.CC = "correiosbh@mrv.com.br"
+            # E-mails parametrizados via JSON
+            mail.To = CONFIG_JURIDICO["destinatarios"]
+            mail.CC = CONFIG_JURIDICO["copia"]
 
             mail.Subject = f"Jurídico Montreal - {data_formatada}"
 

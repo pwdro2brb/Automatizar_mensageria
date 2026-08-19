@@ -39,3 +39,11 @@ cache_percursos_cc.json
 config_mrv.json
 
 colar.txt
+
+# Arquivos de credenciais e e-mails sensíveis
+.env
+config_emails.json
+
+# Ambientes virtuais e cache
+
+*.log

@@ -5,6 +5,7 @@ import getpass
 import unicodedata
 import win32timezone
 import pandas as pd
+import json
 from pathlib import Path
 from PyPDF2 import PdfReader
 from typing import Optional, Dict, List, Union, Tuple
@@ -34,6 +35,15 @@ from openpyxl.styles import numbers
 import traceback
 import sys
 
+# Carregamento da configuração central de e-mails
+CAMINHO_CONFIG_EMAILS = Path(__file__).parent.parent / "config_emails.json"
+# (ou Path(__file__).parent / "config_emails.json", dependendo de onde o script está no Hub)
+
+with open(CAMINHO_CONFIG_EMAILS, "r", encoding="utf-8") as f:
+    CONFIG_EMAILS = json.load(f)["robo_faturamento"]
+
+EMAILS_IGNORADOS = CONFIG_EMAILS["emails_ignorados"]
+
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS
 # ==============================================================================
@@ -45,10 +55,9 @@ PASTA_ARQUIVOS_RATEIO = Path(config.PASTA_ARQUIVOS) / "faturamento"
 CNPJ_CORREIOS_FIXO = "34028316001509"   
 DATE_RE = r"([0-3]?\d/[01]?\d/\d{4})"   
 
-EMAILS_IGNORADOS = ["pedro.henrsilva@mrv.com.br", "correiosbh@mrv.com.br"]
 
 # ==============================================================================
-# 1. FUNÇÃO: GERAR RASCUNHOS (MANTIDA INTACTA)
+# 1. FUNÇÃO: GERAR RASCUNHOS (REFATORADA COM JSON)
 # ==============================================================================
 def criar_rascunhos_correios():
     print("[PROGRESSO: 5]")
@@ -68,15 +77,11 @@ def criar_rascunhos_correios():
     print(f"Pasta mais recente encontrada: {pasta_mes_recente}")
     print("[PROGRESSO: 15]")
 
-    contatos_para = {
-        "Campinas": "flavia.pinho@mrv.com.br; ana.tilli@mrv.com.br; sofia.fernandes@mrv.com.br",
-        "Ribeirão Preto": "kaylana.alves@mrv.com.br",
-        "Centro Oeste": "maysa.risalte@mrv.com.br,nicole.souza@mrv.com.br; maksuel.araujo@mrv.com.br; eunice.prudente@primeconstrucoes.com.br; maryanne.camargo@primeconstrucoes.com.br",
-        "Nordeste": "langela.santos@mrv.com.br",
-        "Sul": "victoria.gomes@mrv.com.br; filipe.avila@mrv.com.br; simone.csantos@mrv.com.br; monique.silva@mrv.com.br",
-        "São Paulo": "telma.amattos@mrv.com.br; cristina.demetrio@parceiro.mrv.com.br; manoella.camargo@mrv.com.br; luciano.lsilva@mrv.com.br; nicoli.santos@mrv.com.br",
-        "Triângulo": "kamilly.silva@mrv.com.br; kaylana.alves@mrv.com.br; maria.fernnanda@mrv.com.br"
-    }
+    # Extrai os dados parametrizados do JSON
+    contatos_para = CONFIG_EMAILS["destinatarios_por_regional"]
+    cc_padrao = CONFIG_EMAILS["cc_padrao"]
+    cc_extra = CONFIG_EMAILS["cc_extra_regional"]
+    regionais_extra = CONFIG_EMAILS["regionais_com_cc_extra"]
 
     agora = datetime.now()
     saudacao = "Bom dia" if agora.hour < 12 else "Boa tarde"
@@ -106,9 +111,9 @@ def criar_rascunhos_correios():
         mail = outlook.CreateItem(0)
         mail.To = contatos_para.get(regional, "")
         
-        cc_padrao = "vanessa.brodrigues@mrv.com.br; correiosbh@mrv.com.br"
-        if regional in ["Triângulo", "Ribeirão Preto"]:
-            mail.CC = f"{cc_padrao}; conceicao@mrv.com.br"
+        # Aplicação dinâmica das regras de cópia
+        if regional in regionais_extra:
+            mail.CC = f"{cc_padrao}; {cc_extra}"
         else:
             mail.CC = cc_padrao
 
@@ -131,7 +136,7 @@ def criar_rascunhos_correios():
 
     print("[PROGRESSO: 100]")
     print("\nProcesso concluído! Verifique a pasta 'Rascunhos' no seu Outlook.")
-
+    
 # ==============================================================================
 # 2. NOVA FUNÇÃO: FATURAMENTO END-TO-END (E-MAIL -> MRV PAG)
 # ==============================================================================

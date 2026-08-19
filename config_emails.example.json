@@ -1,0 +1,15 @@
+{
+  "robo_faturamento": {
+    "emails_ignorados": ["email1@empresa.com.br"],
+    "cc_padrao": "copia@empresa.com.br",
+    "cc_extra_regional": "copia_extra@empresa.com.br",
+    "regionais_com_cc_extra": ["Regional A"],
+    "destinatarios_por_regional": {
+      "Regional A": "destinatario@empresa.com.br"
+    }
+  },
+  "robo_juridico": {
+    "destinatarios": "juridico@empresa.com.br",
+    "copia": "copia@empresa.com.br"
+  }
+}

@@ -20,8 +20,20 @@ from pathlib import Path
 import json
 
 
-CAMINHO_CONFIG_EMAILS = Path(__file__).parent.parent / "config_emails.json"
-# (ajuste a navegação de pastas conforme a localização do script)
+def obter_caminho_base():
+    """Retorna o diretório real do projeto/executável."""
+    if getattr(sys, 'frozen', False):
+        # Rodando como executável compilado (.exe)
+        return os.path.dirname(sys.executable)
+    else:
+        # Rodando via script Python (.py) no VS Code
+        # Sobe um nível se este script estiver dentro da pasta /robos
+        pasta_atual = os.path.dirname(os.path.abspath(__file__))
+        return os.path.abspath(os.path.join(pasta_atual, ".."))
+
+# Define o caminho absoluto correto
+PASTA_BASE = obter_caminho_base()
+CAMINHO_CONFIG_EMAILS = os.path.join(PASTA_BASE, "config_emails.json")
 
 with open(CAMINHO_CONFIG_EMAILS, "r", encoding="utf-8") as f:
     CONFIG_JURIDICO = json.load(f)["robo_juridico"]

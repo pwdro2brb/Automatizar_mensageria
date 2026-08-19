@@ -35,12 +35,30 @@ from openpyxl.styles import numbers
 import traceback
 import sys
 
-# Carregamento da configuração central de e-mails
-CAMINHO_CONFIG_EMAILS = Path(__file__).parent.parent / "config_emails.json"
-# (ou Path(__file__).parent / "config_emails.json", dependendo de onde o script está no Hub)
+def obter_caminho_base():
+    """Retorna o diretório real do projeto/executável."""
+    if getattr(sys, 'frozen', False):
+        # Rodando como executável compilado (.exe)
+        return os.path.dirname(sys.executable)
+    else:
+        # Rodando via script Python (.py) no VS Code
+        # Sobe um nível se este script estiver dentro da pasta /robos
+        pasta_atual = os.path.dirname(os.path.abspath(__file__))
+        return os.path.abspath(os.path.join(pasta_atual, ".."))
 
-with open(CAMINHO_CONFIG_EMAILS, "r", encoding="utf-8") as f:
-    CONFIG_EMAILS = json.load(f)["robo_faturamento"]
+# Define o caminho absoluto correto
+PASTA_BASE = obter_caminho_base()
+CAMINHO_CONFIG_EMAILS = os.path.join(PASTA_BASE, "config_emails.json")
+ 
+try:
+    with open(CAMINHO_CONFIG_EMAILS, "r", encoding="utf-8") as f:
+        CONFIG = json.load(f)
+except FileNotFoundError:
+    raise FileNotFoundError(
+        f"Arquivo config_emails.json não foi encontrado em: {CAMINHO_CONFIG_EMAILS}"
+    )
+
+CONFIG_EMAILS = CONFIG["robo_faturamento"]
 
 EMAILS_IGNORADOS = CONFIG_EMAILS["emails_ignorados"]
 

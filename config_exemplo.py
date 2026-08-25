@@ -23,18 +23,22 @@ def carregar_credenciais():
                 return json.load(f)
         except:
             pass
-    # Retorna estrutura padrão vazia
+    # Retorna estrutura padrão vazia (com os valores corretos do Podio como padrão)
     return {
         "email": "", 
         "senha": "", 
         "senha_malote": "", 
         "chave_api_agilis": "",
-        "correios_cod_adm": "",
-        "correios_email": "",
-        "correios_senha": ""
+        "correios_cod_adm": " ",
+        "correios_email": " ",
+        "correios_senha": " ",
+        "podio_client_id": "",       
+        "podio_client_secret": "",
+        "podio_app_id": " ",
+        "podio_app_token": " "
     }
 
-def salvar_credenciais(email, senha, senha_malote, chave_api_agilis, correios_cod_adm, correios_email, correios_senha):
+def salvar_credenciais(email, senha, senha_malote, chave_api_agilis, correios_cod_adm, correios_email, correios_senha, podio_client_id="", podio_client_secret="", podio_app_id="", podio_app_token=""):
     """Salva todas as credenciais no arquivo JSON."""
     with open(ARQUIVO_CONFIG, "w") as f:
         json.dump({
@@ -44,7 +48,11 @@ def salvar_credenciais(email, senha, senha_malote, chave_api_agilis, correios_co
             "chave_api_agilis": chave_api_agilis,
             "correios_cod_adm": correios_cod_adm,
             "correios_email": correios_email,
-            "correios_senha": correios_senha
+            "correios_senha": correios_senha,
+            "podio_client_id": podio_client_id,       
+            "podio_client_secret": podio_client_secret,
+            "podio_app_id": podio_app_id,
+            "podio_app_token": podio_app_token
         }, f)
 
 # Carrega as variáveis para serem usadas pelos robôs
@@ -54,10 +62,16 @@ SENHA_USER = credenciais.get("senha", "")
 SENHA_MALOTE = credenciais.get("senha_malote", "")
 CHAVE_API_AGILIS = credenciais.get("chave_api_agilis", "")
 
+# Novas variáveis dos Correios (com valores padrão caso não existam no JSON)
+CORREIOS_COD_ADM = credenciais.get("correios_cod_adm", " ")
+CORREIOS_EMAIL = credenciais.get("correios_email", " ")
+CORREIOS_SENHA = credenciais.get("correios_senha", " ")
 
-CORREIOS_COD_ADM = credenciais.get("correios_cod_adm", "")
-CORREIOS_EMAIL = credenciais.get("correios_email", "")
-CORREIOS_SENHA = credenciais.get("correios_senha", "")
+# --- NOVAS VARIÁVEIS DA API DO PODIO ---
+PODIO_CLIENT_ID = credenciais.get("podio_client_id", "")       
+PODIO_CLIENT_SECRET = credenciais.get("podio_client_secret", "") 
+PODIO_APP_ID = credenciais.get("podio_app_id", " ")
+PODIO_APP_TOKEN = credenciais.get("podio_app_token", " ")
 
 # ==============================================================================
 # 3. MODO DE COMPATIBILIDADE

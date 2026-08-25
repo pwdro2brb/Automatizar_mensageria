@@ -31,6 +31,59 @@ TECNICOS_VALIDOS = [
     "gabriel figueiredo emiliano"
 ]
 
+def ler_agf_inteligente(caminho_arquivo):
+    """
+    Localiza automaticamente a linha do cabeçalho do AGF
+    e retorna o DataFrame já carregado.
+    """
+
+    # Lê sem cabeçalho
+    df_bruto = pd.read_excel(
+        caminho_arquivo,
+        header=None,
+        dtype=str
+    )
+
+    linha_cabecalho = None
+
+    for idx, row in df_bruto.iterrows():
+
+        valores = (
+            row.fillna("")
+               .astype(str)
+               .str.strip()
+               .tolist()
+        )
+
+        if "Data de Postagem" in valores:
+            linha_cabecalho = idx
+            break
+
+    if linha_cabecalho is None:
+        raise ValueError(
+            "Não foi possível localizar o cabeçalho AGF."
+        )
+
+    print(
+        f"✅ Cabeçalho AGF localizado na linha "
+        f"{linha_cabecalho + 1}"
+    )
+
+    df = pd.read_excel(
+        caminho_arquivo,
+        header=linha_cabecalho
+    )
+
+    df.columns = (
+        df.columns
+          .astype(str)
+          .str.strip()
+    )
+
+    return df
+
+
+
 # ==========================================
 # FUNÇÃO DE DESTAQUE (BORDA VERMELHA)
 # ==========================================
@@ -596,7 +649,7 @@ def executar_rateio_AGF():
     # 2. LER O ARQUIVO AGF ORIGINAL
     print("Lendo o arquivo AGF original...")
     try:
-        df_base = pd.read_excel(caminho_arquivo_agf)
+        df_base = ler_agf_inteligente(caminho_arquivo_agf)
         df_base.columns = df_base.columns.str.strip()
         
         if 'Data de Postagem' not in df_base.columns:

@@ -208,7 +208,7 @@ class CentralAutomacaoMRV:
                 "Prioridade": "Média",
                 "requisitos": ["Excel", "Arquivos locais","API Agilis"],
                 "descricao": "Processa os arquivos de rateio AGF.",
-                "comando": "import robos.robo_rateio_AGF as rra; rra.executar_rateio_malote()",
+                "comando": "import robos.robo_rateio_AGF as rra; rra.executar_rateio_AGF()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "rateio_AGF"),
                 "tipo": "pasta",
             },
@@ -270,7 +270,7 @@ class CentralAutomacaoMRV:
                 "categoria": "Podio & Mensageria",
                 "icone": "📬",
                 "cor": self.COR_VINHO,
-                "tempo": "3 a 12 min",
+                "tempo": "30 seg a 2 min",
                 "Prioridade": "Média",
                 "requisitos": ["Planilha encomendas", "Podio"],
                 "descricao": "Inclui correspondências a partir da planilha encomendas.xlsx.",
@@ -1037,6 +1037,37 @@ class CentralAutomacaoMRV:
         self.entry_correios_email = self._campo_config(col_dir, "E-mail Correios:", getattr(config, "CORREIOS_EMAIL", ""))
         self.entry_correios_senha = self._campo_config(col_dir, "Senha Correios:", getattr(config, "CORREIOS_SENHA", ""), senha=True)
 
+        ctk.CTkLabel(
+            col_dir,
+            text="PODIO API (MENSAGERIA)",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=self.COR_VINHO
+        ).pack(pady=(16, 12))
+
+        self.entry_podio_client_id = self._campo_config(
+            col_dir, 
+            "Podio Client ID:", 
+            getattr(config, "PODIO_CLIENT_ID", "")
+        )
+        self.entry_podio_client_secret = self._campo_config(
+            col_dir, 
+            "Podio Client Secret:", 
+            getattr(config, "PODIO_CLIENT_SECRET", ""), 
+            senha=True
+        )
+
+        self.entry_podio_app_id = self._campo_config(
+            col_dir, 
+            "Podio App ID:", 
+            str(getattr(config, "PODIO_APP_ID", ""))
+        )
+        self.entry_podio_app_token = self._campo_config(
+            col_dir, 
+            "Podio App Token:", 
+            getattr(config, "PODIO_APP_TOKEN", ""), 
+            senha=True
+        )
+
         botoes = ctk.CTkFrame(container, fg_color="transparent")
         botoes.pack(fill=tk.X, pady=20)
 
@@ -1097,34 +1128,51 @@ class CentralAutomacaoMRV:
 
     def _salvar_credenciais(self):
         novo_email = self.entry_email.get().strip()
-        nova_senha = self.entry_senha.get().strip()
+        novo_senha = self.entry_senha.get().strip()
         nova_senha_malote = self.entry_senha_malote.get().strip()
         nova_api_key_agilis = self.entry_API_KEY_AGILIS.get().strip()
 
         novo_correios_cod = self.entry_correios_cod.get().strip()
         novo_correios_email = self.entry_correios_email.get().strip()
         novo_correios_senha = self.entry_correios_senha.get().strip()
+        
+        # Captura os campos do Podio (incluindo os novos)
+        novo_podio_id = self.entry_podio_client_id.get().strip()
+        novo_podio_secret = self.entry_podio_client_secret.get().strip()
+        novo_podio_app_id = self.entry_podio_app_id.get().strip()
+        novo_podio_app_token = self.entry_podio_app_token.get().strip()
 
+        # Salva no arquivo JSON config_mrv.json
         config.salvar_credenciais(
             novo_email,
-            nova_senha,
+            novo_senha,
             nova_senha_malote,
             nova_api_key_agilis,
             novo_correios_cod,
             novo_correios_email,
-            novo_correios_senha
+            novo_correios_senha,
+            novo_podio_id,
+            novo_podio_secret,
+            novo_podio_app_id,
+            novo_podio_app_token
         )
 
+        # Atualiza as variáveis em memória para uso imediato
         config.EMAIL_USER = novo_email
-        config.SENHA_USER = nova_senha
+        config.SENHA_USER = novo_senha
         config.SENHA_MALOTE = nova_senha_malote
         config.CHAVE_API_AGILIS = nova_api_key_agilis
         config.CORREIOS_COD_ADM = novo_correios_cod
         config.CORREIOS_EMAIL = novo_correios_email
         config.CORREIOS_SENHA = novo_correios_senha
+        
+        config.PODIO_CLIENT_ID = novo_podio_id
+        config.PODIO_CLIENT_SECRET = novo_podio_secret
+        config.PODIO_APP_ID = novo_podio_app_id
+        config.PODIO_APP_TOKEN = novo_podio_app_token
 
         config.EMAIL_MRV = novo_email
-        config.SENHA_MRV = nova_senha
+        config.SENHA_MRV = novo_senha
         config.SENHA_MALOTE_MRV = nova_senha_malote
         config.API_KEY_AGILIS = nova_api_key_agilis
 

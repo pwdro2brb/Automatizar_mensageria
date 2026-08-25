@@ -39,6 +39,29 @@ def executar_cobranca_boletos():
     "Matheus Silva De Lemos",
     "Carolina Pagnozzi Silva",
     }
+    PALAVRAS_CANCELAMENTO = [
+        "desconsiderar",
+        "cancelar",
+        "cancelado",
+        "ignorar",
+        "não cobrar",
+        "nao cobrar",
+        "cobrança indevida",
+        "cobranca indevida",
+        "encerrar",
+        "já resolvido",
+        "ja resolvido",
+        "favor desconsiderar"
+    ]
+
+    PALAVRAS_BOLETO = [
+    "boleto",
+    "fatura",
+    "pagamento",
+    "cobranca",
+    "cobrança",
+    "pix"
+    ]
 
     # Define a pasta onde o log será salvo (dist/arquivos/faturamento)
     PASTA_FATURAMENTO = os.path.join(config.PASTA_ARQUIVOS, "faturamento")
@@ -118,15 +141,15 @@ def executar_cobranca_boletos():
 
         try:
             pasta_faturamento = caixa_principal.Folders["faturamentoadm"]
+            print("Pasta 'faturamentoadm' encontrada.")
 
         except Exception:
-
             print(
-                f"A pasta 'faturamentoadm' não foi encontrada "
-                f"na caixa '{caixa_principal.Name}'."
+                "Pasta 'faturamentoadm' não encontrada. "
+                "Utilizando Caixa de Entrada."
             )
 
-            return
+            pasta_faturamento = namespace.GetDefaultFolder(6)  # Inbox
 
         itens_enviados = namespace.GetDefaultFolder(5)
 
@@ -271,6 +294,34 @@ def executar_cobranca_boletos():
                 if not ultima_eh_mrv:
                     continue
 
+                # ==================================================
+                # REGRA NOVA
+                # VERIFICA SE HOUVE CANCELAMENTO
+                # ==================================================
+
+                conversa_cancelada = False
+
+                for email in emails_validos:
+
+                    try:
+                        texto = (
+                            str(email.Subject or "") + " " +
+                            str(email.Body or "")
+                        ).lower()
+
+                        if any(
+                            palavra in texto
+                            for palavra in PALAVRAS_CANCELAMENTO
+                        ):
+                            conversa_cancelada = True
+                            break
+
+                    except:
+                        pass
+
+                if conversa_cancelada:
+                    print("Ignorado -> Conversa cancelada/desconsiderada")
+                    continue
 
                 # ==================================================
                 # REGRA 2
@@ -295,10 +346,10 @@ def executar_cobranca_boletos():
 
                 # ==================================================
                 # REGRA 3
-                # NÃO PODE EXISTIR PDF
+                # NÃO PODE EXISTIR BOLETO/ANEXO DE PAGAMENTO
                 # ==================================================
 
-                tem_pdf = False
+                tem_boleto = False
 
                 for email in emails_validos:
 
@@ -314,19 +365,26 @@ def executar_cobranca_boletos():
                                 .lower()
                             )
 
-                            if nome_arquivo.endswith(".pdf"):
-
-                                tem_pdf = True
+                            if (
+                                nome_arquivo.endswith(".pdf")
+                                or any(
+                                    palavra in nome_arquivo
+                                    for palavra in PALAVRAS_BOLETO
+                                )
+                            ):
+                                tem_boleto = True
                                 break
 
-                        if tem_pdf:
+                        if tem_boleto:
                             break
 
                     except:
                         pass
 
-                if tem_pdf:
-                    print("Ignorado -> Encontrou PDF")
+                if tem_boleto:
+                    print(
+                        "Ignorado -> Encontrado possível boleto/anexo de pagamento"
+                    )
                     continue
 
 

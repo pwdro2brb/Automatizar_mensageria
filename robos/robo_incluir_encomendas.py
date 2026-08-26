@@ -14,7 +14,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # Garante que o script consiga importar o config e treinar_ia da pasta raiz do Hub
 sys.path.append(str(Path(__file__).parent.parent))
 import config
-from treinar_ia import MAPA_PESSOAS, MAPA_ORIGEM_MALOTE,PODIO_APP_TOKEN,PODIO_APP_ID
+from treinar_ia import MAPA_PESSOAS, MAPA_ORIGEM_MALOTE
 
 # ==============================================================================
 # CONFIGURAÇÕES DO APLICATIVO (Lidas dinamicamente do Config do Hub)

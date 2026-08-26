@@ -3,7 +3,6 @@ from openpyxl import load_workbook, Workbook
 from openpyxl.styles import PatternFill, Font, Alignment, Border, Side, Color
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.dataframe import dataframe_to_rows
-from datetime import datetime
 import unicodedata
 import re
 import os
@@ -11,6 +10,7 @@ import glob
 import sys
 from pathlib import Path
 import config
+from datetime import datetime, date, time, timedelta
 # ==============================================================================
 # CONFIGURAÇÃO DE PASTAS DINÂMICAS
 # ==============================================================================
@@ -23,6 +23,183 @@ if not PASTA_UBER.exists():
 # =========================
 # FUNÇÕES AUXILIARES
 # =========================
+def inserir_coluna_depois(lista_colunas, coluna_nova, coluna_referencia):
+    if coluna_nova in lista_colunas:
+        lista_colunas.remove(coluna_nova)
+
+    if coluna_referencia in lista_colunas:
+        indice = lista_colunas.index(coluna_referencia) + 1
+        lista_colunas.insert(indice, coluna_nova)
+    else:
+        lista_colunas.append(coluna_nova)
+
+    return lista_colunas
+
+HORARIO_INICIO = time(7, 0)
+HORARIO_FIM = time(18, 0)
+
+
+
+DIAS_SEMANA_PT = {
+    0: "Segunda-feira",
+    1: "Terça-feira",
+    2: "Quarta-feira",
+    3: "Quinta-feira",
+    4: "Sexta-feira",
+    5: "Sábado",
+    6: "Domingo",
+}
+
+# Preencher com os feriados que devem ser considerados.
+# Use o formato (ano, mes, dia).
+FERIADOS = {
+    date(2026, 1, 1): "Confraternização Universal",
+    date(2026, 4, 21): "Tiradentes",
+    date(2026, 5, 1): "Dia do Trabalho",
+    date(2026, 9, 7): "Independência do Brasil",
+    date(2026, 10, 12): "Nossa Senhora Aparecida",
+    date(2026, 11, 2): "Finados",
+    date(2026, 11, 15): "Proclamação da República",
+    date(2026, 11, 20): "Dia Nacional de Zumbi e da Consciência Negra",
+    date(2026, 12, 25): "Natal",
+}
+
+def parse_data_local(valor):
+    """
+    Converte uma data do relatório Uber para date.
+
+    Tenta primeiro interpretar como mês/dia/ano, pois o arquivo
+    original da Uber está em padrão americano.
+    """
+
+    if valor is None or (
+        isinstance(valor, float) and pd.isna(valor)
+    ):
+        return None
+
+    if isinstance(valor, pd.Timestamp):
+        return valor.date()
+
+    if isinstance(valor, datetime):
+        return valor.date()
+
+    if isinstance(valor, date):
+        return valor
+
+    texto = str(valor).strip()
+
+    if not texto:
+        return None
+
+    formatos = (
+        "%m/%d/%Y",  # Padrão original Uber
+        "%d/%m/%Y",  # Padrão brasileiro
+        "%Y-%m-%d",
+    )
+
+    for formato in formatos:
+        try:
+            return datetime.strptime(texto, formato).date()
+        except ValueError:
+            continue
+
+    convertido = pd.to_datetime(
+        texto,
+        errors="coerce"
+    )
+
+    if pd.isna(convertido):
+        return None
+
+    return convertido.date()
+
+
+def parse_hora_local(valor):
+    """
+    Converte horários como:
+    9:02AM
+    12:17PM
+    18:30
+    """
+
+    if valor is None or (
+        isinstance(valor, float) and pd.isna(valor)
+    ):
+        return None
+
+    if isinstance(valor, datetime):
+        return valor.time().replace(second=0, microsecond=0)
+
+    if isinstance(valor, time):
+        return valor.replace(second=0, microsecond=0)
+
+    texto = str(valor).strip().upper().replace(" ", "")
+
+    if not texto:
+        return None
+
+    formatos = (
+        "%I:%M%p",
+        "%I:%M:%S%p",
+        "%H:%M",
+        "%H:%M:%S",
+    )
+
+    for formato in formatos:
+        try:
+            return datetime.strptime(texto, formato).time()
+        except ValueError:
+            continue
+
+    return None
+
+def classificar_corrida(data_valor, hora_valor):
+    data_corrida = parse_data_local(data_valor)
+    hora_corrida = parse_hora_local(hora_valor)
+
+    resultado = {
+        "data_obj": data_corrida,
+        "hora_obj": hora_corrida,
+        "dia_semana": "",
+        "alerta_horario": "",
+        "fora_horario": False,
+        "dia_especial": False,
+    }
+
+    alertas = []
+
+    if data_corrida is not None:
+        resultado["dia_semana"] = DIAS_SEMANA_PT[
+            data_corrida.weekday()
+        ]
+
+        if data_corrida in FERIADOS:
+            resultado["dia_especial"] = True
+            alertas.append(
+                f"Feriado: {FERIADOS[data_corrida]}"
+            )
+
+        elif data_corrida.weekday() >= 5:
+            resultado["dia_especial"] = True
+            alertas.append("Final de semana")
+
+    if hora_corrida is not None:
+        resultado["fora_horario"] = not (
+            HORARIO_INICIO <= hora_corrida <= HORARIO_FIM
+        )
+
+        if resultado["fora_horario"]:
+            alertas.append("Fora do horário comercial")
+        elif not alertas:
+            pass
+
+    if data_corrida is None or hora_corrida is None:
+        alertas = ["Data ou hora não reconhecida"]
+
+    resultado["alerta_horario"] = " | ".join(alertas)
+
+    return resultado
+
 def get_file_by_pattern(pattern):
     """Busca o arquivo mais recente na pasta do Uber que bata com o padrão."""
     files = list(PASTA_UBER.glob(pattern))
@@ -274,12 +451,38 @@ def etapa_2_gerar_relatorios():
     print("="*60)
     print(" UBER ETAPA 2: GERAR RELATÓRIOS E PASTAS ".center(60))
     print("="*60)
+
+    agora = datetime.now()
+
+    prev_month = agora.month - 1
+    prev_year = agora.year
+
+    if prev_month == 0:
+        prev_month = 12
+        prev_year -= 1
+
+    meses_pt = {
+        1: "Janeiro",
+        2: "Fevereiro",
+        3: "Março",
+        4: "Abril",
+        5: "Maio",
+        6: "Junho",
+        7: "Julho",
+        8: "Agosto",
+        9: "Setembro",
+        10: "Outubro",
+        11: "Novembro",
+        12: "Dezembro",
+    }
+
+    nome_mes = meses_pt[prev_month]
     
     # Validação de arquivos
     uber_path = get_file_by_pattern("Relatório*.xlsx")
     ativos_path = get_file_by_pattern("Base de Ativos*.xlsx")
     resp_path_atualizado = PASTA_UBER / "Responsaveis_Atualizado_SAP.xlsx"
-    resp_path_original = PASTA_UBER / "Responsaveis Por Centro de Custos.xlsx"
+    resp_path_original = get_file_by_pattern("Responsaveis*.xlsx")
     
     erros = []
     if not uber_path: erros.append("👉 Relatório do Uber (ex: 'Relatório Maio - 2026.xlsx')")
@@ -318,16 +521,20 @@ def etapa_2_gerar_relatorios():
         return False
 
     def fmt_date_as_text(x):
-        if pd.isna(x): return ""
-        dt = pd.to_datetime(x, errors="coerce")
-        if pd.isna(dt): return str(x).strip()
-        return dt.strftime("%d/%m/%Y")
+        data_convertida = parse_data_local(x)
+
+        if data_convertida is None:
+            return "" if pd.isna(x) else str(x).strip()
+
+        return data_convertida.strftime("%d/%m/%Y")
 
     def fmt_time_as_text(x):
-        if pd.isna(x): return ""
-        dt = pd.to_datetime(x, errors="coerce")
-        if pd.isna(dt): return str(x).strip()
-        return dt.strftime("%I:%M%p").lstrip("0")
+        hora_convertida = parse_hora_local(x)
+
+        if hora_convertida is None:
+            return "" if pd.isna(x) else str(x).strip()
+
+        return hora_convertida.strftime("%H:%M")
 
     print("[PROGRESSO: 15]")
     # =========================
@@ -436,6 +643,54 @@ def etapa_2_gerar_relatorios():
     col_nome = next((c for c in uber_df.columns if norm(c) == "NOME"), None)
     col_sobrenome = next((c for c in uber_df.columns if norm(c) == "SOBRENOME"), None)
 
+    col_data_solicitacao_local = find_col_by_prefix(
+        uber_df.columns,
+        "Data da solicitação (local)"
+    )
+
+    col_hora_solicitacao_local = find_col_by_prefix(
+        uber_df.columns,
+        "Hora da solicitação (local)"
+    )
+
+    if col_data_solicitacao_local is None:
+        raise RuntimeError(
+            "Coluna 'Data da solicitação (local)' não encontrada."
+        )
+
+    if col_hora_solicitacao_local is None:
+        raise RuntimeError(
+            "Coluna 'Hora da solicitação (local)' não encontrada."
+        )
+
+    classificacoes = [
+    classificar_corrida(data_valor, hora_valor)
+    for data_valor, hora_valor in zip(
+        uber_df[col_data_solicitacao_local],
+        uber_df[col_hora_solicitacao_local]
+        )
+    ]
+
+    uber_df["DIA DA SEMANA"] = [
+        item["dia_semana"]
+        for item in classificacoes
+    ]
+
+    uber_df["ALERTA DE HORÁRIO"] = [
+        item["alerta_horario"]
+        for item in classificacoes
+    ]
+
+    uber_df["_FORA_HORARIO"] = [
+        item["fora_horario"]
+        for item in classificacoes
+    ]
+
+    uber_df["_DIA_ESPECIAL"] = [
+        item["dia_especial"]
+        for item in classificacoes
+    ]
+
     for c in uber_df.columns:
         if norm(c).startswith("DATA "): uber_df[c] = uber_df[c].map(fmt_date_as_text)
         if norm(c).startswith("HORA "): uber_df[c] = uber_df[c].map(fmt_time_as_text)
@@ -486,17 +741,107 @@ def etapa_2_gerar_relatorios():
 
     uber_df["OBSERVAÇÃO"] = ""
 
-    anchor = next((c for c in uber_df.columns if norm(c) == norm("Valor da transação em BRL (com tributos)")), None)
-    new_cols = ["RESPONSÁVEL CC", "CARGO RESPONSÁVEL CC", "COLABORADOR AJUSTADO", "CARGO COLABORADOR", "OBSERVAÇÃO"]
-    cols = [c for c in uber_df.columns if c not in new_cols]
+    # =============================================================
+    # ORGANIZAÇÃO DAS COLUNAS DO CONSOLIDADO
+    # =============================================================
 
-    if anchor and anchor in cols:
-        idx = cols.index(anchor) + 1
-        cols = cols[:idx] + new_cols + cols[idx:]
+    colunas_novas = [
+        "DIA DA SEMANA",
+        "ALERTA DE HORÁRIO",
+        "RESPONSÁVEL CC",
+        "CARGO RESPONSÁVEL CC",
+        "COLABORADOR AJUSTADO",
+        "CARGO COLABORADOR",
+        "OBSERVAÇÃO",
+    ]
+
+    # Começa pelas colunas originais e retira as colunas novas,
+    # evitando que alguma delas seja inserida duas vezes.
+    cols = [
+        coluna
+        for coluna in uber_df.columns
+        if coluna not in colunas_novas
+    ]
+
+    # As colunas auxiliares nunca devem aparecer no relatório.
+    colunas_auxiliares = [
+        "_cc_norm",
+        "_FORA_HORARIO",
+        "_DIA_ESPECIAL",
+    ]
+
+    cols = [
+        coluna
+        for coluna in cols
+        if coluna not in colunas_auxiliares
+    ]
+
+    # Coloca DIA DA SEMANA após Data da solicitação local.
+    cols = inserir_coluna_depois(
+        cols,
+        "DIA DA SEMANA",
+        col_data_solicitacao_local
+    )
+
+    # Coloca ALERTA DE HORÁRIO após Hora da solicitação local.
+    cols = inserir_coluna_depois(
+        cols,
+        "ALERTA DE HORÁRIO",
+        col_hora_solicitacao_local
+    )
+
+    # Localiza a coluna de valor somente depois que cols já existe.
+    anchor = next(
+        (
+            coluna
+            for coluna in cols
+            if norm(coluna) == norm(
+                "Valor da transação em BRL (com tributos)"
+            )
+        ),
+        None
+    )
+
+    colunas_administrativas = [
+        "RESPONSÁVEL CC",
+        "CARGO RESPONSÁVEL CC",
+        "COLABORADOR AJUSTADO",
+        "CARGO COLABORADOR",
+        "OBSERVAÇÃO",
+    ]
+
+    if anchor is not None:
+        indice = cols.index(anchor) + 1
+
+        for coluna in colunas_administrativas:
+            cols.insert(indice, coluna)
+            indice += 1
     else:
-        cols += new_cols
+        cols.extend(colunas_administrativas)
 
-    uber_out_df = uber_df[cols].drop(columns=["_cc_norm"], errors="ignore")
+    indices_fora_horario = set(
+        uber_df.index[
+            uber_df["_FORA_HORARIO"].fillna(False)
+        ]
+    )
+
+    indices_dias_especiais = set(
+        uber_df.index[
+            uber_df["_DIA_ESPECIAL"].fillna(False)
+        ]
+    )
+
+    print(
+        f"ℹ️ Corridas fora do horário comercial: "
+        f"{len(indices_fora_horario)}"
+    )
+
+    print(
+        f"ℹ️ Corridas em finais de semana ou feriados: "
+        f"{len(indices_dias_especiais)}"
+    )
+
+    uber_out_df = uber_df[cols].copy()
 
     print("[PROGRESSO: 45]")
     # =========================
@@ -551,7 +896,73 @@ def etapa_2_gerar_relatorios():
 
     for col_name in AZUL_HEADERS: style_header(col_name, fill_azul)
     for col_name in ["Código da despesa", "Tipo de transação", "Valor da transação em BRL (com tributos)"]: style_header(col_name, fill_rosa)
-    for col_name in ["RESPONSÁVEL CC", "CARGO RESPONSÁVEL CC", "COLABORADOR AJUSTADO", "CARGO COLABORADOR", "OBSERVAÇÃO"]: style_header(col_name, fill_laranja)
+
+    for col_name in [
+        "DIA DA SEMANA",
+        "ALERTA DE HORÁRIO",
+        "RESPONSÁVEL CC",
+        "CARGO RESPONSÁVEL CC",
+        "COLABORADOR AJUSTADO",
+        "CARGO COLABORADOR",
+        "OBSERVAÇÃO",
+    ]:
+        style_header(col_name, fill_laranja)
+
+    fonte_vermelha = Font(color="FF0000")
+
+    idx_data_solicitacao = find_col_idx(
+        "Data da solicitação (local)"
+    )
+
+    idx_hora_solicitacao = find_col_idx(
+        "Hora da solicitação (local)"
+    )
+
+    idx_dia_semana = find_col_idx(
+        "DIA DA SEMANA"
+    )
+
+    idx_alerta_horario = find_col_idx(
+        "ALERTA DE HORÁRIO"
+    )
+
+    for linha_excel, indice_df in enumerate(
+        uber_out_df.index,
+        start=2
+    ):
+        # Solicitação antes das 07:00 ou depois das 18:00.
+        if indice_df in indices_fora_horario:
+            if idx_hora_solicitacao:
+                ws_out.cell(
+                    row=linha_excel,
+                    column=idx_hora_solicitacao
+                ).font = fonte_vermelha
+
+            if idx_alerta_horario:
+                ws_out.cell(
+                    row=linha_excel,
+                    column=idx_alerta_horario
+                ).font = fonte_vermelha
+
+        # Sábado, domingo ou feriado.
+        if indice_df in indices_dias_especiais:
+            if idx_data_solicitacao:
+                ws_out.cell(
+                    row=linha_excel,
+                    column=idx_data_solicitacao
+                ).font = fonte_vermelha
+
+            if idx_dia_semana:
+                ws_out.cell(
+                    row=linha_excel,
+                    column=idx_dia_semana
+                ).font = fonte_vermelha
+
+            if idx_alerta_horario:
+                ws_out.cell(
+                    row=linha_excel,
+                    column=idx_alerta_horario
+                ).font = fonte_vermelha
 
     ws_out.row_dimensions[1].height = 22
     wb_out.save(out_consolidado)
@@ -583,12 +994,20 @@ def etapa_2_gerar_relatorios():
         macro_unique["_email_norm"] = macro_unique["E-mail"].map(norm_email)
         macro_unique = macro_unique.drop_duplicates("_email_norm", keep="first").drop(columns=["_email_norm"])
 
-    now = datetime.now()
-    prev_month = now.month - 1
-    prev_year = now.year
-    if prev_month == 0:
-        prev_month = 12
-        prev_year -= 1
+    meses_pt = {
+        1: "Janeiro",
+        2: "Fevereiro",
+        3: "Março",
+        4: "Abril",
+        5: "Maio",
+        6: "Junho",
+        7: "Julho",
+        8: "Agosto",
+        9: "Setembro",
+        10: "Outubro",
+        11: "Novembro",
+        12: "Dezembro",
+    }    
 
     macro_filename = PASTA_UBER / f"TESTE MACRO {prev_year},{prev_month:02d} COM_ESTILO.xlsx"
     email_filename = PASTA_UBER / "Enviar_e-mail original COM_ESTILO.xlsx"
@@ -618,8 +1037,16 @@ def etapa_2_gerar_relatorios():
         ws_e[cell].font = header_font
 
     body_text = (
-        f"Segue em anexo as utilizações do Uber coorporativo referente ao mês de {now.strftime('%B')} de {prev_year}, "
-        "solicitados nos centros de custos sob sua responsabilidade. Caso estiver de acordo, não é necessário responder esse e-mail."
+        f"Segue em anexo o relatório de utilizações do Uber Corporativo "
+        f"referente ao mês de {nome_mes} de {prev_year}, relacionadas aos "
+        f"centros de custos sob sua responsabilidade.\n\n"
+        f"O relatório contém uma nova coluna com o dia da semana em que cada "
+        f"corrida foi solicitada. As informações exibidas em fonte vermelha "
+        f"indicam solicitações realizadas fora do horário comercial, definido "
+        f"entre 07:00 e 18:00, ou em sábados, domingos e feriados.\n\n"
+        f"Os destaques têm caráter informativo e devem ser avaliados conforme "
+        f"o contexto de cada deslocamento. Caso esteja de acordo, não é "
+        f"necessário responder a este e-mail."
     )
 
     for i, r in enumerate(macro_unique.itertuples(index=False), start=2):
@@ -652,10 +1079,25 @@ def etapa_2_gerar_relatorios():
         col_resp_cc = find_col_by_prefix(cons_df.columns, "RESPONSÁVEL CC")
 
         colunas_saida = [
-            "Data da solicitação (local)", "Hora da solicitação (local)", "Data de chegada (local)",
-            "Hora de chegada (local)", "Nome", "Sobrenome", "Nome ajustado", "E-mail", "Cidade",
-            "Distância (mi)", "Duração (min)", "Endereço de partida", "Endereço de destino",
-            "Código da despesa", "Responsavel", "Detalhamento da despesa", "Valor da transação em BRL (com tributos)",
+            "Data da solicitação (local)",
+            "DIA DA SEMANA",
+            "Hora da solicitação (local)",
+            "ALERTA DE HORÁRIO",
+            "Data de chegada (local)",
+            "Hora de chegada (local)",
+            "Nome",
+            "Sobrenome",
+            "Nome ajustado",
+            "E-mail",
+            "Cidade",
+            "Distância (mi)",
+            "Duração (min)",
+            "Endereço de partida",
+            "Endereço de destino",
+            "Código da despesa",
+            "Responsavel",
+            "Detalhamento da despesa",
+            "Valor da transação em BRL (com tributos)",
         ]
 
         roxo = PatternFill("solid", fgColor="7030A0")
@@ -692,6 +1134,23 @@ def etapa_2_gerar_relatorios():
             ws.auto_filter.ref = ws.dimensions
 
             header_map = {ws.cell(1, j).value: j for j in range(1, ws.max_column + 1)}
+            fonte_vermelha = Font(color="FF0000")
+
+            col_data_solicitacao = header_map.get(
+                "Data da solicitação (local)"
+            )
+
+            col_dia_semana = header_map.get(
+                "DIA DA SEMANA"
+            )
+
+            col_hora_solicitacao = header_map.get(
+                "Hora da solicitação (local)"
+            )
+
+            col_alerta_horario = header_map.get(
+                "ALERTA DE HORÁRIO"
+            )
             for col_name, idx in header_map.items():
                 cell = ws.cell(1, idx)
                 cell.fill = roxo
@@ -699,9 +1158,17 @@ def etapa_2_gerar_relatorios():
                 cell.alignment = center
                 cell.border = border
 
-            for special in ["Nome ajustado", "Responsavel"]:
+            for special in [
+                "DIA DA SEMANA",
+                "ALERTA DE HORÁRIO",
+                "Nome ajustado",
+                "Responsavel",
+            ]:
                 if special in header_map:
-                    cell = ws.cell(1, header_map[special])
+                    cell = ws.cell(
+                        row=1,
+                        column=header_map[special]
+                    )
                     cell.fill = laranja
 
             max_row, max_col = ws.max_row, ws.max_column
@@ -710,12 +1177,32 @@ def etapa_2_gerar_relatorios():
                     cell = ws.cell(r, c)
                     if cell.value not in (None, ""): cell.border = border
 
-            cols_centralizar = list(range(1, 6)) + list(range(9, 12)) + [14, 17]
+            colunas_centralizar_nomes = [
+                "Data da solicitação (local)",
+                "DIA DA SEMANA",
+                "Hora da solicitação (local)",
+                "ALERTA DE HORÁRIO",
+                "Data de chegada (local)",
+                "Hora de chegada (local)",
+                "Cidade",
+                "Distância (mi)",
+                "Duração (min)",
+                "Código da despesa",
+                "Valor da transação em BRL (com tributos)",
+            ]
+
+            cols_centralizar = [
+                header_map[nome]
+                for nome in colunas_centralizar_nomes
+                if nome in header_map
+            ]
+
             for r in range(2, max_row + 1):
                 for c in cols_centralizar:
-                    if c <= max_col:
-                        cell = ws.cell(r, c)
-                        if cell.value not in (None, ""): cell.alignment = center
+                    cell = ws.cell(row=r, column=c)
+
+                    if cell.value not in (None, ""):
+                        cell.alignment = center
 
             ws.row_dimensions[1].height = 50
             for r in range(2, ws.max_row + 1): ws.row_dimensions[r].height = 15
@@ -730,6 +1217,71 @@ def etapa_2_gerar_relatorios():
                         cell.value = val
                         cell.number_format = BRL_FORMAT
 
+            for r in range(2, ws.max_row + 1):
+                texto_dia = ""
+
+                if col_dia_semana:
+                    valor_dia = ws.cell(
+                        row=r,
+                        column=col_dia_semana
+                    ).value
+
+                    if valor_dia is not None:
+                        texto_dia = str(valor_dia).strip()
+
+                texto_alerta = ""
+
+                if col_alerta_horario:
+                    valor_alerta = ws.cell(
+                        row=r,
+                        column=col_alerta_horario
+                    ).value
+
+                    if valor_alerta is not None:
+                        texto_alerta = str(valor_alerta).strip()
+
+                fora_horario = (
+                    "Fora do horário comercial" in texto_alerta
+                )
+
+                dia_especial = (
+                    texto_dia in {"Sábado", "Domingo"}
+                    or "Feriado:" in texto_alerta
+                )
+
+                if fora_horario:
+                    if col_hora_solicitacao:
+                        ws.cell(
+                            row=r,
+                            column=col_hora_solicitacao
+                        ).font = fonte_vermelha
+
+                    if col_alerta_horario:
+                        ws.cell(
+                            row=r,
+                            column=col_alerta_horario
+                        ).font = fonte_vermelha
+
+                if dia_especial:
+                    if col_data_solicitacao:
+                        ws.cell(
+                            row=r,
+                            column=col_data_solicitacao
+                        ).font = fonte_vermelha
+
+                    if col_dia_semana:
+                        ws.cell(
+                            row=r,
+                            column=col_dia_semana
+                        ).font = fonte_vermelha
+
+                    if col_alerta_horario:
+                        ws.cell(
+                            row=r,
+                            column=col_alerta_horario
+                        ).font = fonte_vermelha
+
+            
             file_name = sanitize_filename(resp) + ".xlsx"
             wb.save(pasta_mes_path / file_name)
             
@@ -741,6 +1293,7 @@ def etapa_2_gerar_relatorios():
 
     criar_planilhas_por_responsavel(consolidado_path=out_consolidado, teste_macro_path=macro_filename)
 
+    nome_mes = meses_pt[prev_month]
     # =========================
     # 7) GERAR PENDENCIAS_CARGO.xlsx
     # =========================

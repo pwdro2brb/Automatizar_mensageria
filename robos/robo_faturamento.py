@@ -510,7 +510,12 @@ def executar_faturamento_completo():
 
             print("Gerando RATEIO PAG.xlsx...")
             try:
-                gerar_rateio_pag(caminho_correios=caminho_correios, caminho_rr=caminho_rr, saida=caminho_rateio_pag, debug=False)
+                gerar_rateio_pag(
+                    caminho_correios=caminho_correios,
+                    caminho_rr=caminho_rr,
+                    saida=caminho_rateio_pag,
+                    debug=True
+                )
                 print("✅ RATEIO PAG gerado com sucesso!")
             except Exception as e:
                 print(f"⚠️ Erro ao gerar RATEIO PAG: {e}")
@@ -1751,291 +1756,531 @@ def selecionar_opcao_justificativa_com_hover(driver, wait, texto_alvo="2 - Orien
     except Exception as e3: raise RuntimeError(f"Falha ao selecionar a justificativa (mesmo com hover): {repr(e3)}")
 
 def _strip_accents(s: str) -> str:
-    if pd.isna(s) or s is None: return ''
+    if pd.isna(s) or s is None:
+        return ''
     s = unicodedata.normalize('NFKD', str(s))
     return ''.join(ch for ch in s if not unicodedata.combining(ch))
+
 
 def _norm_colname(s: str) -> str:
     return _strip_accents(str(s)).lower().strip()
 
+
 def _clean_str(x) -> str:
-    if pd.isna(x): return ''
+    if pd.isna(x):
+        return ''
     if isinstance(x, float):
-        if x.is_integer(): return str(int(x))
+        if x.is_integer():
+            return str(int(x))
         return str(x)
     s = str(x).strip()
-    if s.endswith('.0'): s = s[:-2]
+    if s.endswith('.0'):
+        s = s[:-2]
     return s
+
 
 def _norm_coletor(x: str) -> str:
     up = _strip_accents(_clean_str(x)).upper()
     return re.sub(r'[^A-Z0-9]', '', up)
 
+
 def _is_valid_coletor(coletor: str) -> bool:
-    if pd.isna(coletor) or str(coletor).strip() == '' or str(coletor).strip().lower() == 'nan': return False
-    c = _strip_accents(_clean_str(coletor)).upper()
-    c_clean = re.sub(r'[^A-Z0-9]', '', c)
-    if re.fullmatch(r'\d{6,}', c_clean): return True
-    if 6 <= len(c_clean) <= 12 and any(x.isalpha() for x in c_clean) and any(x.isdigit() for x in c_clean): return True
+    if pd.isna(coletor) or str(coletor).strip() == '' or str(coletor).strip().lower() == 'nan':
+        return False
+
+    c_clean = _norm_coletor(coletor)
+
+    if re.fullmatch(r'\d{6,}', c_clean):
+        return True
+
+    if 6 <= len(c_clean) <= 12 and any(x.isalpha() for x in c_clean) and any(x.isdigit() for x in c_clean):
+        return True
+
     return False
+
 
 def _tipo_de_coletor(coletor: str) -> str:
     c = _norm_coletor(coletor)
-    if c == 'SEMCENTRODECUSTO': return '-'
-    if re.fullmatch(r'\d+', c): return 'N'
-    if any(x.isalpha() for x in c) and any(x.isdigit() for x in c): return 'K'
+
+    if c == 'SEMCENTRODECUSTO':
+        return '-'
+    if re.fullmatch(r'\d+', c):
+        return 'N'
+    if any(x.isalpha() for x in c) and any(x.isdigit() for x in c):
+        return 'K'
+
     return ''
+
 
 def _clean_valor_series(s: pd.Series) -> pd.Series:
     def limpa_valor(val):
-        if pd.isna(val) or str(val).strip() == '': return None
-        if isinstance(val, (int, float)): return float(val)
-        v = str(val).upper().replace('R$', '').replace('\xa0', '').replace(' ', '').strip()
-        if '.' in v and ',' in v: v = v.replace('.', '').replace(',', '.')
-        elif ',' in v: v = v.replace(',', '.')
-        try: return float(v)
-        except ValueError: return None
+        if pd.isna(val) or str(val).strip() == '':
+            return None
+        if isinstance(val, (int, float)):
+            return float(val)
+
+        v = (
+            str(val)
+            .upper()
+            .replace('R$', '')
+            .replace('\xa0', '')
+            .replace(' ', '')
+            .strip()
+        )
+
+        if '.' in v and ',' in v:
+            v = v.replace('.', '').replace(',', '.')
+        elif ',' in v:
+            v = v.replace(',', '.')
+
+        try:
+            return float(v)
+        except ValueError:
+            return None
+
     return s.apply(limpa_valor)
+
 
 def ler_rr_bruto(caminho_rr: Union[str, Path]) -> pd.DataFrame:
     df_raw = pd.read_excel(caminho_rr, header=None, engine='openpyxl')
-    
+
     col_coletor = -1
     col_valor = -1
     linha_cabecalho = -1
-    
-    # Procura onde estão os cabeçalhos "COLETOR" e "VALOR"
+
     for i, row in df_raw.head(20).iterrows():
         row_str = [str(x).strip().upper() for x in row.values]
-        
         achou_coletor = False
         achou_valor = False
-        
+
         for j, val in enumerate(row_str):
-            # Agora aceita "CC/ OBRA", "OBRA", "CENTRO DE CUSTO", "COLETOR", etc.
-            if any(palavra in val for palavra in ['COLETOR', 'CENTRO DE CUSTO', 'CC/', 'CC /', 'OBRA']) or val == 'CC':
+            if (
+                any(palavra in val for palavra in ['COLETOR', 'CENTRO DE CUSTO', 'CC/', 'CC /', 'OBRA'])
+                or val == 'CC'
+            ):
                 col_coletor = j
                 achou_coletor = True
             elif 'VALOR' in val:
                 col_valor = j
                 achou_valor = True
-                
+
         if achou_coletor and achou_valor:
             linha_cabecalho = i
             break
-            
+
     if linha_cabecalho == -1 or col_coletor == -1 or col_valor == -1:
-        print("⚠️ Aviso: Não encontrei as colunas COLETOR e VALOR no Rateio Recebido.")
+        print('Aviso: nao encontrei as colunas COLETOR e VALOR no Rateio Recebido.')
         return pd.DataFrame(columns=['TIPOCOLETOR', 'COLETOR', 'VALOR'])
-        
-    # Extrai os dados abaixo do cabeçalho
+
     df_clean = df_raw.iloc[linha_cabecalho + 1:].copy()
     df_clean = df_clean[[col_coletor, col_valor]]
     df_clean.columns = ['COLETOR_ORIG', 'VALOR']
-    
-    # FILTRO INTELIGENTE: Remove as linhas de "Total" ou rodapés inválidos
+
     df_clean = df_clean[df_clean['COLETOR_ORIG'].apply(_is_valid_coletor)].copy()
-    
-    # Limpa os valores usando a sua função existente
     df_clean['VALOR'] = _clean_valor_series(df_clean['VALOR'])
     df_clean = df_clean.dropna(subset=['VALOR'])
-    
-    # Padroniza os coletores
     df_clean['COLETOR'] = df_clean['COLETOR_ORIG'].apply(_norm_coletor)
-    
-    # Define o tipo (K ou N) automaticamente
     df_clean['TIPOCOLETOR'] = df_clean['COLETOR'].apply(_tipo_de_coletor)
-    
+
     return df_clean[['TIPOCOLETOR', 'COLETOR', 'VALOR']]
 
+
 def _extrair_coletor_de_titular(texto: str) -> str:
-    if pd.isna(texto) or str(texto).strip() == '': return "SEM CENTRO DE CUSTO"
+    if pd.isna(texto) or str(texto).strip() == '':
+        return 'SEM CENTRO DE CUSTO'
+
     t = _strip_accents(str(texto)).upper()
-    
+
     m = re.search(r'(?<!\d)(\d{6,})(?!\d)', t)
-    if m: return _norm_coletor(m.group(1))
-    
+    if m:
+        return _norm_coletor(m.group(1))
+
     palavras = t.split()
+
     for p in palavras:
         p_clean = re.sub(r'[^A-Z0-9]', '', p)
         if 6 <= len(p_clean) <= 12 and any(c.isalpha() for c in p_clean) and any(c.isdigit() for c in p_clean):
             return p_clean
-            
+
     for i in range(len(palavras) - 1):
         p1 = re.sub(r'[^A-Z0-9]', '', palavras[i])
-        p2 = re.sub(r'[^A-Z0-9]', '', palavras[i+1])
+        p2 = re.sub(r'[^A-Z0-9]', '', palavras[i + 1])
         comb = p1 + p2
+
         if 8 <= len(comb) <= 12 and any(c.isalpha() for c in comb) and any(c.isdigit() for c in comb):
             return comb
-            
-    return "SEM CENTRO DE CUSTO"
+
+    return 'SEM CENTRO DE CUSTO'
+
 
 def ler_correios_bruto(caminho_correios: Union[str, Path]) -> Tuple[pd.DataFrame, float]:
     df_raw = pd.read_excel(caminho_correios, header=None, engine='openpyxl')
+
     idx_header = -1
-    col_titular, col_valor = -1, -1
-    
+    col_titular = -1
+    col_valor = -1
+
     for i, row in df_raw.head(20).iterrows():
         row_norm = [_norm_colname(str(x)) for x in row.values]
-        if any('titular do cartao' in c for c in row_norm) and any('valor do servico' in c for c in row_norm):
+
+        encontrou_titular = any('titular do cartao' in coluna for coluna in row_norm)
+        encontrou_valor = any('valor do servico' in coluna for coluna in row_norm)
+
+        if encontrou_titular and encontrou_valor:
             idx_header = i
-            for j, c in enumerate(row_norm):
-                if 'titular do cartao' in c: col_titular = j
-                if 'valor do servico' in c: col_valor = j
+
+            for j, coluna in enumerate(row_norm):
+                if 'titular do cartao' in coluna:
+                    col_titular = j
+                if 'valor do servico' in coluna:
+                    col_valor = j
             break
-            
+
     valor_liquido = 0.0
     idx_fim_tabela = len(df_raw)
-    
+
     for i in range(len(df_raw) - 1, -1, -1):
         row_norm = [_norm_colname(str(x)) for x in df_raw.iloc[i].values]
-        if any('valor liquido' in c for c in row_norm):
+
+        if any('valor liquido' in coluna for coluna in row_norm):
             idx_fim_tabela = i
-            for j, c in enumerate(row_norm):
-                if 'valor liquido' in c:
-                    if i + 1 < len(df_raw):
-                        val_raw = df_raw.iloc[i + 1, j]
-                        valor_liquido = _clean_valor_series(pd.Series([val_raw])).iloc[0]
+
+            for j, coluna in enumerate(row_norm):
+                if 'valor liquido' in coluna and i + 1 < len(df_raw):
+                    val_raw = df_raw.iloc[i + 1, j]
+                    valor_convertido = _clean_valor_series(pd.Series([val_raw])).iloc[0]
+
+                    if pd.notna(valor_convertido):
+                        valor_liquido = float(valor_convertido)
                     break
             break
 
-    if idx_header == -1: 
-        return pd.DataFrame(columns=['TIPOCOLETOR', 'COLETOR', 'VALOR']), valor_liquido
-    
-    df = df_raw.iloc[idx_header + 1 : idx_fim_tabela, [col_titular, col_valor]].copy()
+    if idx_header == -1 or col_titular == -1 or col_valor == -1:
+        return (
+            pd.DataFrame(columns=['TIPOCOLETOR', 'COLETOR', 'VALOR']),
+            valor_liquido,
+        )
+
+    df = df_raw.iloc[idx_header + 1:idx_fim_tabela, [col_titular, col_valor]].copy()
     df.columns = ['TITULAR', 'VALOR']
-    
-    mask_ignorar = df['TITULAR'].astype(str).str.upper().str.contains('ENCARGO|DESCONTO|CREDITO')
-    df = df[~mask_ignorar].copy()
-    
+
+    # Nao elimina CREDITO IMOBILIARIO. Remove somente linhas financeiras explicitas.
+    titular_normalizado = (
+        df['TITULAR']
+        .astype(str)
+        .str.replace('\xa0', ' ', regex=False)
+        .str.strip()
+        .str.upper()
+    )
+
+    mask_lancamento_financeiro = titular_normalizado.str.match(
+        r'^(ENCARGO|DESCONTO|CREDITO\s*-\s*CARTAO)',
+        na=False,
+    )
+
+    df = df[~mask_lancamento_financeiro].copy()
     df['VALOR'] = _clean_valor_series(df['VALOR'])
     df = df.dropna(subset=['VALOR'])
     df['COLETOR'] = df['TITULAR'].apply(_extrair_coletor_de_titular)
     df['TIPOCOLETOR'] = df['COLETOR'].apply(_tipo_de_coletor)
-    
+
     return df[['TIPOCOLETOR', 'COLETOR', 'VALOR']], valor_liquido
 
-def _formatar_planilha_final(arquivo_xlsx: Union[str, Path], sheet='Planilha1'):
+
+def _distribuir_diferenca_igualmente(
+    df: pd.DataFrame,
+    diferenca: float,
+    coluna_valor: str = 'VALOR',
+) -> pd.DataFrame:
+    resultado = df.copy().reset_index(drop=True)
+
+    if resultado.empty:
+        return resultado
+
+    diferenca_centavos = int(round(float(diferenca) * 100))
+
+    if diferenca_centavos == 0:
+        resultado[coluna_valor] = resultado[coluna_valor].astype(float).round(2)
+        return resultado
+
+    quantidade_linhas = len(resultado)
+    sinal = 1 if diferenca_centavos > 0 else -1
+    centavos_absolutos = abs(diferenca_centavos)
+    ajuste_base = centavos_absolutos // quantidade_linhas
+    centavos_restantes = centavos_absolutos % quantidade_linhas
+
+    ajustes = []
+
+    for posicao in range(quantidade_linhas):
+        ajuste_linha = ajuste_base
+        if posicao < centavos_restantes:
+            ajuste_linha += 1
+        ajustes.append(sinal * ajuste_linha / 100)
+
+    resultado['AJUSTE_TEMPORARIO'] = ajustes
+    resultado[coluna_valor] = (
+        resultado[coluna_valor].astype(float) + resultado['AJUSTE_TEMPORARIO']
+    ).round(2)
+    resultado = resultado.drop(columns=['AJUSTE_TEMPORARIO'])
+
+    return resultado
+
+
+def _encontrar_lancamentos_ausentes(
+    candidatos: pd.DataFrame,
+    valor_faltante: float,
+    tolerancia: float = 0.05,
+) -> pd.DataFrame:
+    if candidatos.empty:
+        return candidatos.copy()
+
+    alvo_centavos = int(round(float(valor_faltante) * 100))
+    tolerancia_centavos = int(round(float(tolerancia) * 100))
+
+    if alvo_centavos <= tolerancia_centavos:
+        return candidatos.iloc[0:0].copy()
+
+    candidatos = candidatos.copy().reset_index(drop=True)
+    valores_centavos = [int(round(float(valor) * 100)) for valor in candidatos['VALOR']]
+
+    combinacoes = {0: []}
+
+    for posicao, valor_centavos in enumerate(valores_centavos):
+        novas_combinacoes = {}
+
+        for soma_atual, posicoes in list(combinacoes.items()):
+            nova_soma = soma_atual + valor_centavos
+
+            if nova_soma > alvo_centavos + tolerancia_centavos:
+                continue
+
+            if nova_soma not in combinacoes and nova_soma not in novas_combinacoes:
+                novas_combinacoes[nova_soma] = posicoes + [posicao]
+
+        combinacoes.update(novas_combinacoes)
+
+    somas_validas = [
+        soma
+        for soma in combinacoes
+        if abs(soma - alvo_centavos) <= tolerancia_centavos
+    ]
+
+    if not somas_validas:
+        return candidatos.iloc[0:0].copy()
+
+    melhor_soma = min(somas_validas, key=lambda soma: abs(soma - alvo_centavos))
+    return candidatos.iloc[combinacoes[melhor_soma]].copy()
+
+
+def _formatar_planilha_final(arquivo_xlsx: Union[str, Path], sheet: str = 'Planilha1'):
     wb = load_workbook(arquivo_xlsx)
+
     if sheet not in wb.sheetnames:
-        wb.close(); return
+        wb.close()
+        return
+
     ws = wb[sheet]
     header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+
     try:
         idx_valor = header.index('VALOR') + 1
-        idx_op = header.index('OPERACAO') + 1
     except ValueError:
-        wb.close(); return
-        
+        wb.close()
+        return
+
     for row in ws.iter_rows(min_row=2):
         cell_valor = row[idx_valor - 1]
         if isinstance(cell_valor.value, (int, float)):
             cell_valor.number_format = numbers.FORMAT_NUMBER_00
-            
+
     wb.save(arquivo_xlsx)
     wb.close()
+
 
 def gerar_rateio_pag(
     caminho_correios: Union[str, Path],
     caminho_rr: Union[str, Path],
     saida: Union[str, Path] = 'RATEIO PAG.xlsx',
     operacao_para_diagrama: int = 10,
-    tolerancia_igual: float = 0.05, 
-    debug: bool = True
+    tolerancia_igual: float = 0.05,
+    debug: bool = True,
 ) -> pd.DataFrame:
-
-    # 1. Lê os arquivos
     df_rr_raw = ler_rr_bruto(caminho_rr)
     df_corr_raw, valor_liquido_correios = ler_correios_bruto(caminho_correios)
 
     df_rr_raw['VALOR'] = pd.to_numeric(df_rr_raw['VALOR'], errors='coerce').fillna(0.0)
     df_corr_raw['VALOR'] = pd.to_numeric(df_corr_raw['VALOR'], errors='coerce').fillna(0.0)
 
-    total_rr = float(df_rr_raw['VALOR'].sum()) if not df_rr_raw.empty else 0.0
-    total_corr_soma = float(df_corr_raw['VALOR'].sum()) if not df_corr_raw.empty else 0.0
-    total_corr = valor_liquido_correios if valor_liquido_correios > 0 else total_corr_soma
-
-    if debug:
-        print(f"[DEBUG] TOTAL RR               = R$ {total_rr:.2f}")
-        print(f"[DEBUG] TOTAL CORREIOS (SOMA)  = R$ {total_corr_soma:.2f}")
-        print(f"[DEBUG] TOTAL CORREIOS (LÍQ)   = R$ {valor_liquido_correios:.2f}")
-
-    # 2. Agrupa os valores por Centro de Custo para evitar duplicidades
-    df_corr_grouped = df_corr_raw.groupby(['TIPOCOLETOR', 'COLETOR'], as_index=False)['VALOR'].sum()
-    
     if not df_rr_raw.empty:
-        df_rr_grouped = df_rr_raw.groupby(['TIPOCOLETOR', 'COLETOR'], as_index=False)['VALOR'].sum()
+        df_rr_grouped = (
+            df_rr_raw.groupby(['TIPOCOLETOR', 'COLETOR'], as_index=False)['VALOR'].sum()
+        )
     else:
         df_rr_grouped = pd.DataFrame(columns=['TIPOCOLETOR', 'COLETOR', 'VALOR'])
 
-    linhas_finais = []
-    
-    # Cria uma lista com os Centros de Custo que vieram no e-mail
-    ccs_no_email = set(df_rr_grouped['COLETOR'].tolist())
+    if not df_corr_raw.empty:
+        df_corr_grouped = (
+            df_corr_raw.groupby(['TIPOCOLETOR', 'COLETOR'], as_index=False)['VALOR'].sum()
+        )
+    else:
+        df_corr_grouped = pd.DataFrame(columns=['TIPOCOLETOR', 'COLETOR', 'VALOR'])
 
-    # PASSO A: Adiciona tudo que veio no e-mail (Prioridade Máxima)
-    for _, row in df_rr_grouped.iterrows():
-        linhas_finais.append({
-            'TIPOCOLETOR': row['TIPOCOLETOR'],
-            'COLETOR': row['COLETOR'],
-            'VALOR': row['VALOR']
-        })
+    df_rr_grouped['VALOR'] = df_rr_grouped['VALOR'].astype(float).round(2)
+    df_corr_grouped['VALOR'] = df_corr_grouped['VALOR'].astype(float).round(2)
 
-    # PASSO B: Adiciona os CCs dos Correios que NÃO foram mencionados no e-mail
-    # (Ex: PRIMDF3023, PRIMGO3023 vão entrar aqui com seus valores originais intactos)
-    for _, row in df_corr_grouped.iterrows():
-        if row['COLETOR'] not in ccs_no_email:
-            linhas_finais.append({
-                'TIPOCOLETOR': row['TIPOCOLETOR'],
-                'COLETOR': row['COLETOR'],
-                'VALOR': row['VALOR']
-            })
+    total_rr = round(float(df_rr_grouped['VALOR'].sum()), 2)
+    total_bruto_correios = round(float(df_corr_raw['VALOR'].sum()), 2)
 
-    # 3. Transforma na base final
-    final_base = pd.DataFrame(linhas_finais)
+    if valor_liquido_correios is not None and float(valor_liquido_correios) > 0:
+        total_liquido_correios = round(float(valor_liquido_correios), 2)
+    else:
+        total_liquido_correios = total_bruto_correios
 
-    # 4. Rateio Proporcional de Diferenças (Centavos, Encargos, Descontos)
-    soma_atual = final_base['VALOR'].sum() if not final_base.empty else 0.0
-    diferenca_rateio = round(total_corr - soma_atual, 2)
-    
-    if abs(diferenca_rateio) > 0.02 and not final_base.empty:
-        if debug: print(f"[DEBUG] Rateando R$ {diferenca_rateio:.2f} (Encargos/Descontos) proporcionalmente...")
-        
-        soma_validos = final_base['VALOR'].sum()
-        if soma_validos > 0:
-            final_base['VALOR_ADD'] = (final_base['VALOR'] / soma_validos) * diferenca_rateio
-            final_base['VALOR_ADD'] = final_base['VALOR_ADD'].round(2)
-            
-            # Ajuste de centavos no maior valor para bater exatamente com o boleto
-            diff_centavos = round(diferenca_rateio - final_base['VALOR_ADD'].sum(), 2)
-            if diff_centavos != 0:
-                idx_max = final_base['VALOR'].idxmax() 
-                final_base.loc[idx_max, 'VALOR_ADD'] += diff_centavos 
-                
-            final_base['VALOR'] += final_base['VALOR_ADD']
-            final_base = final_base.drop(columns=['VALOR_ADD'])
+    if debug:
+        print(f'[DEBUG] TOTAL RATEIO RECEBIDO = R$ {total_rr:.2f}')
+        print(f'[DEBUG] TOTAL BRUTO CORREIOS  = R$ {total_bruto_correios:.2f}')
+        print(f'[DEBUG] TOTAL LIQUIDO CORREIOS = R$ {total_liquido_correios:.2f}')
 
-    # 5. Formatar para o MRV Pag
+    if df_rr_grouped.empty:
+        if debug:
+            print('[DEBUG] Rateio Recebido vazio. Usando a distribuicao original dos Correios.')
+        final_base = df_corr_grouped.copy()
+    else:
+        final_base = df_rr_grouped.copy()
+        diferenca_para_bruto = round(total_bruto_correios - total_rr, 2)
+
+        if abs(diferenca_para_bruto) <= tolerancia_igual:
+            if debug:
+                print('[DEBUG] Rateio Recebido ja corresponde ao valor bruto.')
+                print('[DEBUG] Nenhum CC original dos Correios sera acrescentado.')
+
+        elif diferenca_para_bruto > tolerancia_igual:
+            if debug:
+                print(f'[DEBUG] Faltam R$ {diferenca_para_bruto:.2f} para chegar ao valor bruto.')
+
+            ccs_no_email = set(final_base['COLETOR'].tolist())
+            candidatos_ausentes = (
+                df_corr_grouped[~df_corr_grouped['COLETOR'].isin(ccs_no_email)]
+                .copy()
+                .reset_index(drop=True)
+            )
+
+            lancamentos_ausentes = _encontrar_lancamentos_ausentes(
+                candidatos=candidatos_ausentes,
+                valor_faltante=diferenca_para_bruto,
+                tolerancia=tolerancia_igual,
+            )
+
+            if lancamentos_ausentes.empty:
+                raise ValueError(
+                    'O Rateio Recebido esta abaixo do valor bruto, mas nao foi encontrada '
+                    'uma combinacao segura de CCs ausentes.\n'
+                    f'Rateio Recebido: R$ {total_rr:.2f}\n'
+                    f'Valor bruto: R$ {total_bruto_correios:.2f}\n'
+                    f'Valor faltante: R$ {diferenca_para_bruto:.2f}\n'
+                    'O RATEIO PAG nao foi gerado para evitar uma distribuicao incorreta.'
+                )
+
+            if debug:
+                print(f"[DEBUG] Lancamentos ausentes encontrados: R$ {lancamentos_ausentes['VALOR'].sum():.2f}")
+                for _, linha in lancamentos_ausentes.iterrows():
+                    print(f"        + {linha['COLETOR']}: R$ {linha['VALOR']:.2f}")
+
+            final_base = pd.concat(
+                [
+                    final_base,
+                    lancamentos_ausentes[['TIPOCOLETOR', 'COLETOR', 'VALOR']],
+                ],
+                ignore_index=True,
+            )
+        else:
+            raise ValueError(
+                'O Rateio Recebido ultrapassa o valor bruto dos Correios.\n'
+                f'Rateio Recebido: R$ {total_rr:.2f}\n'
+                f'Valor bruto: R$ {total_bruto_correios:.2f}\n'
+                f'Excesso: R$ {abs(diferenca_para_bruto):.2f}\n'
+                'O RATEIO PAG nao foi gerado para evitar uma distribuicao incorreta.'
+            )
+
+    final_base = (
+        final_base.groupby(['TIPOCOLETOR', 'COLETOR'], as_index=False)['VALOR'].sum()
+    )
+    final_base['VALOR'] = final_base['VALOR'].astype(float).round(2)
+
+    total_base_antes_ajuste = round(float(final_base['VALOR'].sum()), 2)
+    divergencia_bruto = round(total_bruto_correios - total_base_antes_ajuste, 2)
+
+    if abs(divergencia_bruto) > tolerancia_igual:
+        raise ValueError(
+            'A base construida nao corresponde ao valor bruto da fatura.\n'
+            f'Base construida: R$ {total_base_antes_ajuste:.2f}\n'
+            f'Valor bruto: R$ {total_bruto_correios:.2f}\n'
+            f'Divergencia: R$ {divergencia_bruto:.2f}'
+        )
+
+    diferenca_liquida = round(total_liquido_correios - total_base_antes_ajuste, 2)
+
+    if debug:
+        if diferenca_liquida < 0:
+            print(f'[DEBUG] Credito/desconto a distribuir: R$ {abs(diferenca_liquida):.2f}')
+        elif diferenca_liquida > 0:
+            print(f'[DEBUG] Debito/encargo a distribuir: R$ {diferenca_liquida:.2f}')
+        else:
+            print('[DEBUG] Nao ha credito ou debito para distribuir.')
+
+    if abs(diferenca_liquida) > 0.001 and not final_base.empty:
+        final_base = _distribuir_diferenca_igualmente(
+            df=final_base,
+            diferenca=diferenca_liquida,
+            coluna_valor='VALOR',
+        )
+
+    total_final = round(float(final_base['VALOR'].sum()), 2)
+
+    if total_final != total_liquido_correios:
+        raise ValueError(
+            'O total final do RATEIO PAG nao corresponde ao valor liquido da fatura.\n'
+            f'Esperado: R$ {total_liquido_correios:.2f}\n'
+            f'Gerado: R$ {total_final:.2f}'
+        )
+
+    if (final_base['VALOR'] < 0).any():
+        ccs_negativos = final_base.loc[final_base['VALOR'] < 0, ['COLETOR', 'VALOR']]
+        raise ValueError(
+            'A distribuicao gerou valores negativos:\n'
+            f'{ccs_negativos.to_string(index=False)}'
+        )
+
     final = pd.DataFrame()
+
     if not final_base.empty:
         final['ITEM'] = [1] * len(final_base)
         final['TIPOCOLETOR'] = final_base['TIPOCOLETOR']
         final['COLETOR'] = final_base['COLETOR']
-        final['OPERACAO'] = final_base['TIPOCOLETOR'].apply(lambda t: operacao_para_diagrama if t == 'N' else '')
+        final['OPERACAO'] = final_base['TIPOCOLETOR'].apply(
+            lambda tipo: operacao_para_diagrama if tipo == 'N' else ''
+        )
         final['SUBNUMERO'] = ''
-        final['VALOR'] = final_base['VALOR']
+        final['VALOR'] = final_base['VALOR'].astype(float).round(2)
         final['DESCRICAO'] = ''
 
         final['__ord'] = final['TIPOCOLETOR'].map({'K': 0, 'N': 1}).fillna(2)
-        final = final.sort_values(['__ord', 'COLETOR']).drop(columns='__ord').reset_index(drop=True)
+        final = (
+            final.sort_values(['__ord', 'COLETOR'])
+            .drop(columns='__ord')
+            .reset_index(drop=True)
+        )
 
     saida = Path(saida)
+
     with pd.ExcelWriter(saida, engine='openpyxl') as writer:
         final.to_excel(writer, sheet_name='Planilha1', index=False)
 
     _formatar_planilha_final(saida, 'Planilha1')
 
-    if debug: print(f"[DEBUG] Arquivo gerado com sucesso: {saida.resolve()}")
+    if debug:
+        print(f'[DEBUG] RATEIO PAG gerado: {saida.resolve()}')
+        print(f'[DEBUG] TOTAL FINAL: R$ {total_final:.2f}')
 
     return final
 

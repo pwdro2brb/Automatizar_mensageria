@@ -28,8 +28,16 @@ nome_mes = meses_pt[prev_month]
 ASSUNTO = f"Referente a utilização de uber no centro de custo no mês de {nome_mes} de {prev_year}"
 
 CORPO = (
-    f"Segue em anexo as utilizações do Uber coorporativo referente ao mês de {nome_mes} de {prev_year}, "
-    "solicitados nos centros de custos sob sua responsabilidade. Caso estiver de acordo, não é necessário responder esse e-mail."
+    f"Encaminhamos, em anexo, o relatório de utilizações do Uber Corporativo "
+    f"referente ao mês de {nome_mes} de {prev_year}, vinculadas aos centros "
+    f"de custos sob sua responsabilidade.<br><br>"
+    f"Para facilitar a análise, o relatório passou a informar o dia da semana "
+    f"de cada solicitação. Os registros apresentados em fonte vermelha sinalizam "
+    f"utilizações realizadas fora do intervalo de 07:00 a 18:00, bem como em "
+    f"sábados, domingos e feriados.<br><br>"
+    f"Os destaques são informativos e devem ser analisados considerando o motivo "
+    f"do deslocamento. Caso esteja de acordo, não é necessário responder a este "
+    f"e-mail."
 )
 
 CC_OPCIONAL = "" 

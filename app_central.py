@@ -1044,6 +1044,16 @@ class CentralAutomacaoMRV:
             text_color=self.COR_VINHO
         ).pack(pady=(16, 12))
 
+        ctk.CTkButton(
+            col_dir,
+            text="Como gerar as chaves API do Podio?",
+            height=32,
+            fg_color=self.COR_CINZA,
+            hover_color="#4A5560",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            command=self._abrir_tutorial_api_podio
+        ).pack(anchor="w", padx=28, pady=(0, 12))
+
         self.entry_podio_client_id = self._campo_config(
             col_dir, 
             "Podio Client ID:", 
@@ -1219,6 +1229,7 @@ class CentralAutomacaoMRV:
             "Primeiros passos": self._texto_ajuda_primeiros_passos(),
             "Credenciais": self._texto_ajuda_credenciais(),
             "Chave API Agilis": self._texto_ajuda_api_agilis(),
+            "Chave API Podio": self._texto_ajuda_api_podio(),
             "Correios e Faturamento": self._texto_ajuda_correios(),
             "Agilis e Chamados": self._texto_ajuda_agilis(),
             "Uber, SAP e Contratos": self._texto_ajuda_uber_sap(),
@@ -1267,6 +1278,39 @@ class CentralAutomacaoMRV:
 
     Importante:
     Não compartilhe sua chave API. Se esquecer a chave, gere uma nova.
+    """
+
+    def _texto_ajuda_api_podio(self):
+        return """CHAVE API PODIO
+
+    Para que o robô de correspondências consiga inserir dados diretamente no Podio, é necessário configurar as chaves de API (Client ID e Client Secret).
+
+    Como gerar as chaves no Podio:
+
+    1. Acesse o link de configurações de API do Podio:
+       https://podio.com/settings/api
+
+    2. No campo "Nome do aplicativo (mostrado em atualizações)", preencha com o nome que desejar (ex: "Hub Central MRV").
+
+    3. No campo "Domínio completo (sem protocolo) do seu URL de retorno (ex. mypodioapp.com)", você deve preencher com o domínio da sua empresa no Podio, sem o protocolo (https://) e sem barras adicionais.
+       
+       Exemplo prático:
+       Se o link do seu aplicativo no Podio se parece com isto:
+       https://podio.com/empresaaqui/processos/apps/teste
+       
+       Você deve pegar o "podio.com" e, sem espaçamento ou barras, adicionar o nome da sua empresa ("empresaaqui").
+       O resultado final a ser preenchido deve ser exatamente:
+       podio.comempresaaqui
+
+    4. Clique em "Gerar chave de API" (Generate API Key).
+
+    5. O Podio exibirá duas chaves:
+       - Client ID
+       - Client Secret
+
+    6. Copie esses valores e cole-os nos respectivos campos na aba "Configurações" do Hub Central MRV.
+
+    7. Lembre-se de preencher também o "Podio App ID" e o "Podio App Token" (que são obtidos diretamente nas configurações do próprio aplicativo/App no Podio) e clique em "Salvar Todas as Credenciais".
     """
 
     def _mostrar_secao_ajuda(self, nome):
@@ -2136,6 +2180,111 @@ No arquivo historico_execucoes.json, dentro da pasta base do projeto.
     - Não compartilhe sua chave API.
     - Se esquecer a chave, gere uma nova no Agilis.
     - Sempre prefira a opção "Nunca expira", para evitar que os robôs parem de funcionar futuramente.
+    """
+
+        ctk.CTkLabel(
+            corpo,
+            text=texto.strip(),
+            font=ctk.CTkFont(size=14),
+            text_color=self.COR_TEXTO,
+            justify="left",
+            wraplength=640
+        ).pack(anchor="w", padx=18, pady=18)
+
+        botoes = ctk.CTkFrame(janela, fg_color="transparent")
+        botoes.grid(row=2, column=0, sticky="ew", padx=22, pady=(0, 18))
+        botoes.grid_columnconfigure((0, 1), weight=1)
+
+        def ir_configuracoes():
+            janela.destroy()
+            self.selecionar_tela("config")
+
+        ctk.CTkButton(
+            botoes,
+            text="Ir para Configurações",
+            height=40,
+            fg_color=self.COR_MRV,
+            hover_color=self.COR_MRV_HOVER,
+            font=ctk.CTkFont(weight="bold"),
+            command=ir_configuracoes
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+
+        ctk.CTkButton(
+            botoes,
+            text="Fechar",
+            height=40,
+            fg_color=self.COR_CINZA,
+            hover_color="#4A5560",
+            font=ctk.CTkFont(weight="bold"),
+            command=janela.destroy
+        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+    def _abrir_tutorial_api_podio(self):
+        janela = ctk.CTkToplevel(self.root)
+        janela.title("Como gerar as chaves API do Podio")
+        janela.geometry("720x600")
+        janela.minsize(650, 500)
+        janela.attributes("-topmost", True)
+
+        janela.grid_columnconfigure(0, weight=1)
+        janela.grid_rowconfigure(1, weight=1)
+
+        header = ctk.CTkFrame(janela, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=22, pady=(20, 10))
+        header.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            header,
+            text="🔑 Como gerar as chaves API do Podio",
+            font=ctk.CTkFont(size=22, weight="bold"),
+            text_color=self.COR_TEXTO
+        ).grid(row=0, column=0, sticky="w")
+
+        ctk.CTkLabel(
+            header,
+            text="Siga este passo a passo para obter o Client ID e o Client Secret necessários para a integração.",
+            font=ctk.CTkFont(size=13),
+            text_color=self.COR_TEXTO_FRACO,
+            wraplength=650,
+            justify="left"
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+
+        corpo = ctk.CTkScrollableFrame(janela, fg_color=self.COR_CARD, corner_radius=12)
+        corpo.grid(row=1, column=0, sticky="nsew", padx=22, pady=(0, 14))
+
+        texto = """
+    PASSO A PASSO
+
+    1. Acesse o link de configurações de API do Podio pelo seu navegador:
+       https://podio.com/settings/api
+
+    2. No campo "Nome do aplicativo (mostrado em atualizações)", digite o nome que preferir (ex: Hub Central MRV).
+
+    3. No campo "Domínio completo (sem protocolo) do seu URL de retorno (ex. mypodioapp.com)", você deve preencher com o domínio da sua empresa no Podio, sem o protocolo (https://) e sem barras adicionais.
+
+       Como estruturar o domínio:
+       Se o link do seu aplicativo no Podio se parece com isto:
+       https://podio.com/empresaaqui/processos/apps/teste
+       
+       Você deve pegar o "podio.com" e, sem espaçamento ou barras, adicionar o nome da sua empresa ("empresaaqui").
+       O resultado final a ser preenchido deve ser exatamente:
+       podio.comempresaaqui
+
+    4. Clique em "Gerar chave de API" (Generate API Key).
+
+    5. O Podio exibirá duas chaves na tela:
+       - Client ID
+       - Client Secret
+
+    6. Copie esses valores.
+
+    7. Volte para o Hub Central MRV.
+
+    8. Acesse a aba "Configurações".
+
+    9. Cole as chaves nos campos "Podio Client ID" e "Podio Client Secret".
+
+    10. Clique em "Salvar Todas as Credenciais".
     """
 
         ctk.CTkLabel(

@@ -108,7 +108,9 @@ def criar_item_podio(token, dados_item):
             "destinatario-2": dados_item["destinatario"],
             "rastreio": [dados_item["tipo_envio_id"]],
             "categoria": [dados_item["categoria_id"]],
-            "data-de-recebimento": dados_item["data_recebimento"]
+            "data-de-recebimento": dados_item["data_recebimento"],
+            # Envia o texto para o campo de observação do Podio
+            "observacao": dados_item["observacao"] 
         }
     }
     
@@ -167,6 +169,11 @@ def executar_inclusao():
     # ==========================================================================
     client_id = getattr(config, "PODIO_CLIENT_ID", "")
     client_secret = getattr(config, "PODIO_CLIENT_SECRET", "")
+    
+    # Obtém o e-mail do responsável configurado no Hub
+    email_responsavel = getattr(config, "EMAIL_MRV", "").strip()
+    if not email_responsavel:
+        email_responsavel = "E-mail não configurado no Hub"
 
     if not client_id or not client_secret:
         raise RuntimeError(
@@ -256,7 +263,8 @@ def executar_inclusao():
             "data_recebimento": str_data_formatada,
             "is_malote": is_malote,
             "origem_malote": origem_malote,
-            "numero_malote": str(linha.get('Número do malote', '')) if pd.notna(linha.get('Número do malote')) else ""
+            "numero_malote": str(linha.get('Número do malote', '')) if pd.notna(linha.get('Número do malote')) else "",
+            "observacao": f"Encomenda escaneada por {email_responsavel}"
         }
 
         # Envia diretamente para o Podio

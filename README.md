@@ -1,17 +1,41 @@
-# Hub Central de Automações MRV - Versão 3.0
+## Estrutura de documentação (v3.1)
 
 Este projeto reúne as automações administrativas mais usadas no dia a dia em uma interface gráfica única para Windows. A versão 3.0 traz uma interface renovada, novos fluxos e mais robustez na execução dos robôs.
+
+A partir da versão 3.1, a documentação dos robôs passa a ser modular.
+
+A pasta `ajuda_robos/` contém arquivos individuais com instruções específicas para cada automação.
+
+Exemplo:
+
+ajuda_robos/
+├── rateio_malote.md
+├── rateio_agf.md
+├── produtividade.md
+├── fechar_chamados.md
+└── ...
+
+Cada arquivo pode conter:
+
+- objetivo do robô;
+- sistemas necessários;
+- arquivos de entrada;
+- passo a passo de utilização;
+- requisitos especiais;
+- configurações obrigatórias;
+- solução de problemas;
+- observações importantes.
+
 
 ## O que há de novo
 
 - Aplicativo Windows executável (`dist/app_central.exe`).
 - Interface central renovada com sidebar e abas Início / Robôs / Configurações / Ajuda.
-- Botões dedicados para cada fluxo, incluindo Rateio AGF e Atualizar Macro de Contratos.
+- Sistema de documentação preparado para a versão 3.1.
+- Ajuda contextual por robô utilizando arquivos independentes.
+- Separação entre ajuda geral do Hub e documentação específica de cada automação.
 - Barra de progresso visual durante a execução.
 - Console integrado para logs em tempo real.
-- Botão de cancelamento para parar o processo ativo.
-- Tela de configurações para salvar credenciais dos robôs.
-- Import hooks para empacotamento com PyInstaller e melhor compatibilidade de deployment.
 
 ## Objetivo
 
@@ -23,6 +47,36 @@ Automatizar tarefas repetitivas como:
 - extração de relatórios de produtividade e correios;
 - integração com sistemas como Podio, Agilis e SAP.
 
+## Central de Ajuda
+
+A aba Ajuda possui duas funções:
+
+### Ajuda Geral
+
+Documentação sobre:
+
+- credenciais;
+- configurações;
+- APIs;
+- boas práticas;
+- dúvidas frequentes;
+- utilização geral do Hub.
+
+### Ajuda dos Robôs (v3.1)
+
+Cada robô possui sua própria documentação contextual.
+
+Ao clicar no botão de ajuda do robô, o Hub exibe instruções específicas daquela automação, incluindo:
+
+- objetivo;
+- requisitos;
+- arquivos necessários;
+- configurações obrigatórias;
+- alertas importantes;
+- solução de problemas comuns.
+
+Essa documentação é carregada a partir dos arquivos localizados na pasta `ajuda_robos/`.
+
 ## Estrutura do projeto
 
 - `app_central.py`: interface principal com navegação, painel de robôs, console e controle de execução.
@@ -30,6 +84,7 @@ Automatizar tarefas repetitivas como:
 - `config_exemplo.py`: referência do arquivo de configuração.
 - `treinar_ia.py`: material de apoio com dicionários e mapeamentos usados internamente.
 - `robos/`: scripts de automação organizados por tema.
+- ajuda_robos/: documentação individual dos robôs utilizada pelo sistema de ajuda contextual.
 - `dist/`: executável gerado para Windows.
 - `build/`: artefatos gerados pelo PyInstaller.
 

@@ -901,10 +901,17 @@ class CentralAutomacaoMRV:
             text_color=self.COR_TEXTO
         ).pack(side="left", anchor="w")
 
-        Prioridade = robo.get("Prioridade", "Média")
-        cor_Prioridade = self.COR_MRV if Prioridade == "Baixo" else self.COR_AMARELO if Prioridade == "Médio" else self.COR_CANCELAR
+        btn_ajuda = ctk.CTkButton(
+            topo,
+            text="❓",
+            width=32,
+            height=28,
+            fg_color=self.COR_CINZA,
+            hover_color="#4A5560",
+            command=lambda r=robo: self._abrir_ajuda_robo(r)
+        )
 
-        self._criar_chip(topo, f"Prioridade {Prioridade}", cor_Prioridade).pack(side="right")
+        btn_ajuda.pack(side="right")
 
         ctk.CTkLabel(
             linha,
@@ -959,7 +966,23 @@ class CentralAutomacaoMRV:
                 pass
 
         self._busca_after_id = self.root.after(120, self._renderizar_robos)
-        
+
+    def _abrir_ajuda_robo(self, robo):
+        self.selecionar_tela("ajuda")
+
+        categoria = robo.get("categoria", "")
+
+        if "Correios" in categoria:
+            self._mostrar_secao_ajuda("Correios e Faturamento")
+
+        elif "Agilis" in categoria:
+            self._mostrar_secao_ajuda("Agilis e Chamados")
+
+        elif "Podio" in categoria:
+            self._mostrar_secao_ajuda("Chave API Podio")
+
+        elif "Uber" in categoria:
+            self._mostrar_secao_ajuda("Uber, SAP e Contratos")    
     # ==========================================================================
     # CONFIGURAÇÕES
     # ==========================================================================

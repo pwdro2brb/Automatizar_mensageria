@@ -11,6 +11,9 @@ import threading
 import subprocess
 import datetime
 import config
+import re
+
+
 
 # ==============================================================================
 # 1. INTERCEPTADOR DE PROCESSOS
@@ -92,6 +95,7 @@ class CentralAutomacaoMRV:
 
         self.processo_ativo = None
         self.foi_cancelado = False
+        self.janela_ajuda_robo = None
         self.todos_botoes = []
         self.tela_atual = None
         self.logs_visiveis = True
@@ -196,6 +200,7 @@ class CentralAutomacaoMRV:
                 "comando": "import robos.robo_rateio_malote as rrm; rrm.executar_rateio_malote()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "rateio_malote"),
                 "tipo": "pasta",
+                "arquivo_ajuda": "robo_rateio_malote.md",
             },
             {
                 "nome": "Rateio AGF",
@@ -211,6 +216,7 @@ class CentralAutomacaoMRV:
                 "comando": "import robos.robo_rateio_AGF as rra; rra.executar_rateio_AGF()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "rateio_AGF"),
                 "tipo": "pasta",
+                "arquivo_ajuda": "robo_rateio_AGF.md"
             },
             {
                 "nome": "Faturamento 1",
@@ -224,6 +230,8 @@ class CentralAutomacaoMRV:
                 "descricao": "Cria rascunhos de e-mail no Outlook.",
                 "comando": "import robos.robo_faturamento as rf; rf.criar_rascunhos_correios()",
                 "tipo": "direto",
+                "arquivo_ajuda": "robo_faturamento.md",
+                "secao_ajuda": "Faturamento 1: Gerar Rascunhos",
             },
             {
                 "nome": "Faturamento Completo",
@@ -237,6 +245,8 @@ class CentralAutomacaoMRV:
                 "descricao": "Executa o fluxo completo de e-mail até MRV Pag.",
                 "comando": "import robos.robo_faturamento as rf; rf.executar_faturamento_completo()",
                 "tipo": "direto",
+                "arquivo_ajuda": "robo_faturamento.md",
+                "secao_ajuda": "Faturamento 2: Processo Completo",
             },
             {
                 "nome": "Follow-up Boletos",
@@ -250,6 +260,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Cria follow-up automático para boletos sem retorno.",
                 "comando": "import robos.robo_cobrar_boleto as rcb; rcb.executar_cobranca_boletos()",
                 "tipo": "direto",
+                "arquivo_ajuda": "robo_cobrar_boleto.md"
             },
             {
                 "nome": "Relatório Jurídico Montreal",
@@ -263,6 +274,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Baixa ou formata relatório jurídico Montreal.",
                 "handler": self._chamar_robo_juridico,
                 "tipo": "especial",
+                "arquivo_ajuda": "robo_juridico.md"
             },
             {
                 "nome": "Incluir Correspondências",
@@ -276,6 +288,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Inclui correspondências a partir da planilha encomendas.xlsx.",
                 "handler": self._chamar_robo_incluir_encomendas,
                 "tipo": "especial",
+                "arquivo_ajuda": "robo_incluir_encomendas.md"
             },
             {
                 "nome": "Relatório Correios",
@@ -290,6 +303,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Gera relatório de envios para os Correios.",
                 "comando": "import robos.robo_relatorio_correios as rc; rc.executar_relatorio_completo()",
                 "tipo": "direto",
+                "arquivo_ajuda": "robo_relatorio_correios.md"
             },
             {
                 "nome": "Produtividade",
@@ -303,6 +317,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Gera produtividade consolidando Podio, Agilis e SAP.",
                 "handler": self._chamar_robo_produtividade,
                 "tipo": "especial",
+                "arquivo_ajuda": "produtividade.md"
             },
             {
                 "nome": "Fechar Chamados",
@@ -316,6 +331,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Fecha chamados a vencer ou monitora chamados durante o dia.",
                 "handler": self._chamar_robo_fechar_chamados,
                 "tipo": "especial",
+                "arquivo_ajuda": "robo_fechar_chamados.md",
             },
             {
                 "nome": "Macro Contratos",
@@ -329,6 +345,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Atualiza macros de contratos usando arquivos de rede.",
                 "comando": "import robos.robo_macro_contratos as rmc; rmc.executar_macro_contratos()",
                 "tipo": "direto",
+                "arquivo_ajuda": "robo_macro_contratos.md",
             },
             {
                 "nome": "Uber 1",
@@ -343,6 +360,8 @@ class CentralAutomacaoMRV:
                 "comando": "import robos.robo_uber_relatorios as ru; ru.etapa_1_atualizar_responsaveis()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "uber"),
                 "tipo": "pasta",
+                "arquivo_ajuda": "robo_uber_relatorios.md",
+                "secao_ajuda": "Uber 1: Atualizar Responsáveis",
             },
             {
                 "nome": "Uber 2",
@@ -357,6 +376,8 @@ class CentralAutomacaoMRV:
                 "comando": "import robos.robo_uber_relatorios as ru; ru.etapa_2_gerar_relatorios()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "uber"),
                 "tipo": "pasta",
+                "arquivo_ajuda": "robo_uber_relatorios.md",
+                "secao_ajuda": "Uber 2: Gerar Relatórios e Pastas",
             },
             {
                 "nome": "Uber 3",
@@ -371,6 +392,7 @@ class CentralAutomacaoMRV:
                 "comando": "import robos.criar_rascunhos_uber as rr; rr.criar_rascunhos()",
                 "pasta": os.path.join(config.PASTA_ARQUIVOS, "uber"),
                 "tipo": "pasta",
+                "arquivo_ajuda": "criar_rascunhos_uber.md",
             },
             {
                 "nome": "ZMM180",
@@ -384,6 +406,7 @@ class CentralAutomacaoMRV:
                 "descricao": "Automação SAP/ZMM180 com PyAutoGUI e OCR.",
                 "handler": self._chamar_robo_zmm180,
                 "tipo": "especial",
+                "arquivo_ajuda": "robo_zmm180.md",
             },
         ]
 
@@ -968,7 +991,6 @@ class CentralAutomacaoMRV:
         self._busca_after_id = self.root.after(120, self._renderizar_robos)
 
     def _abrir_ajuda_robo(self, robo):
-        self.selecionar_tela("ajuda")
 
         categoria = robo.get("categoria", "")
 
@@ -1347,6 +1369,555 @@ class CentralAutomacaoMRV:
             JanelaBusca(self.root, self.textbox_ajuda)
         elif self.tela_atual == "robos" and hasattr(self, "entry_busca_robos"):
             self.entry_busca_robos.focus()
+
+    def _obter_pasta_ajuda_robos(self):
+        """
+        Localiza a pasta ajuda_robos tanto no código-fonte
+        quanto no executável gerado pelo PyInstaller.
+
+        Estrutura esperada no desenvolvimento:
+
+        AUTOMATIZAR_MENSAGERIA/
+        ├── ajuda_robos/
+        ├── robos/
+        ├── dist/
+        │   └── app_central.exe
+        └── app_central.py
+        """
+
+        caminhos_possiveis = []
+
+        if getattr(sys, "frozen", False):
+            # Pasta em que está o executável:
+            # AUTOMATIZAR_MENSAGERIA/dist/
+            pasta_executavel = os.path.dirname(
+                os.path.abspath(sys.executable)
+            )
+
+            # Raiz do projeto:
+            # AUTOMATIZAR_MENSAGERIA/
+            pasta_raiz_executavel = os.path.dirname(
+                pasta_executavel
+            )
+
+            # Sua estrutura atual:
+            # AUTOMATIZAR_MENSAGERIA/ajuda_robos/
+            caminhos_possiveis.append(
+                os.path.join(
+                    pasta_raiz_executavel,
+                    "ajuda_robos"
+                )
+            )
+
+            # Estrutura alternativa para distribuição:
+            # AUTOMATIZAR_MENSAGERIA/dist/ajuda_robos/
+            caminhos_possiveis.append(
+                os.path.join(
+                    pasta_executavel,
+                    "ajuda_robos"
+                )
+            )
+
+            # Pasta temporária do PyInstaller, caso os arquivos
+            # tenham sido incorporados ao executável.
+            pasta_meipass = getattr(sys, "_MEIPASS", None)
+
+            if pasta_meipass:
+                caminhos_possiveis.append(
+                    os.path.join(
+                        pasta_meipass,
+                        "ajuda_robos"
+                    )
+                )
+
+        else:
+            # Execução pelo código-fonte:
+            # AUTOMATIZAR_MENSAGERIA/app_central.py
+            pasta_codigo = os.path.dirname(
+                os.path.abspath(__file__)
+            )
+
+            caminhos_possiveis.append(
+                os.path.join(
+                    pasta_codigo,
+                    "ajuda_robos"
+                )
+            )
+
+        # Também considera a pasta-base definida no config.py.
+        pasta_base_config = getattr(
+            config,
+            "PASTA_PROJETO",
+            None
+        )
+
+        if pasta_base_config:
+            caminhos_possiveis.append(
+                os.path.join(
+                    pasta_base_config,
+                    "ajuda_robos"
+                )
+            )
+
+            # Caso PASTA_PROJETO aponte para dist.
+            caminhos_possiveis.append(
+                os.path.join(
+                    os.path.dirname(pasta_base_config),
+                    "ajuda_robos"
+                )
+            )
+
+        # Remove caminhos duplicados sem alterar a ordem.
+        caminhos_unicos = []
+
+        for caminho in caminhos_possiveis:
+            caminho_normalizado = os.path.normpath(caminho)
+
+            if caminho_normalizado not in caminhos_unicos:
+                caminhos_unicos.append(caminho_normalizado)
+
+        # Retorna o primeiro caminho existente.
+        for caminho in caminhos_unicos:
+            if os.path.isdir(caminho):
+                return caminho
+
+        # Apresenta todos os locais verificados.
+        caminhos_formatados = "\n".join(
+            f"- {caminho}"
+            for caminho in caminhos_unicos
+        )
+
+        raise FileNotFoundError(
+            "A pasta de ajuda dos robôs não foi encontrada.\n\n"
+            "Locais verificados:\n"
+            f"{caminhos_formatados}"
+        )
+
+    def _carregar_arquivo_ajuda(self, nome_arquivo):
+        """
+        Carrega um arquivo Markdown da pasta ajuda_robos.
+        """
+
+        if not nome_arquivo:
+            raise ValueError(
+                "Nenhum arquivo de ajuda foi configurado para este robô."
+            )
+
+        pasta_ajuda = self._obter_pasta_ajuda_robos()
+
+        caminho_arquivo = os.path.join(
+            pasta_ajuda,
+            nome_arquivo
+        )
+
+        if not os.path.isfile(caminho_arquivo):
+            raise FileNotFoundError(
+                "O arquivo de ajuda não foi encontrado:\n\n"
+                f"{caminho_arquivo}"
+            )
+
+        with open(
+            caminho_arquivo,
+            "r",
+            encoding="utf-8-sig"
+        ) as arquivo:
+            conteudo = arquivo.read()
+
+        if not conteudo.strip():
+            raise ValueError(
+                "O arquivo de ajuda está vazio:\n\n"
+                f"{caminho_arquivo}"
+            )
+
+        return conteudo
+
+    def _extrair_secao_markdown(self, conteudo, nome_secao):
+        """
+        Extrai uma seção específica do Markdown.
+
+        A seção começa em um cabeçalho que corresponda ao nome informado
+        e termina no próximo cabeçalho de nível igual ou superior.
+        """
+
+        if not nome_secao:
+            return conteudo
+
+        linhas = conteudo.splitlines()
+
+        indice_inicio = None
+        nivel_inicio = None
+
+        nome_procurado = nome_secao.strip().casefold()
+
+        for indice, linha in enumerate(linhas):
+            correspondencia = re.match(
+                r"^\s*(#{1,6})\s+(.+?)\s*$",
+                linha
+            )
+
+            if not correspondencia:
+                continue
+
+            marcadores = correspondencia.group(1)
+            titulo_encontrado = correspondencia.group(2).strip()
+
+            if titulo_encontrado.casefold() == nome_procurado:
+                indice_inicio = indice
+                nivel_inicio = len(marcadores)
+                break
+
+        if indice_inicio is None:
+            raise ValueError(
+                f"A seção de ajuda não foi encontrada:\n\n"
+                f"{nome_secao}\n\n"
+                f"Confira se o valor de 'secao_ajuda' é idêntico "
+                f"ao título existente no arquivo Markdown."
+            )
+
+        indice_fim = len(linhas)
+
+        for indice in range(indice_inicio + 1, len(linhas)):
+            correspondencia = re.match(
+                r"^\s*(#{1,6})\s+(.+?)\s*$",
+                linhas[indice]
+            )
+
+            if not correspondencia:
+                continue
+
+            nivel_encontrado = len(correspondencia.group(1))
+
+            if nivel_encontrado <= nivel_inicio:
+                indice_fim = indice
+                break
+
+        secao = "\n".join(linhas[indice_inicio:indice_fim]).strip()
+
+        return secao
+
+    def _formatar_markdown_para_texto(self, conteudo):
+        """
+        Converte marcações básicas de Markdown em texto simples
+        para exibição no CTkTextbox.
+        """
+
+        linhas_formatadas = []
+        dentro_bloco_codigo = False
+
+        for linha in conteudo.splitlines():
+            linha_limpa = linha.rstrip()
+
+            # Início ou fim de bloco de código Markdown.
+            if linha_limpa.strip().startswith("```"):
+                dentro_bloco_codigo = not dentro_bloco_codigo
+                continue
+
+            # Preserva a indentação de blocos de código.
+            if dentro_bloco_codigo:
+                linhas_formatadas.append(f"    {linha_limpa}")
+                continue
+
+            # Identifica títulos Markdown de nível 1 a 6.
+            correspondencia_titulo = re.match(
+                r"^\s*(#{1,6})\s+(.+?)\s*$",
+                linha_limpa
+            )
+
+            if correspondencia_titulo:
+                nivel = len(correspondencia_titulo.group(1))
+                titulo = correspondencia_titulo.group(2).strip()
+
+                # Remove marcações dentro dos títulos.
+                titulo = re.sub(r"\*\*(.*?)\*\*", r"\1", titulo)
+                titulo = re.sub(r"__(.*?)__", r"\1", titulo)
+                titulo = re.sub(r"`(.*?)`", r"\1", titulo)
+
+                if nivel == 1:
+                    linhas_formatadas.append(titulo.upper())
+                    linhas_formatadas.append("=" * len(titulo))
+                else:
+                    linhas_formatadas.append("")
+                    linhas_formatadas.append(titulo)
+                    linhas_formatadas.append("-" * len(titulo))
+
+                continue
+
+            # Remove negrito Markdown.
+            linha_limpa = re.sub(r"\*\*(.*?)\*\*", r"\1", linha_limpa)
+            linha_limpa = re.sub(r"__(.*?)__", r"\1", linha_limpa)
+
+            # Remove itálico Markdown.
+            linha_limpa = re.sub(
+                r"(?<!\*)\*(?!\*)(.*?)\*(?!\*)",
+                r"\1",
+                linha_limpa
+            )
+
+            # Remove marcação de código na mesma linha.
+            linha_limpa = re.sub(r"`(.*?)`", r"\1", linha_limpa)
+
+            # Converte listas Markdown em marcadores visuais.
+            linha_limpa = re.sub(
+                r"^\s*[-*+]\s+",
+                "• ",
+                linha_limpa
+            )
+
+            linhas_formatadas.append(linha_limpa)
+
+        texto = "\n".join(linhas_formatadas)
+
+        # Impede quatro ou mais linhas vazias consecutivas.
+        texto = re.sub(r"\n{4,}", "\n\n\n", texto)
+
+        return texto.strip()
+    
+    def _abrir_ajuda_robo(self, robo):
+        """
+        Carrega e abre a ajuda contextual do robô selecionado.
+        """
+
+        try:
+            nome_arquivo = robo.get("arquivo_ajuda")
+            nome_secao = robo.get("secao_ajuda")
+
+            conteudo = self._carregar_arquivo_ajuda(nome_arquivo)
+
+            if nome_secao:
+                conteudo = self._extrair_secao_markdown(
+                    conteudo,
+                    nome_secao
+                )
+
+            conteudo_formatado = self._formatar_markdown_para_texto(
+                conteudo
+            )
+
+        except (FileNotFoundError, ValueError, OSError) as erro:
+            messagebox.showerror(
+                "Ajuda indisponível",
+                str(erro),
+                parent=self.root
+            )
+            return
+
+        # Fecha a janela anterior, caso ainda esteja aberta.
+        if self.janela_ajuda_robo is not None:
+            try:
+                if self.janela_ajuda_robo.winfo_exists():
+                    self.janela_ajuda_robo.destroy()
+            except Exception:
+                pass
+
+        janela = ctk.CTkToplevel(self.root)
+        self.janela_ajuda_robo = janela
+
+        titulo_robo = robo.get(
+            "titulo",
+            robo.get("nome", "Ajuda do robô")
+        )
+
+        janela.title(f"Ajuda - {titulo_robo}")
+        janela.geometry("820x680")
+        janela.minsize(650, 500)
+        janela.configure(fg_color=self.COR_BG)
+
+        # Mantém a janela vinculada ao Hub.
+        janela.transient(self.root)
+
+        # Coloca a janela na frente apenas no momento da abertura.
+        janela.lift()
+        janela.focus_force()
+
+        janela.protocol(
+            "WM_DELETE_WINDOW",
+            self._fechar_ajuda_robo
+        )
+
+        # ==============================================================
+        # CABEÇALHO
+        # ==============================================================
+
+        frame_cabecalho = ctk.CTkFrame(
+            janela,
+            fg_color=self.COR_CARD,
+            corner_radius=0,
+            height=90
+        )
+        frame_cabecalho.pack(
+            fill=tk.X,
+            padx=0,
+            pady=0
+        )
+        frame_cabecalho.pack_propagate(False)
+
+        icone = robo.get("icone", "❓")
+
+        label_icone = ctk.CTkLabel(
+            frame_cabecalho,
+            text=icone,
+            font=ctk.CTkFont(size=30)
+        )
+        label_icone.pack(
+            side=tk.LEFT,
+            padx=(24, 12),
+            pady=20
+        )
+
+        frame_titulos = ctk.CTkFrame(
+            frame_cabecalho,
+            fg_color="transparent"
+        )
+        frame_titulos.pack(
+            side=tk.LEFT,
+            fill=tk.BOTH,
+            expand=True,
+            pady=14
+        )
+
+        label_titulo = ctk.CTkLabel(
+            frame_titulos,
+            text=titulo_robo,
+            anchor="w",
+            font=ctk.CTkFont(
+                size=20,
+                weight="bold"
+            ),
+            text_color=self.COR_TEXTO
+        )
+        label_titulo.pack(anchor="w")
+
+        label_subtitulo = ctk.CTkLabel(
+            frame_titulos,
+            text="Ajuda específica desta automação",
+            anchor="w",
+            text_color=self.COR_TEXTO_FRACO,
+            font=ctk.CTkFont(size=13)
+        )
+        label_subtitulo.pack(
+            anchor="w",
+            pady=(4, 0)
+        )
+
+        # ==============================================================
+        # CONTEÚDO
+        # ==============================================================
+
+        frame_conteudo = ctk.CTkFrame(
+            janela,
+            fg_color="transparent"
+        )
+        frame_conteudo.pack(
+            fill=tk.BOTH,
+            expand=True,
+            padx=20,
+            pady=(20, 12)
+        )
+
+        caixa_texto = ctk.CTkTextbox(
+            frame_conteudo,
+            wrap="word",
+            fg_color=self.COR_CARD,
+            text_color=self.COR_TEXTO,
+            corner_radius=12,
+            border_width=1,
+            border_color="#3A3A3A",
+            font=ctk.CTkFont(
+                family="Segoe UI",
+                size=14
+            )
+        )
+        caixa_texto.pack(
+            fill=tk.BOTH,
+            expand=True
+        )
+
+        caixa_texto.insert("1.0", conteudo_formatado)
+        caixa_texto.configure(state="disabled")
+
+        # ==============================================================
+        # RODAPÉ
+        # ==============================================================
+
+        frame_rodape = ctk.CTkFrame(
+            janela,
+            fg_color="transparent"
+        )
+        frame_rodape.pack(
+            fill=tk.X,
+            padx=20,
+            pady=(0, 18)
+        )
+
+        nome_exibido = nome_arquivo or "Ajuda não informada"
+
+        label_arquivo = ctk.CTkLabel(
+            frame_rodape,
+            text=f"Documento: {nome_exibido}",
+            text_color=self.COR_TEXTO_FRACO,
+            font=ctk.CTkFont(size=11)
+        )
+        label_arquivo.pack(side=tk.LEFT)
+
+        botao_fechar = ctk.CTkButton(
+            frame_rodape,
+            text="Fechar",
+            width=110,
+            height=36,
+            fg_color=self.COR_MRV,
+            hover_color=self.COR_MRV_HOVER,
+            command=self._fechar_ajuda_robo
+        )
+        botao_fechar.pack(side=tk.RIGHT)
+
+        # ==============================================================
+        # CENTRALIZAÇÃO DA JANELA
+        # ==============================================================
+
+        janela.update_idletasks()
+
+        largura = janela.winfo_width()
+        altura = janela.winfo_height()
+
+        posicao_x = (
+            self.root.winfo_rootx()
+            + (self.root.winfo_width() // 2)
+            - (largura // 2)
+        )
+
+        posicao_y = (
+            self.root.winfo_rooty()
+            + (self.root.winfo_height() // 2)
+            - (altura // 2)
+        )
+
+        # Evita posicionamento fora da tela.
+        posicao_x = max(0, posicao_x)
+        posicao_y = max(0, posicao_y)
+
+        janela.geometry(
+            f"{largura}x{altura}+{posicao_x}+{posicao_y}"
+        )
+
+    def _fechar_ajuda_robo(self):
+        """
+        Fecha a janela de ajuda contextual do robô.
+        """
+
+        if self.janela_ajuda_robo is not None:
+            try:
+                if self.janela_ajuda_robo.winfo_exists():
+                    self.janela_ajuda_robo.destroy()
+            except Exception:
+                pass
+
+        self.janela_ajuda_robo = None 
+    
+    
+    
+
+
+
 
     # ==========================================================================
     # EXECUÇÃO DOS ROBÔS

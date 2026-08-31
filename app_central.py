@@ -53,6 +53,9 @@ try:
     import robos.robo_macro_contratos
     import robos.robo_cobrar_boleto
     import robos.robo_rateio_AGF
+    import robos.robo_rateio_uber_central
+    import robos.robo_rateio_uber_tradicional
+
 except ImportError:
     pass
 
@@ -346,6 +349,56 @@ class CentralAutomacaoMRV:
                 "comando": "import robos.robo_macro_contratos as rmc; rmc.executar_macro_contratos()",
                 "tipo": "direto",
                 "arquivo_ajuda": "robo_macro_contratos.md",
+            },
+            {
+                "nome": "Rateio Uber Central",
+                "requer_credenciais_uber": True,
+                "titulo": "Rateio Uber Central",
+                "categoria": "Outros (Uber / SAP / Contratos)",
+                "icone": "🏢",
+                "cor": self.COR_LARANJA,
+                "tempo": "5 a 15 min",
+                "requisitos": [
+                    "Uber Business",
+                    "Chrome",
+                    "Excel",
+                    "Rede"
+                ],
+                "descricao": (
+                    "Baixa os relatórios da Uber Central, valida os centros "
+                    "de custo e gera a planilha de rateio."
+                ),
+                "comando": (
+                    "import robos.robo_rateio_uber_central as ruc; "
+                    "ruc.executar_rateio_uber_central()"
+                ),
+                "tipo": "direto",
+                "arquivo_ajuda": "robo_rateio_uber_central.md",
+            },
+            {
+                "nome": "Rateio Uber Tradicional",
+                "requer_credenciais_uber": True,
+                "titulo": "Rateio Uber Tradicional",
+                "categoria": "Outros (Uber / SAP / Contratos)",
+                "icone": "🚕",
+                "cor": self.COR_LARANJA,
+                "tempo": "5 a 15 min",
+                "requisitos": [
+                    "Uber Business",
+                    "Chrome",
+                    "Excel",
+                    "Rede"
+                ],
+                "descricao": (
+                    "Baixa os relatórios da Uber Tradicional, valida os "
+                    "centros de custo e gera a planilha de rateio."
+                ),
+                "comando": (
+                    "import robos.robo_rateio_uber_tradicional as rut; "
+                    "rut.executar_rateio_uber_tradicional()"
+                ),
+                "tipo": "direto",
+                "arquivo_ajuda": "robo_rateio_uber_tradicional.md",
             },
             {
                 "nome": "Uber 1",
@@ -989,22 +1042,7 @@ class CentralAutomacaoMRV:
                 pass
 
         self._busca_after_id = self.root.after(120, self._renderizar_robos)
-
-    def _abrir_ajuda_robo(self, robo):
-
-        categoria = robo.get("categoria", "")
-
-        if "Correios" in categoria:
-            self._mostrar_secao_ajuda("Correios e Faturamento")
-
-        elif "Agilis" in categoria:
-            self._mostrar_secao_ajuda("Agilis e Chamados")
-
-        elif "Podio" in categoria:
-            self._mostrar_secao_ajuda("Chave API Podio")
-
-        elif "Uber" in categoria:
-            self._mostrar_secao_ajuda("Uber, SAP e Contratos")    
+  
     # ==========================================================================
     # CONFIGURAÇÕES
     # ==========================================================================
@@ -1122,6 +1160,25 @@ class CentralAutomacaoMRV:
             getattr(config, "PODIO_APP_TOKEN", ""), 
             senha=True
         )
+        ctk.CTkLabel(
+            col_dir,
+            text="UBER BUSINESS",
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=self.COR_LARANJA
+        ).pack(pady=(20, 12))
+
+        self.entry_email_uber = self._campo_config(
+            col_dir,
+            "E-mail Uber:",
+            getattr(config, "EMAIL_UBER", "")
+        )
+
+        self.entry_senha_uber = self._campo_config(
+            col_dir,
+            "Senha Uber:",
+            getattr(config, "SENHA_UBER", ""),
+            senha=True
+        )
 
         botoes = ctk.CTkFrame(container, fg_color="transparent")
         botoes.pack(fill=tk.X, pady=20)
@@ -1182,61 +1239,106 @@ class CentralAutomacaoMRV:
         entry.configure(show="" if atual == "*" else "*")
 
     def _salvar_credenciais(self):
-        novo_email = self.entry_email.get().strip()
-        novo_senha = self.entry_senha.get().strip()
-        nova_senha_malote = self.entry_senha_malote.get().strip()
-        nova_api_key_agilis = self.entry_API_KEY_AGILIS.get().strip()
+        try:
+            novo_email = self.entry_email.get().strip()
+            novo_senha = self.entry_senha.get().strip()
+            nova_senha_malote = self.entry_senha_malote.get().strip()
+            nova_api_key_agilis = self.entry_API_KEY_AGILIS.get().strip()
 
-        novo_correios_cod = self.entry_correios_cod.get().strip()
-        novo_correios_email = self.entry_correios_email.get().strip()
-        novo_correios_senha = self.entry_correios_senha.get().strip()
-        
-        # Captura os campos do Podio (incluindo os novos)
-        novo_podio_id = self.entry_podio_client_id.get().strip()
-        novo_podio_secret = self.entry_podio_client_secret.get().strip()
-        novo_podio_app_id = self.entry_podio_app_id.get().strip()
-        novo_podio_app_token = self.entry_podio_app_token.get().strip()
+            novo_correios_cod = self.entry_correios_cod.get().strip()
+            novo_correios_email = self.entry_correios_email.get().strip()
+            novo_correios_senha = self.entry_correios_senha.get().strip()
 
-        # Salva no arquivo JSON config_mrv.json
-        config.salvar_credenciais(
-            novo_email,
-            novo_senha,
-            nova_senha_malote,
-            nova_api_key_agilis,
-            novo_correios_cod,
-            novo_correios_email,
-            novo_correios_senha,
-            novo_podio_id,
-            novo_podio_secret,
-            novo_podio_app_id,
-            novo_podio_app_token
-        )
+            novo_podio_id = self.entry_podio_client_id.get().strip()
+            novo_podio_secret = self.entry_podio_client_secret.get().strip()
+            novo_podio_app_id = self.entry_podio_app_id.get().strip()
+            novo_podio_app_token = self.entry_podio_app_token.get().strip()
 
-        # Atualiza as variáveis em memória para uso imediato
-        config.EMAIL_USER = novo_email
-        config.SENHA_USER = novo_senha
-        config.SENHA_MALOTE = nova_senha_malote
-        config.CHAVE_API_AGILIS = nova_api_key_agilis
-        config.CORREIOS_COD_ADM = novo_correios_cod
-        config.CORREIOS_EMAIL = novo_correios_email
-        config.CORREIOS_SENHA = novo_correios_senha
-        
-        config.PODIO_CLIENT_ID = novo_podio_id
-        config.PODIO_CLIENT_SECRET = novo_podio_secret
-        config.PODIO_APP_ID = novo_podio_app_id
-        config.PODIO_APP_TOKEN = novo_podio_app_token
+            novo_email_uber = self.entry_email_uber.get().strip()
+            nova_senha_uber = self.entry_senha_uber.get().strip()
 
-        config.EMAIL_MRV = novo_email
-        config.SENHA_MRV = novo_senha
-        config.SENHA_MALOTE_MRV = nova_senha_malote
-        config.API_KEY_AGILIS = nova_api_key_agilis
+            print("Salvando credenciais...")
 
-        self._salvar_metadata_config()
-        self.lbl_status_credenciais.configure(text=self._texto_status_credenciais())
-        self.lbl_config_status.configure(text=self._texto_status_credenciais(detalhado=True))
+            config.salvar_credenciais(
+                email=novo_email,
+                senha=novo_senha,
+                senha_malote=nova_senha_malote,
+                chave_api_agilis=nova_api_key_agilis,
+                correios_cod_adm=novo_correios_cod,
+                correios_email=novo_correios_email,
+                correios_senha=novo_correios_senha,
+                podio_client_id=novo_podio_id,
+                podio_client_secret=novo_podio_secret,
+                podio_app_id=novo_podio_app_id,
+                podio_app_token=novo_podio_app_token,
+                email_uber=novo_email_uber,
+                senha_uber=nova_senha_uber
+            )
 
-        messagebox.showinfo("Sucesso", "Todas as credenciais foram salvas com sucesso!")
-        self.selecionar_tela("robos")
+            # Atualiza as variáveis em memória.
+            config.EMAIL_USER = novo_email
+            config.SENHA_USER = novo_senha
+            config.SENHA_MALOTE = nova_senha_malote
+            config.CHAVE_API_AGILIS = nova_api_key_agilis
+
+            config.CORREIOS_COD_ADM = novo_correios_cod
+            config.CORREIOS_EMAIL = novo_correios_email
+            config.CORREIOS_SENHA = novo_correios_senha
+
+            config.PODIO_CLIENT_ID = novo_podio_id
+            config.PODIO_CLIENT_SECRET = novo_podio_secret
+            config.PODIO_APP_ID = novo_podio_app_id
+            config.PODIO_APP_TOKEN = novo_podio_app_token
+
+            config.EMAIL_UBER = novo_email_uber
+            config.SENHA_UBER = nova_senha_uber
+
+            # Variáveis de compatibilidade.
+            config.EMAIL_MRV = novo_email
+            config.SENHA_MRV = novo_senha
+            config.SENHA_MALOTE_MRV = nova_senha_malote
+            config.API_KEY_AGILIS = nova_api_key_agilis
+
+            self._salvar_metadata_config()
+
+            self.lbl_status_credenciais.configure(
+                text=self._texto_status_credenciais()
+            )
+
+            self.lbl_config_status.configure(
+                text=self._texto_status_credenciais(detalhado=True)
+            )
+
+            print("Credenciais salvas com sucesso.")
+
+            messagebox.showinfo(
+                "Sucesso",
+                "Todas as credenciais foram salvas com sucesso!",
+                parent=self.root
+            )
+
+            self.selecionar_tela("robos")
+
+        except TypeError as erro:
+            traceback.print_exc()
+
+            messagebox.showerror(
+                "Erro de configuração",
+                "A função config.salvar_credenciais não está compatível "
+                "com os novos campos da Uber.\n\n"
+                f"Detalhes:\n{erro}",
+                parent=self.root
+            )
+
+        except Exception as erro:
+            traceback.print_exc()
+
+            messagebox.showerror(
+                "Erro ao salvar",
+                "Não foi possível salvar as credenciais.\n\n"
+                f"Detalhes:\n{erro}",
+                parent=self.root
+            )
 
     # ==========================================================================
     # AJUDA
@@ -1913,17 +2015,17 @@ class CentralAutomacaoMRV:
 
         self.janela_ajuda_robo = None 
     
-    
-    
-
-
-
-
     # ==========================================================================
     # EXECUÇÃO DOS ROBÔS
     # ==========================================================================
     def _executar_robo(self, robo):
         if robo.get("requer_api_agilis") and not self._validar_api_agilis():
+            return
+
+        if (
+            robo.get("requer_credenciais_uber")
+            and not self._validar_credenciais_uber()
+        ):
             return
 
         if robo.get("tipo") == "especial":
@@ -2571,6 +2673,32 @@ class CentralAutomacaoMRV:
             self.COR_CINZA: "#4A5560"
         }
         return mapa.get(cor, self.COR_MRV_HOVER)
+
+    def _validar_credenciais_uber(self):
+        email_uber = getattr(config, "EMAIL_UBER", "").strip()
+        senha_uber = getattr(config, "SENHA_UBER", "").strip()
+
+        campos_ausentes = []
+
+        if not email_uber:
+            campos_ausentes.append("E-mail Uber")
+
+        if not senha_uber:
+            campos_ausentes.append("Senha Uber")
+
+        if campos_ausentes:
+            messagebox.showwarning(
+                "Credenciais Uber ausentes",
+                "Os seguintes campos precisam ser configurados:\n\n"
+                + "\n".join(f"• {campo}" for campo in campos_ausentes)
+                + "\n\nAcesse a aba Configurações antes de continuar."
+            )
+
+            self.selecionar_tela("config")
+            return False
+
+        return True
+
 
     # ==========================================================================
     # TEXTOS DE AJUDA

@@ -13,7 +13,21 @@ PASTA_PRODUTIVIDADE = os.path.join(USER_HOME, "OneDrive - MRV", "Área de Trabal
 # ==============================================================================
 # 2. GERENCIAMENTO DE CREDENCIAIS (Salva em um arquivo config_mrv.json)
 # ==============================================================================
-ARQUIVO_CONFIG = "config_mrv.json"
+if getattr(sys, "frozen", False):
+    PASTA_RAIZ = os.path.dirname(sys.executable)
+else:
+    PASTA_RAIZ = os.path.dirname(os.path.abspath(__file__))
+
+ARQUIVO_CONFIG = os.path.join(
+    PASTA_RAIZ,
+    "config_mrv.json"
+)
+
+PASTA_ARQUIVOS = os.path.join(
+    PASTA_RAIZ,
+    "arquivos"
+)
+
 
 def carregar_credenciais():
     """Lê o arquivo JSON se ele existir. Se não, retorna vazio."""
@@ -35,25 +49,55 @@ def carregar_credenciais():
         "podio_client_id": "",       
         "podio_client_secret": "",
         "podio_app_id": " ",
-        "podio_app_token": " "
+        "podio_app_token": " ",
+        "email_uber": "",
+        "senha_uber": ""
     }
 
-def salvar_credenciais(email, senha, senha_malote, chave_api_agilis, correios_cod_adm, correios_email, correios_senha, podio_client_id="", podio_client_secret="", podio_app_id="", podio_app_token=""):
+def salvar_credenciais(
+    email,
+    senha,
+    senha_malote,
+    chave_api_agilis,
+    correios_cod_adm,
+    correios_email,
+    correios_senha,
+    podio_client_id="",
+    podio_client_secret="",
+    podio_app_id="",
+    podio_app_token="",
+    email_uber="",
+    senha_uber=""
+):
     """Salva todas as credenciais no arquivo JSON."""
-    with open(ARQUIVO_CONFIG, "w") as f:
-        json.dump({
-            "email": email, 
-            "senha": senha, 
-            "senha_malote": senha_malote,
-            "chave_api_agilis": chave_api_agilis,
-            "correios_cod_adm": correios_cod_adm,
-            "correios_email": correios_email,
-            "correios_senha": correios_senha,
-            "podio_client_id": podio_client_id,       
-            "podio_client_secret": podio_client_secret,
-            "podio_app_id": podio_app_id,
-            "podio_app_token": podio_app_token
-        }, f)
+
+    dados = {
+        "email": email,
+        "senha": senha,
+        "senha_malote": senha_malote,
+        "chave_api_agilis": chave_api_agilis,
+        "correios_cod_adm": correios_cod_adm,
+        "correios_email": correios_email,
+        "correios_senha": correios_senha,
+        "podio_client_id": podio_client_id,
+        "podio_client_secret": podio_client_secret,
+        "podio_app_id": podio_app_id,
+        "podio_app_token": podio_app_token,
+        "email_uber": email_uber,
+        "senha_uber": senha_uber
+    }
+
+    with open(
+        ARQUIVO_CONFIG,
+        "w",
+        encoding="utf-8"
+    ) as arquivo:
+        json.dump(
+            dados,
+            arquivo,
+            ensure_ascii=False,
+            indent=2
+        )
 
 # Carrega as variáveis para serem usadas pelos robôs
 credenciais = carregar_credenciais()
@@ -72,6 +116,10 @@ PODIO_CLIENT_ID = credenciais.get("podio_client_id", "")
 PODIO_CLIENT_SECRET = credenciais.get("podio_client_secret", "") 
 PODIO_APP_ID = credenciais.get("podio_app_id", " ")
 PODIO_APP_TOKEN = credenciais.get("podio_app_token", " ")
+
+# --- NOVAS PARA ACESSO A PLATAFORMA UBER ---
+EMAIL_UBER = credenciais.get("email_uber", "")
+SENHA_UBER = credenciais.get("senha_uber", "")
 
 # ==============================================================================
 # 3. MODO DE COMPATIBILIDADE

@@ -158,89 +158,672 @@ def criar_rascunhos_correios():
 # ==============================================================================
 # 2. NOVA FUNÇÃO: FATURAMENTO END-TO-END (E-MAIL -> MRV PAG)
 # ==============================================================================
-def extrair_dados_email_inteligente(texto_email, caminho_correios):
-    """Lê o corpo do e-mail e extrai os Centros de Custo e Valores (ou busca o valor pelo rastreio)"""
+
+# ==============================================================================
+# LEITURA INTELIGENTE DO CORPO E DO HISTÓRICO DO E-MAIL
+# ==============================================================================
+
+PADRAO_CABECALHO_EMAIL = re.compile(
+    r"(?im)^(?:De|From)\s*:"
+)
+
+PADRAO_EMAIL = re.compile(
+    r"[\w.\-+]+@[\w.\-]+\.[A-Za-z]{2,}",
+    re.IGNORECASE,
+)
+
+PADRAO_CC_EMAIL = re.compile(
+    r"\b("
+    r"(?:(?=[A-Z0-9]*[A-Z])"
+    r"(?=[A-Z0-9]*[0-9])"
+    r"[A-Z0-9]{6,12})"
+    r"|"
+    r"(?:\d{10,12})"
+    r")\b",
+    re.IGNORECASE,
+)
+
+PADRAO_VALOR_EMAIL = re.compile(
+    r"(?:R\$\s*)?"
+    r"(\d{1,3}(?:\.\d{3})*,\d{2})",
+    re.IGNORECASE,
+)
+
+PADRAO_RASTREIO_EMAIL = re.compile(
+    r"\b([A-Z]{2}\d{9}[A-Z]{2})\b",
+    re.IGNORECASE,
+)
+
+PALAVRAS_SUBSTITUICAO = (
+    "SUBSTITUIR",
+    "SUBSTITUTO",
+    "SUBSTITUICAO",
+    "NOVO CENTRO DE CUSTO",
+    "NOVO CC",
+    "TROCAR",
+)
+
+
+def normalizar_texto_email(texto: str) -> str:
+    """
+    Padroniza quebras de linha e espaços especiais presentes
+    no corpo do Outlook.
+    """
+
+    if not texto:
+        return ""
+
+    return (
+        str(texto)
+        .replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\xa0", " ")
+    )
+
+
+def normalizar_email(email: Optional[str]) -> str:
+    """
+    Padroniza um endereço de e-mail para comparação.
+    """
+
+    return str(email or "").strip().lower()
+
+
+def extrair_email_remetente_bloco(
+    bloco: str
+) -> Optional[str]:
+    """
+    Extrai o endereço de e-mail do cabeçalho De:/From:
+    de uma mensagem do histórico.
+    """
+
+    primeiras_linhas = "\n".join(
+        normalizar_texto_email(bloco).splitlines()[:8]
+    )
+
+    correspondencia = PADRAO_EMAIL.search(
+        primeiras_linhas
+    )
+
+    if not correspondencia:
+        return None
+
+    return normalizar_email(
+        correspondencia.group(0)
+    )
+
+
+def separar_mensagens_da_conversa(
+    texto_email: str
+) -> List[dict]:
+    """
+    Separaem mensagens individuais.
+
+    A ordem retornada é:
+    - mensagem mais recente primeiro;
+    - mensagens anteriores depois.
+
+    O primeiro bloco, antes do primeiro cabeçalho "De:",
+    corresponde ao corpo da mensagem atual do Outlook.
+    """
+
+    texto = normalizar_texto_email(
+        texto_email
+    )
+
+    posicoes = [
+        correspondencia.start()
+        for correspondencia
+        in PADRAO_CABECALHO_EMAIL.finditer(texto)
+    ]
+
+    mensagens = []
+
+    if not posicoes:
+        if texto.strip():
+            mensagens.append({
+                "texto": texto.strip(),
+                "remetente": None,
+                "eh_mensagem_atual": True,
+            })
+
+        return mensagens
+
+    # Parte anterior ao primeiro cabeçalho "De:"
+    corpo_atual = texto[:posicoes[0]].strip()
+
+    if corpo_atual:
+        mensagens.append({
+            "texto": corpo_atual,
+            "remetente": None,
+            "eh_mensagem_atual": True,
+        })
+
+    # Mensagens anteriores existentes no histórico
+    for indice, inicio in enumerate(posicoes):
+        if indice + 1 < len(posicoes):
+            fim = posicoes[indice + 1]
+        else:
+            fim = len(texto)
+
+        bloco = texto[inicio:fim].strip()
+
+        if not bloco:
+            continue
+
+        remetente = extrair_email_remetente_bloco(
+            bloco
+        )
+
+        mensagens.append({
+            "texto": bloco,
+            "remetente": remetente,
+            "eh_mensagem_atual": False,
+        })
+
+    return mensagens
+
+
+def obter_emails_proprios() -> set:
+    """
+    Retorna os endereços que representam mensagens enviadas
+    pelo próprio usuário ou pela conta usada pelo robô.
+    """
+
+    emails = set()
+
+    if EMAIL_MRV:
+        emails.add(
+            normalizar_email(EMAIL_MRV)
+        )
+
+    emails.add(
+        "pedro.henrsilva@mrv.com.br"
+    )
+
+    return {
+        email
+        for email in emails
+        if email
+    }
+
+
+def converter_valor_brasileiro(
+    valor: str
+) -> float:
+    """
+    Converte valores brasileiros para float.
+
+    Exemplos:
+        R$ 40,39    -> 40.39
+        1.234,56    -> 1234.56
+    """
+
+    valor_limpo = (
+        str(valor)
+        .replace("R$", "")
+        .replace("\xa0", "")
+        .replace(" ", "")
+        .replace(".", "")
+        .replace(",", ".")
+    )
+
+    return float(valor_limpo)
+
+
+def extrair_pares_cc_valor_de_bloco(
+    bloco: str
+) -> List[dict]:
+    """
+    Extrai pares de centro de custo e valor das linhas
+    da mensagem.
+
+    Aceita formatos como:
+        R$ 40,39 - PRIMMS3023
+        PRIMMS3023 - R$ 40,39
+        PRIMMS3023 40,39
+        40,39 PRIMMS3023
+    """
+
     dados = []
-    rastreios_encontrados = []
-    
-    # 1. Isolar apenas a resposta mais recente (Corta o histórico do e-mail)
-    marcadores_historico = ["De:", "From:", "________________________________", "-----Mensagem original-----", "-----Original Message-----"]
-    texto_recente = texto_email
-    for marcador in marcadores_historico:
-        if marcador in texto_recente:
-            texto_recente = texto_recente.split(marcador)[0]
-            
-    # 2. Analisar linha por linha
-    linhas = texto_recente.splitlines()
-    
-    # Padrões Regex super flexíveis (Aceita com hífen, sem hífen, em tabela, etc.)
-    # CC: 6 a 12 caracteres alfanuméricos (com letras e números) OU 10 a 12 números puros
-    padrao_cc = re.compile(r'\b(?:(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{6,12}|\d{10,12})\b', re.IGNORECASE)
-    # Valor: R$ 123,45 ou apenas 123,45
-    padrao_valor = re.compile(r'(?:R\$?\s*)?(\d{1,3}(?:\.\d{3})*,\d{2})', re.IGNORECASE)
-    # Rastreio: 2 letras + 9 números + 2 letras
-    padrao_rastreio = re.compile(r'\b([A-Z]{2}\d{9}[A-Z]{2})\b', re.IGNORECASE)
-    
-    for linha in linhas:
+
+    for linha in normalizar_texto_email(
+        bloco
+    ).splitlines():
         linha = linha.strip()
-        if not linha: continue
-        
-        cc_match = padrao_cc.search(linha)
-        val_match = padrao_valor.search(linha)
-        rastreio_match = padrao_rastreio.search(linha)
-        
-        # Caso A: Tem CC e Valor na mesma linha (Tabela ou Texto)
-        if cc_match and val_match:
-            # CORREÇÃO AQUI: cc_match.group(0) em vez de group(1)
-            cc = cc_match.group(0).upper()
-            valor = float(val_match.group(1).replace('.', '').replace(',', '.'))
-            dados.append({"COLETOR": cc, "VALOR": valor})
-            continue # Já achou valor, não precisa procurar rastreio nessa linha
-            
-        # Caso B: Tem CC e Rastreio na mesma linha
-        if cc_match and rastreio_match:
-            # CORREÇÃO AQUI: cc_match.group(0) em vez de group(1)
-            cc = cc_match.group(0).upper()
-            rastreio = rastreio_match.group(1).upper()
-            rastreios_encontrados.append((rastreio, cc))
-           
-    # 3. Se achou rastreios, busca os valores na planilha dos Correios
-    if rastreios_encontrados and os.path.exists(caminho_correios):
-        print(f"   -> {len(rastreios_encontrados)} rastreios encontrados. Buscando valores na planilha...")
+
+        if not linha:
+            continue
+
+        cc_match = PADRAO_CC_EMAIL.search(
+            linha
+        )
+
+        valor_match = PADRAO_VALOR_EMAIL.search(
+            linha
+        )
+
+        if not cc_match or not valor_match:
+            continue
+
+        cc = _norm_coletor(
+            cc_match.group(0)
+        )
+
+        if not _is_valid_coletor(cc):
+            continue
+
         try:
-            df_corr = pd.read_excel(caminho_correios, engine='openpyxl')
-            df_str = df_corr.astype(str).apply(lambda x: x.str.upper())
-            
-            for rastreio, cc in rastreios_encontrados:
-                mask = df_str.apply(lambda row: row.str.contains(rastreio).any(), axis=1)
-                if mask.any():
-                    idx = mask.idxmax()
-                    row = df_corr.iloc[idx]
-                    
-                    valor_encontrado = 0.0
-                    for val in row.values:
-                        if isinstance(val, (int, float)):
-                            valor_encontrado = float(val)
-                            break
-                        elif isinstance(val, str) and 'R$' in val:
-                            try:
-                                v = val.replace('R$', '').replace('.', '').replace(',', '.').strip()
-                                valor_encontrado = float(v)
-                                break
-                            except: pass
-                            
-                    if valor_encontrado > 0:
-                        dados.append({"COLETOR": cc, "VALOR": valor_encontrado})
-                        print(f"      Rastreio {rastreio} -> Valor R$ {valor_encontrado} -> CC {cc}")
-        except Exception as e:
-            print(f"   -> Erro ao buscar rastreio na planilha: {e}")
-            
-    if dados:
-        # Agrupar por CC caso a pessoa tenha mandado o mesmo CC duas vezes
-        df = pd.DataFrame(dados)
-        df = df.groupby("COLETOR", as_index=False)["VALOR"].sum()
-        return df
+            valor = converter_valor_brasileiro(
+                valor_match.group(1)
+            )
+        except (TypeError, ValueError):
+            continue
+
+        if valor <= 0:
+            continue
+
+        dados.append({
+            "COLETOR": cc,
+            "VALOR": round(valor, 2),
+        })
+
+    return dados
+
+
+def texto_indica_substituicao(
+    texto: str
+) -> bool:
+    """
+    Verifica se uma mensagem contém uma indicação
+    de substituição de centro de custo.
+    """
+
+    texto_normalizado = (
+        _strip_accents(texto)
+        .upper()
+    )
+
+    return any(
+        palavra in texto_normalizado
+        for palavra in PALAVRAS_SUBSTITUICAO
+    )
+
+
+def mensagem_possui_dados_relevantes(
+    texto: str
+) -> bool:
+    """
+    Verifica se a mensagem pode representar:
+    - rateio informado no corpo;
+    - CC acompanhado de rastreio;
+    - substituição de centro de custo.
+    """
+
+    possui_cc = bool(
+        PADRAO_CC_EMAIL.search(texto or "")
+    )
+
+    possui_valor = bool(
+        PADRAO_VALOR_EMAIL.search(texto or "")
+    )
+
+    possui_rastreio = bool(
+        PADRAO_RASTREIO_EMAIL.search(texto or "")
+    )
+
+    possui_substituicao = texto_indica_substituicao(
+        texto or ""
+    )
+
+    return (
+        possui_cc
+        and (
+            possui_valor
+            or possui_rastreio
+            or possui_substituicao
+        )
+    )
+
+
+def obter_ultima_mensagem_da_regional(
+    texto_email: str,
+    remetente_mensagem_atual: Optional[str] = None
+) -> Optional[str]:
+    """
+    Localiza a mensagem relevante mais recente enviada
+    pela regional.
+
+    Mensagens enviadas pelo próprio usuário são ignoradas.
+
+    Como a conversa do Outlook está ordenada da mensagem
+    mais recente para a mais antiga, a primeira mensagem
+    válida encontrada será utilizada.
+    """
+
+    mensagens = separar_mensagens_da_conversa(
+        texto_email
+    )
+
+    # A parte atual da mensagem não possui cabeçalho De:
+    # dentro do Body. Por isso, usamos SenderEmailAddress.
+    if (
+        mensagens
+        and mensagens[0]["eh_mensagem_atual"]
+    ):
+        mensagens[0]["remetente"] = normalizar_email(
+            remetente_mensagem_atual
+        )
+
+    emails_proprios = obter_emails_proprios()
+
+    for mensagem in mensagens:
+        remetente = normalizar_email(
+            mensagem.get("remetente")
+        )
+
+        if remetente in emails_proprios:
+            continue
+
+        if mensagem_possui_dados_relevantes(
+            mensagem["texto"]
+        ):
+            return mensagem
+
     return None
+
+
+def obter_valores_servicos_correios(
+    caminho_correios: Union[str, Path]
+) -> List[dict]:
+    """
+    Retorna os valores individuais da coluna
+    'Valor do Serviço' da planilha dos Correios.
+    """
+
+    df_correios, _ = ler_correios_bruto(
+        caminho_correios
+    )
+
+    if df_correios.empty:
+        return []
+
+    valores = []
+
+    for valor in df_correios["VALOR"].tolist():
+        if pd.isna(valor):
+            continue
+
+        try:
+            valor_float = round(
+                float(valor),
+                2
+            )
+        except (TypeError, ValueError):
+            continue
+
+        if valor_float > 0:
+            valores.append(
+                valor_float
+            )
+
+    return valores
+
+
+def valor_existe_nos_correios(
+    valor: float,
+    valores_disponiveis: List[float],
+    tolerancia: float = 0.01
+) -> bool:
+    """
+    Verifica se o valor informado no e-mail existe entre
+    os valores individuais da planilha dos Correios.
+    """
+
+    try:
+        valor_procurado = round(
+            float(valor),
+            2
+        )
+    except (TypeError, ValueError):
+        return False
+
+    return any(
+        abs(
+            valor_procurado
+            - round(float(valor_correios), 2)
+        ) <= tolerancia
+        for valor_correios in valores_disponiveis
+    )
+
+
+def buscar_valor_por_rastreio(
+    caminho_correios: Union[str, Path],
+    rastreio: str
+) -> Optional[str]:
+    """
+    Localiza o código de rastreio na planilha dos Correios
+    e retorna especificamente o valor da coluna
+    'Valor do Serviço'.
+
+    Isso evita usar por engano o número do cartão, peso,
+    quantidade, CEP ou outro campo numérico da linha.
+    """
+
+    df_raw = pd.read_excel(
+        caminho_correios,
+        header=None,
+        engine="openpyxl",
+    )
+
+    linha_cabecalho = -1
+    coluna_rastreio = -1
+    coluna_valor = -1
+
+    for i, row in df_raw.head(20).iterrows():
+        colunas = [
+            _norm_colname(str(valor))
+            for valor in row.values
+        ]
+
+        for j, coluna in enumerate(colunas):
+            if coluna in (
+                "etiqueta",
+                "codigo de rastreio",
+                "rastreamento",
+            ):
+                coluna_rastreio = j
+
+            if "valor do servico" in coluna:
+                coluna_valor = j
+
+        if (
+            coluna_rastreio >= 0
+            and coluna_valor >= 0
+        ):
+            linha_cabecalho = i
+            break
+
+    if (
+        linha_cabecalho == -1
+        or coluna_rastreio == -1
+        or coluna_valor == -1
+    ):
+        return None
+
+    rastreio_alvo = str(
+        rastreio
+    ).strip().upper()
+
+    for i in range(
+        linha_cabecalho + 1,
+        len(df_raw)
+    ):
+        rastreio_linha = str(
+            df_raw.iloc[i, coluna_rastreio]
+        ).strip().upper()
+
+        if rastreio_linha != rastreio_alvo:
+            continue
+
+        valor_convertido = _clean_valor_series(
+            pd.Series([
+                df_raw.iloc[i, coluna_valor]
+            ])
+        ).iloc[0]
+
+        if pd.notna(valor_convertido):
+            return round(
+                float(valor_convertido),
+                2
+            )
+
+    return None
+
+
+def extrair_dados_email_inteligente(
+    texto_email: str,
+    caminho_correios: Union[str, Path],
+    remetente_mensagem_atual: Optional[str] = None
+) -> Optional[pd.DataFrame]:
+    """
+    Extrai os dados da mensagem mais recente da regional.
+
+    Ordem de análise:
+    1. Procura CC e valor na mesma linha;
+    2. Valida cada valor na planilha dos Correios;
+    3. Se não encontrar, procura CC e código de rastreio;
+    4. Busca o valor do rastreio na coluna Valor do Serviço;
+    5. Agrupa valores destinados ao mesmo centro de custo.
+    """
+
+    mensagem_regional = obter_ultima_mensagem_da_regional(
+        texto_email=texto_email,
+        remetente_mensagem_atual=remetente_mensagem_atual,
+    )
+
+    if not mensagem_regional:
+        return None
+
+    texto_regional = mensagem_regional["texto"]
+
+    # --------------------------------------------------------------------------
+    # Primeira tentativa: centro de custo e valor
+    # --------------------------------------------------------------------------
+
+    dados_corpo = extrair_pares_cc_valor_de_bloco(
+        texto_regional
+    )
+
+    if dados_corpo:
+        valores_correios = obter_valores_servicos_correios(
+            caminho_correios
+        )
+
+        dados_validos = [
+            dado
+            for dado in dados_corpo
+            if valor_existe_nos_correios(
+                valor=dado["VALOR"],
+                valores_disponiveis=valores_correios,
+            )
+        ]
+
+        if dados_validos:
+            df = pd.DataFrame(
+                dados_validos
+            )
+
+            df = (
+                df.groupby(
+                    "COLETOR",
+                    as_index=False,
+                )["VALOR"]
+                .sum()
+            )
+
+            df["VALOR"] = (
+                df["VALOR"]
+                .astype(float)
+                .round(2)
+            )
+
+            return df
+
+    # --------------------------------------------------------------------------
+    # Segunda tentativa: centro de custo e rastreio
+    # --------------------------------------------------------------------------
+
+    dados_rastreio = []
+
+    for linha in normalizar_texto_email(
+        texto_regional
+    ).splitlines():
+        linha = linha.strip()
+
+        if not linha:
+            continue
+
+        cc_match = PADRAO_CC_EMAIL.search(
+            linha
+        )
+
+        rastreio_match = PADRAO_RASTREIO_EMAIL.search(
+            linha
+        )
+
+        if not cc_match or not rastreio_match:
+            continue
+
+        cc = _norm_coletor(
+            cc_match.group(0)
+        )
+
+        if not _is_valid_coletor(cc):
+            continue
+
+        rastreio = (
+            rastreio_match
+            .group(1)
+            .strip()
+            .upper()
+        )
+
+        valor = buscar_valor_por_rastreio(
+            caminho_correios=caminho_correios,
+            rastreio=rastreio,
+        )
+
+        if valor is None:
+            continue
+
+        dados_rastreio.append({
+            "COLETOR": cc,
+            "VALOR": valor,
+        })
+
+    if not dados_rastreio:
+        return None
+
+    df = pd.DataFrame(
+        dados_rastreio
+    )
+
+    df = (
+        df.groupby(
+            "COLETOR",
+            as_index=False,
+        )["VALOR"]
+        .sum()
+    )
+
+    df["VALOR"] = (
+        df["VALOR"]
+        .astype(float)
+        .round(2)
+    )
+
+    return df
 
 def extrair_substituicao_cc(texto_email):
     """Lê o histórico do e-mail para descobrir quais CCs falharam e quais são os novos"""
@@ -360,7 +943,7 @@ def executar_faturamento_completo():
                     print(f"   ❌ Erro ao ler a data do e-mail: {e}")
                     continue
                     
-                if dias_passados > 2:
+                if dias_passados > 10:
                     print(f"   ❌ Ignorado (Muito antigo: {dias_passados} dias atrás)")
                     continue
                     
@@ -464,7 +1047,18 @@ def executar_faturamento_completo():
 
         # Se não for substituição, faz o processo normal de ler anexo/corpo e gerar do zero
         if not pular_geracao_rateio:
-            df_email = extrair_dados_email_inteligente(msg.Body, caminho_correios)
+            try:
+                remetente_atual = normalizar_email(
+                    msg.SenderEmailAddress
+                )
+            except Exception:
+                remetente_atual = ""
+
+            df_email = extrair_dados_email_inteligente(
+                texto_email=msg.Body,
+                caminho_correios=caminho_correios,
+                remetente_mensagem_atual=remetente_atual,
+            )
             
             if df_email is not None and not df_email.empty:
                 print("✅ Dados extraídos do corpo do e-mail com sucesso!")

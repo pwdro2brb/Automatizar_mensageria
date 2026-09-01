@@ -1,21 +1,29 @@
-## Estrutura de documentação (v3.1)
+# Hub Central de Automações MRV - Versão 3.1
+
+Este projeto reúne as automações administrativas mais utilizadas no dia a dia em uma interface gráfica única para Windows.
 
 Este projeto reúne as automações administrativas mais usadas no dia a dia em uma interface gráfica única para Windows. A versão 3.0 traz uma interface renovada, novos fluxos e mais robustez na execução dos robôs.
 
-A partir da versão 3.1, a documentação dos robôs passa a ser modular.
+A versão 3.1 amplia a Central de Ajuda, adiciona documentação contextual para cada robô e incorpora os novos processos de Rateio Uber Central e Rateio Uber Tradicional.
 
-A pasta `ajuda_robos/` contém arquivos individuais com instruções específicas para cada automação.
+## Estrutura de documentação da versão 3.1
+
+A pasta `ajuda_robos/` contém arquivos Markdown individuais com instruções específicas para cada automação.
 
 Exemplo:
 
+```text
 ajuda_robos/
-├── rateio_malote.md
-├── rateio_agf.md
+├── criar_rascunhos_uber.md
 ├── produtividade.md
-├── fechar_chamados.md
+├── robo_faturamento.md
+├── robo_rateio_malote.md
+├── robo_rateio_uber_central.md
+├── robo_rateio_uber_tradicional.md
 └── ...
+```
 
-Cada arquivo pode conter:
+Cada documento pode apresentar:
 
 - objetivo do robô;
 - sistemas necessários;
@@ -23,19 +31,33 @@ Cada arquivo pode conter:
 - passo a passo de utilização;
 - requisitos especiais;
 - configurações obrigatórias;
+- resultados esperados;
+- pontos de conferência;
 - solução de problemas;
 - observações importantes.
 
 
-## O que há de novo
+## O que há de novo na versão 3.1
 
-- Aplicativo Windows executável (`dist/app_central.exe`).
-- Interface central renovada com sidebar e abas Início / Robôs / Configurações / Ajuda.
-- Sistema de documentação preparado para a versão 3.1.
-- Ajuda contextual por robô utilizando arquivos independentes.
-- Separação entre ajuda geral do Hub e documentação específica de cada automação.
+- Ajuda contextual específica para cada robô.
+- Documentação modular por meio da pasta `ajuda_robos/`.
+- Botão de ajuda disponível nos cards das automações.
+- Separação entre a ajuda geral do Hub e as instruções específicas dos robôs.
+- Novo robô Rateio Uber Tradicional.
+- Novo robô Rateio Uber Central.
+- Campos específicos para e-mail e senha da Uber na tela de Configurações.
+- Login compartilhado para os processos do Uber Business.
+- Suporte às diferentes etapas de autenticação da Uber.
+- Suporte à autenticação por código SMS.
+- Seleção automática da organização correspondente.
+- Download automático do relatório CSV e da Nota de Débito em PDF.
+- Busca dinâmica da Base de Centro de Custo mais recente.
+- Validação automática dos centros de custo.
+- Geração automática da planilha de rateio.
+- Criação de rascunhos no Outlook quando são encontradas viagens que precisam de análise.
 - Barra de progresso visual durante a execução.
 - Console integrado para logs em tempo real.
+- Botão de cancelamento do processo ativo.
 
 ## Objetivo
 
@@ -49,44 +71,56 @@ Automatizar tarefas repetitivas como:
 
 ## Central de Ajuda
 
-A aba Ajuda possui duas funções:
+A Central de Ajuda possui duas funções principais.
 
-### Ajuda Geral
+### Ajuda geral
 
-Documentação sobre:
+A opção `Ajuda`, disponível na barra lateral, apresenta orientações gerais sobre:
 
+- primeira utilização do Hub;
 - credenciais;
 - configurações;
 - APIs;
 - boas práticas;
+- cancelamento de processos;
 - dúvidas frequentes;
-- utilização geral do Hub.
+- utilização geral do aplicativo.
 
-### Ajuda dos Robôs (v3.1)
+### Ajuda específica dos robôs
 
-Cada robô possui sua própria documentação contextual.
+Cada card de automação possui um botão `❓`.
 
-Ao clicar no botão de ajuda do robô, o Hub exibe instruções específicas daquela automação, incluindo:
+Ao clicar nesse botão, o Hub abre uma janela com a documentação específica do robô selecionado.
 
-- objetivo;
+A documentação pode incluir:
+
+- objetivo do processo;
 - requisitos;
 - arquivos necessários;
 - configurações obrigatórias;
+- passo a passo;
 - alertas importantes;
+- resultados esperados;
+- conferências necessárias;
 - solução de problemas comuns.
 
-Essa documentação é carregada a partir dos arquivos localizados na pasta `ajuda_robos/`.
+Os documentos são carregados a partir da pasta `ajuda_robos/`.
+
+Alguns arquivos de ajuda podem ser compartilhados entre mais de uma opção do Hub. Nesses casos, o aplicativo abre automaticamente
 
 ## Estrutura do projeto
 
-- `app_central.py`: interface principal com navegação, painel de robôs, console e controle de execução.
-- `config.py`: lógica de carregamento/salvamento de credenciais e definição de pastas do projeto.
-- `config_exemplo.py`: referência do arquivo de configuração.
-- `treinar_ia.py`: material de apoio com dicionários e mapeamentos usados internamente.
-- `robos/`: scripts de automação organizados por tema.
-- ajuda_robos/: documentação individual dos robôs utilizada pelo sistema de ajuda contextual.
+- `app_central.py`: interface principal com navegação, painel de robôs, console, ajuda contextual e controle de execução.
+- `config.py`: carregamento e salvamento de credenciais e definição de caminhos do projeto.
+- `config_exemplo.py`: referência da estrutura de configuração.
+- `treinar_ia.py`: dicionários e mapeamentos utilizados internamente.
+- `robos/`: scripts de automação organizados por processo.
+- `robos/uber_login.py`: fluxo compartilhado de autenticação no Uber Business.
+- `robos/uber_downloads.py`: navegação e download compartilhados entre os rateios Uber.
+- `ajuda_robos/`: documentação individual utilizada pelo sistema de ajuda contextual.
+- `arquivos/`: arquivos locais utilizados pelos processos.
 - `dist/`: executável gerado para Windows.
-- `build/`: artefatos gerados pelo PyInstaller.
+- `build/`: artefatos temporários gerados pelo PyInstaller.
 
 ## Pré-requisitos
 
@@ -99,28 +133,42 @@ Essa documentação é carregada a partir dos arquivos localizados na pasta `aju
 
 ## Configuração de credenciais
 
-O app salva as credenciais em `config_mrv.json` no diretório do projeto quando executado pelo código-fonte, e em `dist/config_mrv.json` quando executado como o executável (`dist\app_central.exe`).
+O aplicativo salva as credenciais no arquivo `config_mrv.json`.
+
+Quando executado pelo código-fonte, o arquivo fica no diretório do projeto. Quando executado pelo executável, o arquivo fica no diretório `dist`.
+
+> Importante: o arquivo `config_mrv.json` pode conter senhas e chaves de acesso. Mantenha o arquivo seguro, não o compartilhe e não o inclua no repositório.
 
 ### Primeira execução
 
-1. Execute o aplicativo:
+1. Execute o aplicativo pelo código-fonte:
 
 ```bash
 python app_central.py
 ```
 
-ou abra o executável:
+Ou abra o executável:
 
-```bash
+```text
 dist\app_central.exe
 ```
 
-2. Vá para a aba `⚙️ Configurações`.
-3. Preencha:
-   - E-mail MRV;
-   - Senha MRV;
-   - Senha Malote Web (se aplicável).
-4. Clique em `Salvar Credenciais`.
+2. Acesse a aba `⚙️ Configurações`.
+
+3. Preencha os campos aplicáveis:
+
+- E-mail MRV;
+- Senha MRV;
+- Senha Malote Web;
+- Chave API Agilis;
+- credenciais dos Correios;
+- credenciais da API do Podio;
+- E-mail Uber;
+- Senha Uber.
+
+4. Clique em `Salvar Todas as Credenciais`.
+
+O código SMS da Uber não é armazenado. Quando solicitado, o código precisa ser informado manualmente no navegador.
 
 > Importante: mantenha `config_mrv.json` seguro e não compartilhe suas credenciais publicamente.
 
@@ -146,28 +194,32 @@ python app_central.py
 
 ### Correios & Faturamento
 
-- Rateio de Malote (Centros de Custo)
-- Faturamento 1: Gerar rascunhos
-- Faturamento Completo: processo de e-mail para MRV Pag
-- Cobrança de boletos de contratos: follow-up automático por rascunho no Outlook após X dias sem retorno
+- Rateio de Malote por centro de custo.
+- Rateio AGF.
+- Faturamento 1: Gerar Rascunhos.
+- Faturamento 2: Processo Completo.
+- Cobrança de boletos.
 
 ### Podio & Mensageria
 
-- Relatório Jurídico Montreal
-- Incluir correspondências rápidas
+- Relatório Jurídico Montreal.
+- Incluir Correspondências Rápidas.
 
 ### Agilis & Chamados
 
-- Gerar relatório de envio para Correios
-- Gerar produtividade (Podio/Agilis/SAP)
-- Fechar chamados a vencer
+- Gerar Relatório de Envio para os Correios.
+- Gerar Produtividade.
+- Fechar Chamados a Vencer.
 
-### Uber / SAP / Outros
+### Uber / SAP / Contratos
 
-- Uber 1: Atualizar responsáveis (SAP)
-- Uber 2: Gerar relatórios e pastas
-- Uber 3: Criar rascunhos de e-mail
-- Faturamento Transação ZMM180
+- Rateio Uber Central.
+- Rateio Uber Tradicional.
+- Atualizar Macro de Contratos.
+- Uber 1: Atualizar Responsáveis.
+- Uber 2: Gerar Relatórios e Pastas.
+- Uber 3: Criar Rascunhos de E-mail.
+- Faturamento pela transação ZMM180.
 
 ## Modo de execução e controle
 
@@ -176,6 +228,19 @@ python app_central.py
 - O botão `CANCELAR PROCESSO ATIVO` interrompe o processo em execução e ajuda a recuperar a interface.
 
 ## Observações importantes
+
+## Atualizações da versão 3.1
+
+- **Ajuda contextual:** inclusão de documentação específica para cada automação por meio de arquivos Markdown.
+- **Interface:** substituição do indicador de prioridade pelo botão de ajuda contextual.
+- **Documentação modular:** criação da pasta `ajuda_robos/`.
+- **Rateio Uber Central:** novo processo de download, validação de centros de custo, geração de rateio e criação de rascunhos.
+- **Rateio Uber Tradicional:** novo processo de download, validação de centros de custo, geração de rateio e criação de rascunhos.
+- **Autenticação Uber:** criação de fluxo compartilhado com suporte a SMS, senha e sessão previamente autenticada.
+- **Downloads Uber:** criação de rotina compartilhada para download do CSV e da Nota de Débito.
+- **Credenciais Uber:** inclusão de campos específicos para e-mail e senha na tela de Configurações.
+- **Base de Centro de Custo:** localização automática do arquivo mais recente que contenha `BASE CENTRO DE CUSTO` no nome.
+- **Empacotamento:** inclusão dos novos robôs e módulos compartilhados nos imports utilizados pelo PyInstaller.
 
 ## Atualizações (Resumo de mudanças recentes)
 

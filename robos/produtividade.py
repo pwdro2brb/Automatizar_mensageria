@@ -383,6 +383,132 @@ def extrair_dados_sistemas():
         time.sleep(15) 
         print("Download do Bússola finalizado!")
 
+        # --- PARTE 4: TRANSAÇÃO MIR5 (SAP) ---
+        print("\n=== INICIANDO PARTE 4: SAP MIR5 ===")
+        
+        def focar_sap():
+            """Traz a janela do SAP para frente de forma silenciosa e rápida."""
+            try:
+                # Usa o win32com que já está importado no topo do seu código
+                shell = win32com.client.Dispatch("WScript.Shell")
+                nomes = ["SAP Easy Access", "Cockpit NF", "SAP"]
+                for nome in nomes:
+                    shell.AppActivate(nome)
+                    time.sleep(0.2)
+            except Exception as e: 
+                print(f"Aviso ao focar SAP: {e}")
+
+
+        def clicar_e_digitar(posicao, texto):
+            pyautogui.click(x=posicao[0], y=posicao[1])
+            time.sleep(0.3)
+            pyautogui.hotkey('ctrl', 'a')
+            time.sleep(0.2)
+            pyautogui.press('delete')
+            time.sleep(0.3)
+            
+            # Como as datas (01.06.2026) e usuários (MS0069532) não têm barra (/),
+            # o write funciona perfeitamente para eles!
+            pyautogui.write(texto, interval=0.05)
+            time.sleep(0.1)
+
+
+        def clicar(posicao, espera=0.3):
+            pyautogui.click(x=posicao[0], y=posicao[1])
+            time.sleep(espera)
+
+
+        CAMPO_COMANDO = (3050, 77)
+
+
+        CAMPO_COMANDO = (3050, 77)
+        MIR5_BOTAO_MULTIPLO_USER = (3941, 300)
+        MIR5_USER_1 = (3044, 418)
+        MIR5_USER_2 = (3165, 452)
+        MIR5_USER_3 = (3216, 485)
+        MIR5_DATA_BTN_1 = (3940, 477)
+        MIR5_DATA_BTN_2 = (3354, 315)
+        MIR5_INPUT_DATA_INICIO = (3056, 419)
+        MIR5_INPUT_DATA_FIM = (3206, 422)
+        MIR5_MENU_1 = (2958, 31)
+        MIR5_MENU_2 = (3032, 136)
+        MIR5_MENU_3 = (3354, 173)
+        MIR5_MENU_4 = (3747, 474)
+        MIR5_POPUP_SAP_1 = (3107, 537)
+        MIR5_POPUP_SAP_2 = (3120, 428)
+
+
+        # ============================================================
+        # PASSO 32: FOCAR E ABRIR TRANSAÇÃO
+        # ============================================================
+        # ⏳ Damos 2 segundos para o Tkinter "respirar" após você clicar no botão
+        time.sleep(2) 
+        
+        focar_sap()
+        time.sleep(1)
+        
+        # 1º Clique: O Windows consome esse clique para trazer o SAP para frente
+        pyautogui.click(x=CAMPO_COMANDO[0], y=CAMPO_COMANDO[1])
+        time.sleep(0.5) 
+        
+        # 2º Clique: Agora sim o clique acontece DENTRO do SAP
+        clicar(CAMPO_COMANDO)
+        
+        # Limpa o campo
+        pyautogui.hotkey('ctrl', 'a')
+        time.sleep(0.2)
+        pyautogui.press('delete')
+        time.sleep(0.2)
+        
+        # O TRUQUE DE MESTRE: Digita a barra usando o teclado numérico
+        pyautogui.press('divide') 
+        
+        # Digita o resto da transação normalmente
+        pyautogui.write('nMIR5', interval=0.05)
+        time.sleep(0.5)
+        
+        pyautogui.press('enter')
+        time.sleep(3)
+
+
+        clicar(MIR5_BOTAO_MULTIPLO_USER, espera=1)
+        clicar_e_digitar(MIR5_USER_1, 'MS0069532')
+        clicar_e_digitar(MIR5_USER_2, 'MS0073814')
+        clicar_e_digitar(MIR5_USER_3, 'MS0075116')
+        pyautogui.press('f8')
+        time.sleep(1)
+
+
+        data_inicio_str_sap = primeiro_dia_mes_passado.strftime("%d.%m.%Y")
+        data_fim_str_sap = ultimo_dia_mes_passado.strftime("%d.%m.%Y")
+
+
+        clicar(MIR5_DATA_BTN_1, espera=1)
+        clicar(MIR5_DATA_BTN_2, espera=1)
+        clicar_e_digitar(MIR5_INPUT_DATA_INICIO, data_inicio_str_sap)
+        clicar_e_digitar(MIR5_INPUT_DATA_FIM, data_fim_str_sap)
+        pyautogui.press('f8')
+        time.sleep(1)
+
+
+        pyautogui.press('f8')
+        time.sleep(7)
+
+
+        clicar(MIR5_MENU_1, espera=0.5)
+        clicar(MIR5_MENU_2, espera=0.5)
+        clicar(MIR5_MENU_3, espera=0.5)
+        clicar(MIR5_MENU_4, espera=1.5)
+        pyautogui.press('enter')
+        time.sleep(2)
+
+
+        clicar(MIR5_POPUP_SAP_1, espera=1)
+        clicar(MIR5_POPUP_SAP_2, espera=1)
+        time.sleep(8)
+        pyautogui.hotkey('alt', 'f4')
+        print("✅ SAP MIR5 Finalizado!")
+
 
 
         # --- MOVER ARQUIVOS ---

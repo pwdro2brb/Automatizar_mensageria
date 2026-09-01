@@ -1085,11 +1085,9 @@ def etapa_2_gerar_relatorios():
             "ALERTA DE HORÁRIO",
             "Data de chegada (local)",
             "Hora de chegada (local)",
-            "Nome",
-            "Sobrenome",
             "Nome ajustado",
+            "Cargo do colaborador",
             "E-mail",
-            "Cidade",
             "Distância (mi)",
             "Duração (min)",
             "Endereço de partida",
@@ -1116,13 +1114,42 @@ def etapa_2_gerar_relatorios():
             df_r = cons_df.loc[f].copy()
             if df_r.empty: continue
 
-            saida = pd.DataFrame()
+            saida = pd.DataFrame(index=df_r.index)
+
             for c in colunas_saida:
-                if c == "Endereço de destino": saida[c] = df_r[col_end_dest] if col_end_dest else ""
-                elif c == "Nome ajustado": saida[c] = df_r[col_nome_aj] if col_nome_aj else ""
-                elif c == "Responsavel": saida[c] = df_r[col_resp_cc] if col_resp_cc else ""
-                elif c in df_r.columns: saida[c] = df_r[c]
-                else: saida[c] = ""
+                if c == "Endereço de destino":
+                    saida[c] = (
+                        df_r[col_end_dest]
+                        if col_end_dest
+                        else ""
+                    )
+
+                elif c == "Nome ajustado":
+                    saida[c] = (
+                        df_r[col_nome_aj]
+                        if col_nome_aj
+                        else ""
+                    )
+
+                elif c == "Cargo do colaborador":
+                    saida[c] = (
+                        df_r["CARGO COLABORADOR"]
+                        if "CARGO COLABORADOR" in df_r.columns
+                        else ""
+                    )
+
+                elif c == "Responsavel":
+                    saida[c] = (
+                        df_r[col_resp_cc]
+                        if col_resp_cc
+                        else ""
+                    )
+
+                elif c in df_r.columns:
+                    saida[c] = df_r[c]
+
+                else:
+                    saida[c] = ""
 
             saida = saida[colunas_saida]
             wb = Workbook()
@@ -1162,6 +1189,7 @@ def etapa_2_gerar_relatorios():
                 "DIA DA SEMANA",
                 "ALERTA DE HORÁRIO",
                 "Nome ajustado",
+                "Cargo do colaborador",
                 "Responsavel",
             ]:
                 if special in header_map:
@@ -1184,7 +1212,7 @@ def etapa_2_gerar_relatorios():
                 "ALERTA DE HORÁRIO",
                 "Data de chegada (local)",
                 "Hora de chegada (local)",
-                "Cidade",
+                "Cargo do colaborador",
                 "Distância (mi)",
                 "Duração (min)",
                 "Código da despesa",

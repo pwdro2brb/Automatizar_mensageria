@@ -12,7 +12,7 @@ import subprocess
 import datetime
 import config
 import re
-
+import base64
 
 
 # ==============================================================================
@@ -20,19 +20,65 @@ import re
 # ==============================================================================
 if len(sys.argv) > 2 and sys.argv[1] == "--run-code":
     codigo = sys.argv[2]
-    log_path = sys.argv[3] if len(sys.argv) > 3 else None
+    log_path = (
+        sys.argv[3]
+        if len(sys.argv) > 3
+        else None
+    )
 
     if log_path:
-        sys.stdout = open(log_path, "w", encoding="utf-8", buffering=1)
+        sys.stdout = open(
+            log_path,
+            "w",
+            encoding="utf-8",
+            buffering=1
+        )
+
         sys.stderr = sys.stdout
 
     try:
+        print(
+            "[SUBPROCESSO] Instância auxiliar iniciada.",
+            flush=True
+        )
+
+        print(
+            f"[SUBPROCESSO] PID: {os.getpid()}",
+            flush=True
+        )
+
+        if os.environ.get("FATURAMENTO_PASTA"):
+            print(
+                "[SUBPROCESSO] Pasta recebida: "
+                f"{os.environ['FATURAMENTO_PASTA']}",
+                flush=True
+            )
+
+        print(
+            "[SUBPROCESSO] Executando comando...",
+            flush=True
+        )
+
         exec(codigo)
-    except Exception:
+
+        print(
+            "[SUBPROCESSO] Comando concluído.",
+            flush=True
+        )
+
+    except BaseException:
         traceback.print_exc()
+        sys.stdout.flush()
         sys.exit(1)
 
+    finally:
+        try:
+            sys.stdout.flush()
+        except Exception:
+            pass
+
     sys.exit(0)
+
 
 
 # ==============================================================================
@@ -93,6 +139,65 @@ class PrintRedirector:
 
 
 class CentralAutomacaoMRV:
+    def _tratar_erro_tkinter(
+        self,
+        tipo_erro,
+        valor_erro,
+        traceback_erro
+    ):
+        """
+        Registra erros não tratados de callbacks do Tkinter.
+        """
+
+        texto_erro = "".join(
+            traceback.format_exception(
+                tipo_erro,
+                valor_erro,
+                traceback_erro
+            )
+        )
+
+        try:
+            caminho_log = os.path.join(
+                self.PASTA_BASE,
+                "erro_hub_tkinter.log"
+            )
+
+            with open(
+                caminho_log,
+                "a",
+                encoding="utf-8"
+            ) as arquivo:
+                arquivo.write(
+                    "\n" + "=" * 80 + "\n"
+                )
+
+                arquivo.write(
+                    datetime.datetime.now().strftime(
+                        "%d/%m/%Y %H:%M:%S"
+                    )
+                )
+
+                arquivo.write("\n")
+                arquivo.write(texto_erro)
+
+        except Exception:
+            pass
+
+        print(texto_erro)
+
+        try:
+            messagebox.showerror(
+                "Erro no Hub",
+                "O Hub encontrou um erro na interface.\n\n"
+                f"{valor_erro}\n\n"
+                "O detalhe completo foi salvo em "
+                "erro_hub_tkinter.log.",
+                parent=self.root
+            )
+        except Exception:
+            pass
+
     def __init__(self, root):
         self.root = root
 
@@ -106,6 +211,9 @@ class CentralAutomacaoMRV:
         self._resize_after_id = None
 
         self.PASTA_BASE = getattr(config, "PASTA_PROJETO", os.path.dirname(os.path.abspath(__file__)))
+        self.root.report_callback_exception = (
+            self._tratar_erro_tkinter
+        )
         self.ARQUIVO_HISTORICO = os.path.join(self.PASTA_BASE, "historico_execucoes.json")
         self.ARQUIVO_ACOES_RAPIDAS = os.path.join(self.PASTA_BASE, "acoes_rapidas.json")
 
@@ -244,10 +352,18 @@ class CentralAutomacaoMRV:
                 "cor": self.COR_ROXO,
                 "tempo": "2 a 5 min",
                 "Prioridade": "Alto",
-                "requisitos": ["Outlook", "MRV Pag", "Rede"],
-                "descricao": "Executa o fluxo completo de e-mail até MRV Pag.",
-                "comando": "import robos.robo_faturamento as rf; rf.executar_faturamento_completo()",
-                "tipo": "direto",
+                "requisitos": [
+                    "Outlook ou pasta local",
+                    "MRV Pag",
+                    "Excel",
+                    "PDF"
+                ],
+                "descricao": (
+                    "Executa o faturamento pelo e-mail ou pelos arquivos "
+                    "selecionados em uma pasta."
+                ),
+                "handler": self._chamar_robo_faturamento,
+                "tipo": "especial",
                 "arquivo_ajuda": "robo_faturamento.md",
                 "secao_ajuda": "Faturamento 2: Processo Completo",
             },
@@ -2030,13 +2146,30 @@ class CentralAutomacaoMRV:
 
         if robo.get("tipo") == "especial":
             handler = robo.get("handler")
-            if handler:
-                handler()
-            else:
+
+            if not handler:
                 messagebox.showerror(
                     "Erro",
-                    f"O robô '{robo.get('nome')}' não possui função de execução configurada."
+                    f"O robô '{robo.get('nome')}' não possui "
+                    "função de execução configurada.",
+                    parent=self.root
                 )
+                return
+
+            try:
+                handler()
+
+            except Exception as erro:
+                traceback.print_exc()
+
+                messagebox.showerror(
+                    "Erro ao abrir o robô",
+                    f"O robô '{robo.get('nome')}' encontrou "
+                    "um erro antes de iniciar.\n\n"
+                    f"Detalhes:\n{erro}",
+                    parent=self.root
+                )
+
             return
 
         if robo.get("tipo") == "pasta":
@@ -2078,6 +2211,292 @@ class CentralAutomacaoMRV:
                 "Relatório Jurídico (Apenas Formatação)",
                 comando_python="import robos.robo_juridico as rj; rj.executar_juridico(pular_download=True)"
             )
+
+    def _selecionar_pasta_faturamento(self):
+        """
+        Abre o seletor do Windows em processo separado e envia
+        a pasta escolhida ao robô de faturamento.
+        """
+
+        script_powershell = r"""
+    Add-Type -AssemblyName System.Windows.Forms
+
+    $dialogo = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dialogo.Description = "Selecione a pasta com a planilha dos Correios, o Rateio Recebido e o boleto PDF"
+    $dialogo.ShowNewFolderButton = $false
+
+    $resultado = $dialogo.ShowDialog()
+
+    if ($resultado -eq [System.Windows.Forms.DialogResult]::OK) {
+        $caminho = $dialogo.SelectedPath
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($caminho)
+        $base64 = [System.Convert]::ToBase64String($bytes)
+        Write-Output $base64
+    }
+    """
+
+        try:
+            print(
+                "Abrindo seletor de pasta do Windows..."
+            )
+
+            resultado = subprocess.run(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-STA",
+                    "-Command",
+                    script_powershell
+                ],
+                capture_output=True,
+                creationflags=CREATE_NO_WINDOW
+            )
+
+        except Exception as erro:
+            traceback.print_exc()
+
+            messagebox.showerror(
+                "Erro ao abrir seletor",
+                "Não foi possível abrir o seletor de pasta.\n\n"
+                f"Detalhes:\n{erro}",
+                parent=self.root
+            )
+            return
+
+        if resultado.returncode != 0:
+            detalhe = resultado.stderr.decode(
+                "utf-8",
+                errors="replace"
+            ).strip()
+
+            messagebox.showerror(
+                "Erro ao abrir seletor",
+                "O seletor de pasta foi encerrado com erro.\n\n"
+                f"Detalhes:\n{detalhe or 'Erro não identificado.'}",
+                parent=self.root
+            )
+            return
+
+        caminho_base64 = resultado.stdout.decode(
+            "ascii",
+            errors="ignore"
+        ).strip()
+
+        if not caminho_base64:
+            print(
+                "Seleção de pasta cancelada pelo usuário."
+            )
+            return
+
+        try:
+            pasta_selecionada = base64.b64decode(
+                caminho_base64
+            ).decode(
+                "utf-8"
+            )
+
+        except Exception as erro:
+            traceback.print_exc()
+
+            messagebox.showerror(
+                "Erro ao interpretar pasta",
+                "O caminho selecionado não pôde ser interpretado.\n\n"
+                f"Detalhes:\n{erro}",
+                parent=self.root
+            )
+            return
+
+        pasta_selecionada = os.path.normpath(
+            pasta_selecionada.strip()
+        )
+
+        print(
+            f"Pasta selecionada: {pasta_selecionada}"
+        )
+
+        if not os.path.isdir(pasta_selecionada):
+            messagebox.showerror(
+                "Pasta inválida",
+                "A pasta selecionada não foi encontrada.\n\n"
+                f"Caminho:\n{pasta_selecionada}",
+                parent=self.root
+            )
+            return
+
+        print(
+            "Pasta recebida com sucesso."
+        )
+
+        comando_python = (
+            "import os; "
+            "import robos.robo_faturamento as rf; "
+            "rf.executar_faturamento_por_pasta("
+            "os.environ['FATURAMENTO_PASTA']"
+            ")"
+        )
+
+        print(
+            "Preparando execução do faturamento por pasta..."
+        )
+
+        self.executar_processo_cancelavel(
+            "Faturamento 2 - Pasta selecionada",
+            comando_python=comando_python,
+            variaveis_ambiente={
+                "FATURAMENTO_PASTA": pasta_selecionada
+            }
+        )
+
+    def _chamar_robo_faturamento(self):
+        """
+        Permite escolher entre:
+        - analisar os e-mails do Outlook;
+        - selecionar uma pasta com os arquivos;
+        - cancelar.
+        """
+
+        resposta = messagebox.askyesnocancel(
+            "Faturamento 2",
+            "Escolha como deseja executar o faturamento:\n\n"
+            "SIM: analisar os e-mails do Outlook.\n\n"
+            "NÃO: selecionar uma pasta com os arquivos.\n\n"
+            "CANCELAR: não executar.",
+            parent=self.root
+        )
+
+        if resposta is True:
+            self.executar_processo_cancelavel(
+                "Faturamento 2 - Analisar e-mail",
+                comando_python=(
+                    "import robos.robo_faturamento as rf; "
+                    "rf.executar_faturamento_completo()"
+                )
+            )
+            return
+
+        if resposta is False:
+            self.root.after_idle(
+                self._selecionar_pasta_faturamento
+            )
+            return
+
+        print(
+            "Execução do Faturamento 2 cancelada."
+        )
+
+    def _validar_pasta_faturamento(
+        self,
+        pasta_selecionada
+    ):
+        """
+        Verifica se a pasta contém exatamente:
+        - uma planilha dos Correios com sete dígitos;
+        - um arquivo Rateio Recebido em Excel;
+        - um boleto em PDF.
+        """
+
+        erros = []
+
+        if not pasta_selecionada:
+            return [
+                "Nenhuma pasta foi selecionada."
+            ]
+
+        if not os.path.exists(pasta_selecionada):
+            return [
+                "A pasta selecionada não existe."
+            ]
+
+        if not os.path.isdir(pasta_selecionada):
+            return [
+                "O caminho selecionado não é uma pasta."
+            ]
+
+        try:
+            arquivos = [
+                arquivo
+                for arquivo in os.listdir(pasta_selecionada)
+                if os.path.isfile(
+                    os.path.join(
+                        pasta_selecionada,
+                        arquivo
+                    )
+                )
+            ]
+
+        except PermissionError:
+            return [
+                "O usuário não possui permissão para acessar a pasta."
+            ]
+
+        except OSError as erro:
+            return [
+                f"Não foi possível acessar a pasta: {erro}"
+            ]
+
+        planilhas_correios = [
+            arquivo
+            for arquivo in arquivos
+            if re.fullmatch(
+                r"\d{7}\.xlsx",
+                arquivo,
+                flags=re.IGNORECASE
+            )
+        ]
+
+        rateios_recebidos = [
+            arquivo
+            for arquivo in arquivos
+            if re.fullmatch(
+                r"rateio[\s_-]*recebido\.xlsx",
+                arquivo,
+                flags=re.IGNORECASE
+            )
+        ]
+
+        arquivos_pdf = [
+            arquivo
+            for arquivo in arquivos
+            if arquivo.lower().endswith(".pdf")
+        ]
+
+        if not planilhas_correios:
+            erros.append(
+                "Planilha dos Correios no formato 1234567.xlsx"
+            )
+
+        elif len(planilhas_correios) > 1:
+            erros.append(
+                "Foi encontrada mais de uma planilha numérica "
+                "dos Correios: "
+                + ", ".join(planilhas_correios)
+            )
+
+        if not rateios_recebidos:
+            erros.append(
+                "Arquivo Rateio Recebido.xlsx"
+            )
+
+        elif len(rateios_recebidos) > 1:
+            erros.append(
+                "Foi encontrado mais de um Rateio Recebido: "
+                + ", ".join(rateios_recebidos)
+            )
+
+        if not arquivos_pdf:
+            erros.append(
+                "Boleto em formato PDF"
+            )
+
+        elif len(arquivos_pdf) > 1:
+            erros.append(
+                "Foi encontrado mais de um PDF: "
+                + ", ".join(arquivos_pdf)
+            )
+
+        return erros
 
     def _verificar_pasta_e_executar(self, nome_processo, comando_python, caminho_pasta):
         msg = (
@@ -2185,11 +2604,34 @@ class CentralAutomacaoMRV:
                 comando_python="import robos.robo_zmm180 as rz; rz.executar_zmm180()"
             )
 
-    def executar_processo_cancelavel(self, nome_processo, comando_python=None):
+    def executar_processo_cancelavel(self,nome_processo,comando_python=None,variaveis_ambiente=None):
+        print(
+            f"[HUB] Solicitação recebida: {nome_processo}"
+        )
+
         if not comando_python:
-            messagebox.showerror("Erro", "Comando do robô não informado.")
+            messagebox.showerror(
+                "Erro",
+                "Comando do robô não informado.",
+                parent=self.root
+            )
             return
-        
+
+        if (
+            self.processo_ativo
+            and self.processo_ativo.poll() is None
+        ):
+            messagebox.showwarning(
+                "Processo em andamento",
+                "Já existe uma automação em execução.",
+                parent=self.root
+            )
+            return
+
+        print(
+            f"[HUB] Comando Python: {comando_python}"
+        )
+
         self._preparar_tela_execucao()
 
         for btn in self.todos_botoes:
@@ -2199,85 +2641,282 @@ class CentralAutomacaoMRV:
                 pass
 
         self.progressbar.set(0)
-        self.btn_cancelar.configure(state="normal")
 
-        print(f">>> Iniciando: {nome_processo}...")
+        self.btn_cancelar.configure(
+            state="normal"
+        )
+
+        print(
+            f">>> Iniciando: {nome_processo}..."
+        )
+
         threading.Thread(
             target=self._rodar_subprocesso,
-            args=(nome_processo, comando_python),
+            args=(
+                nome_processo,
+                comando_python,
+                variaveis_ambiente
+            ),
             daemon=True
         ).start()
 
-    def _rodar_subprocesso(self, nome_processo, comando_python):
+    def _rodar_subprocesso(self,nome_processo,comando_python,variaveis_ambiente=None):
         self.foi_cancelado = False
 
-        fd, log_path = tempfile.mkstemp(suffix=".log", text=True)
+        fd, log_path = tempfile.mkstemp(
+            suffix=".log",
+            text=True
+        )
         os.close(fd)
 
         inicio = time.time()
 
+        print(
+            f"Comando recebido: {comando_python}"
+        )
+
         try:
             if getattr(sys, "frozen", False):
-                cmd = [sys.executable, "--run-code", comando_python, log_path]
+                cmd = [
+                    sys.executable,
+                    "--run-code",
+                    comando_python,
+                    log_path
+                ]
             else:
-                cmd = [sys.executable, sys.argv[0], "--run-code", comando_python, log_path]
+                caminho_hub = os.path.abspath(
+                    sys.argv[0]
+                )
 
-            processo = subprocess.Popen(cmd, creationflags=CREATE_NO_WINDOW)
+                cmd = [
+                    sys.executable,
+                    caminho_hub,
+                    "--run-code",
+                    comando_python,
+                    log_path
+                ]
+
+            ambiente = os.environ.copy()
+
+            if variaveis_ambiente:
+                for chave, valor in variaveis_ambiente.items():
+                    ambiente[str(chave)] = str(valor)
+
+            print(
+                f"Iniciando subprocesso: {cmd[0]}"
+            )
+
+            if "FATURAMENTO_PASTA" in ambiente:
+                print(
+                    "Pasta enviada ao subprocesso pela "
+                    "variável FATURAMENTO_PASTA."
+                )
+
+            processo = subprocess.Popen(
+                cmd,
+                creationflags=CREATE_NO_WINDOW,
+                env=ambiente
+            )
+
             self.processo_ativo = processo
-            self.root.after(0, lambda: self.btn_cancelar.configure(state="normal"))
+
+            self.root.after(
+                0,
+                lambda: self.btn_cancelar.configure(
+                    state="normal"
+                )
+            )
+
+            print(
+                f"Subprocesso iniciado. PID: {processo.pid}"
+            )
 
             linhas_log = []
+            posicao_log = 0
 
-            with open(log_path, "r", encoding="utf-8") as f:
-                while processo.poll() is None:
-                    linha = f.readline()
+            while processo.poll() is None:
+                try:
+                    with open(
+                        log_path,
+                        "r",
+                        encoding="utf-8",
+                        errors="replace"
+                    ) as arquivo_log:
+                        arquivo_log.seek(
+                            posicao_log
+                        )
 
-                    if linha:
-                        self._processar_linha_log(linha, linhas_log)
-                    else:
-                        time.sleep(0.1)
+                        novas_linhas = (
+                            arquivo_log.readlines()
+                        )
 
-                for linha in f.readlines():
-                    self._processar_linha_log(linha, linhas_log)
+                        posicao_log = (
+                            arquivo_log.tell()
+                        )
+
+                    for linha in novas_linhas:
+                        self._processar_linha_log(
+                            linha,
+                            linhas_log
+                        )
+
+                except FileNotFoundError:
+                    pass
+
+                except Exception as erro_log:
+                    print(
+                        f"Erro ao acompanhar log: {erro_log}"
+                    )
+
+                time.sleep(0.15)
+
+            # Lê as linhas restantes depois que o processo termina.
+            try:
+                with open(
+                    log_path,
+                    "r",
+                    encoding="utf-8",
+                    errors="replace"
+                ) as arquivo_log:
+                    arquivo_log.seek(
+                        posicao_log
+                    )
+
+                    for linha in arquivo_log.readlines():
+                        self._processar_linha_log(
+                            linha,
+                            linhas_log
+                        )
+
+            except Exception:
+                pass
+
+            codigo_retorno = processo.returncode
 
             self.processo_ativo = None
-            self.root.after(0, lambda: self.btn_cancelar.configure(state="disabled"))
 
-            duracao = round(time.time() - inicio, 1)
+            self.root.after(
+                0,
+                lambda: self.btn_cancelar.configure(
+                    state="disabled"
+                )
+            )
+
+            duracao = round(
+                time.time() - inicio,
+                1
+            )
 
             if self.foi_cancelado:
-                print("\nO processo foi cancelado pelo usuário.")
-                self._registrar_historico(nome_processo, "cancelado", duracao)
-                self.root.after(0, lambda: messagebox.showwarning("Cancelado", "O processo foi cancelado pelo usuário."))
+                print(
+                    "\nO processo foi cancelado pelo usuário."
+                )
 
-            elif processo.returncode == 0:
-                self.progressbar.set(1)
-                print("\nProcesso finalizado com sucesso!")
-                self._registrar_historico(nome_processo, "sucesso", duracao)
-                self.root.after(0, lambda: messagebox.showinfo("Sucesso", "A automação foi concluída com sucesso!"))
+                self._registrar_historico(
+                    nome_processo,
+                    "cancelado",
+                    duracao
+                )
 
-            elif processo.returncode == 1:
-                print(f"\nO processo falhou. Código {processo.returncode}.")
-                self._registrar_historico(nome_processo, "erro", duracao)
+                self.root.after(
+                    0,
+                    lambda: messagebox.showwarning(
+                        "Cancelado",
+                        "O processo foi cancelado pelo usuário.",
+                        parent=self.root
+                    )
+                )
 
-                texto_erro = self._extrair_erro(linhas_log)
-                mensagem_popup = f"O processo foi interrompido pelo seguinte motivo:\n\n{texto_erro}"
+            elif codigo_retorno == 0:
+                self.root.after(
+                    0,
+                    lambda: self.progressbar.set(1)
+                )
 
-                self.root.after(0, lambda: messagebox.showerror("Erro na Automação", mensagem_popup))
+                print(
+                    "\nProcesso finalizado com sucesso!"
+                )
+
+                self._registrar_historico(
+                    nome_processo,
+                    "sucesso",
+                    duracao
+                )
+
+                self.root.after(
+                    0,
+                    lambda: messagebox.showinfo(
+                        "Sucesso",
+                        "A automação foi concluída com sucesso!",
+                        parent=self.root
+                    )
+                )
 
             else:
-                print(f"\nO processo foi encerrado. Código {processo.returncode}.")
-                self._registrar_historico(nome_processo, "encerrado", duracao)
-                self.root.after(0, lambda: messagebox.showwarning("Encerrado", "O processo foi encerrado."))
+                print(
+                    f"\nO processo falhou. Código {codigo_retorno}."
+                )
 
-        except Exception as e:
-            print(f"\nErro ao iniciar o processo: {e}")
-            self._registrar_historico(nome_processo, "erro", 0)
-            self.root.after(0, lambda msg=str(e): messagebox.showerror("Erro Crítico", msg))
+                self._registrar_historico(
+                    nome_processo,
+                    "erro",
+                    duracao
+                )
+
+                texto_erro = self._extrair_erro(
+                    linhas_log
+                )
+
+                mensagem_popup = (
+                    "O processo foi interrompido pelo "
+                    "seguinte motivo:\n\n"
+                    f"{texto_erro}"
+                )
+
+                self.root.after(
+                    0,
+                    lambda mensagem=mensagem_popup: (
+                        messagebox.showerror(
+                            "Erro na Automação",
+                            mensagem,
+                            parent=self.root
+                        )
+                    )
+                )
+
+        except Exception as erro:
+            self.processo_ativo = None
+
+            print(
+                f"\nErro ao iniciar o processo: {erro}"
+            )
+
+            traceback.print_exc()
+
+            self._registrar_historico(
+                nome_processo,
+                "erro",
+                0
+            )
+
+            self.root.after(
+                0,
+                lambda mensagem=str(erro): (
+                    messagebox.showerror(
+                        "Erro Crítico",
+                        mensagem,
+                        parent=self.root
+                    )
+                )
+            )
 
         finally:
             print("-" * 60)
-            self.root.after(0, self._reativar_botoes)
+
+            self.root.after(
+                0,
+                self._reativar_botoes
+            )
 
             try:
                 os.remove(log_path)
@@ -2306,25 +2945,89 @@ class CentralAutomacaoMRV:
         return linhas_erro[-1] if linhas_erro else "Erro desconhecido."
 
     def cancelar_processo(self):
-        if self.processo_ativo and self.processo_ativo.poll() is None:
-            if messagebox.askyesno(
-                "Atenção",
-                "Tem certeza que deseja cancelar o robô?\n\n"
-                "Isso tentará encerrar o processo ativo e os subprocessos abertos por ele."
-            ):
-                try:
-                    self.foi_cancelado = True
-                    subprocess.run(
-                        ["taskkill", "/F", "/T", "/PID", str(self.processo_ativo.pid)],
-                        creationflags=CREATE_NO_WINDOW
-                    )
+        processo = self.processo_ativo
 
-                    print("\n" + "=" * 50)
-                    print("PROCESSO CANCELADO FORÇADAMENTE PELO USUÁRIO!")
-                    print("=" * 50 + "\n")
+        if not processo:
+            messagebox.showinfo(
+                "Cancelamento",
+                "Não existe um processo ativo.",
+                parent=self.root
+            )
+            return
 
-                except Exception as e:
-                    print(f"\nErro ao tentar cancelar: {e}")
+        if processo.poll() is not None:
+            self.processo_ativo = None
+
+            messagebox.showinfo(
+                "Cancelamento",
+                "O processo já foi encerrado.",
+                parent=self.root
+            )
+            return
+
+        confirmar = messagebox.askyesno(
+            "Atenção",
+            "Tem certeza que deseja cancelar o robô?\n\n"
+            "O processo ativo e os subprocessos relacionados "
+            "serão encerrados.",
+            parent=self.root
+        )
+
+        if not confirmar:
+            return
+
+        self.foi_cancelado = True
+
+        print(
+            f"\nCancelando processo PID {processo.pid}..."
+        )
+
+        try:
+            resultado = subprocess.run(
+                [
+                    "taskkill",
+                    "/F",
+                    "/T",
+                    "/PID",
+                    str(processo.pid)
+                ],
+                capture_output=True,
+                text=True,
+                encoding="cp850",
+                errors="replace",
+                creationflags=CREATE_NO_WINDOW,
+                timeout=15
+            )
+
+            print(
+                resultado.stdout.strip()
+                or resultado.stderr.strip()
+                or "Comando de cancelamento enviado."
+            )
+
+        except subprocess.TimeoutExpired:
+            try:
+                processo.kill()
+            except Exception:
+                pass
+
+            print(
+                "O taskkill excedeu o tempo limite. "
+                "O processo principal foi encerrado diretamente."
+            )
+
+        except Exception as erro:
+            print(
+                f"Erro ao executar taskkill: {erro}"
+            )
+
+            try:
+                processo.kill()
+            except Exception as erro_kill:
+                print(
+                    "Também não foi possível executar kill: "
+                    f"{erro_kill}"
+                )
 
     def _reativar_botoes(self):
         for btn in self.todos_botoes:

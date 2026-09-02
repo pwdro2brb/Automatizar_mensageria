@@ -890,6 +890,239 @@ def atualizar_cc_rateio_pag(caminho_rateio_pag, ccs_antigos, ccs_novos):
     return sucesso
 
 
+def abrir_mrv_pag():
+    """
+    Abre o MRV Pag, realiza o login e retorna
+    o driver e os objetos de espera.
+    """
+
+    print("Abrindo MRV Pag...")
+
+    chrome_options = Options()
+    chrome_options.add_experimental_option(
+        "detach",
+        True
+    )
+
+    driver = webdriver.Chrome(
+        options=chrome_options
+    )
+
+    driver.get(
+        "https://mrvpag2.mrv.com.br/home"
+    )
+
+    driver.maximize_window()
+
+    wait_longo = WebDriverWait(
+        driver,
+        180
+    )
+
+    wait = WebDriverWait(
+        driver,
+        15
+    )
+
+    wait_rapido = WebDriverWait(
+        driver,
+        2
+    )
+
+    print("Aguardando login...")
+
+    wait.until(
+        EC.presence_of_element_located(
+            (By.ID, "i0116")
+        )
+    ).send_keys(EMAIL_MRV)
+
+    click_anti_stale(
+        wait,
+        By.ID,
+        "idSIButton9"
+    )
+
+    wait.until(
+        EC.presence_of_element_located(
+            (By.ID, "i0118")
+        )
+    ).send_keys(SENHA_MRV)
+
+    click_anti_stale(
+        wait_longo,
+        By.ID,
+        "idSIButton9"
+    )
+
+    print("!!! APROVE O MFA NO CELULAR !!!")
+
+    click_anti_stale(
+        wait_longo,
+        By.ID,
+        "idSIButton9"
+    )
+
+    try:
+            fechar_mensagem = WebDriverWait(
+                driver,
+                100
+            ).until(
+                EC.element_to_be_clickable(
+                    (
+                        By.CSS_SELECTOR,
+                        "mat-icon.btnCancelTest"
+                    )
+                )
+            )
+
+            fechar_mensagem.click()
+
+    except TimeoutException:
+            print(
+                "Aviso: mensagem inicial do MRV Pag "
+                "não foi exibida."
+            )
+
+    print("Login concluído.")
+
+    return (
+        driver,
+        wait,
+        wait_rapido,
+        wait_longo
+    )
+
+def localizar_arquivos_faturamento_pasta(
+    pasta_selecionada: Union[str, Path]
+) -> Dict[str, str]:
+    """
+    Localiza na pasta:
+    - planilha numérica dos Correios;
+    - Rateio Recebido;
+    - boleto PDF.
+
+    Retorna um dicionário com os caminhos completos.
+    """
+
+    pasta = Path(
+        pasta_selecionada
+    ).resolve()
+
+    if not pasta.exists():
+        raise FileNotFoundError(
+            f"A pasta não existe: {pasta}"
+        )
+
+    if not pasta.is_dir():
+        raise NotADirectoryError(
+            f"O caminho não é uma pasta: {pasta}"
+        )
+
+    planilhas_correios = []
+    rateios_recebidos = []
+    boletos_pdf = []
+
+    for arquivo in pasta.iterdir():
+        if not arquivo.is_file():
+            continue
+
+        nome = arquivo.name
+        nome_lower = nome.lower()
+
+        if re.fullmatch(
+            r"\d{7}\.xlsx",
+            nome,
+            flags=re.IGNORECASE
+        ):
+            planilhas_correios.append(
+                arquivo
+            )
+
+        elif re.fullmatch(
+            r"rateio[\s_-]*recebido\.xlsx",
+            nome,
+            flags=re.IGNORECASE
+        ):
+            rateios_recebidos.append(
+                arquivo
+            )
+
+        elif nome_lower.endswith(".pdf"):
+            boletos_pdf.append(
+                arquivo
+            )
+
+    if not planilhas_correios:
+        raise FileNotFoundError(
+            "Nenhuma planilha dos Correios foi encontrada. "
+            "O nome deve possuir sete números, por exemplo: "
+            "1234567.xlsx."
+        )
+
+    if len(planilhas_correios) > 1:
+        nomes = "\n".join(
+            f"- {arquivo.name}"
+            for arquivo in planilhas_correios
+        )
+
+        raise ValueError(
+            "Foi encontrada mais de uma planilha numérica "
+            "dos Correios:\n"
+            f"{nomes}\n\n"
+            "Deixe apenas a planilha correspondente ao boleto."
+        )
+
+    if not rateios_recebidos:
+        raise FileNotFoundError(
+            "O arquivo Rateio Recebido.xlsx não foi encontrado."
+        )
+
+    if len(rateios_recebidos) > 1:
+        nomes = "\n".join(
+            f"- {arquivo.name}"
+            for arquivo in rateios_recebidos
+        )
+
+        raise ValueError(
+            "Foi encontrado mais de um Rateio Recebido:\n"
+            f"{nomes}\n\n"
+            "Deixe apenas o arquivo que deve ser processado."
+        )
+
+    if not boletos_pdf:
+        raise FileNotFoundError(
+            "Nenhum boleto PDF foi encontrado na pasta."
+        )
+
+    if len(boletos_pdf) > 1:
+        nomes = "\n".join(
+            f"- {arquivo.name}"
+            for arquivo in boletos_pdf
+        )
+
+        raise ValueError(
+            "Foi encontrado mais de um arquivo PDF:\n"
+            f"{nomes}\n\n"
+            "Deixe apenas o boleto que deve ser lançado."
+        )
+
+    return {
+        "pasta": str(pasta),
+        "planilha_correios": str(
+            planilhas_correios[0]
+        ),
+        "rateio_recebido": str(
+            rateios_recebidos[0]
+        ),
+        "boleto_pdf": str(
+            boletos_pdf[0]
+        ),
+        "rateio_pag": str(
+            pasta / "RATEIO PAG.xlsx"
+        ),
+    }
+
 def executar_faturamento_completo():
     print("[PROGRESSO: 5]")
     print("Iniciando Faturamento Ponta a Ponta (E-mail -> MRV Pag)...")
@@ -1131,70 +1364,395 @@ def executar_faturamento_completo():
             continue
 
         if not driver:
-            print("Abrindo MRV Pag...")
-            chrome_options = Options()
-            chrome_options.add_experimental_option("detach", True) 
-            driver = webdriver.Chrome(options=chrome_options) 
-            driver.get("https://mrvpag2.mrv.com.br/home")
-            driver.maximize_window()
-            wait_longo = WebDriverWait(driver, 180)
-            wait = WebDriverWait(driver, 15)
-            wait_rapido = WebDriverWait(driver, 2)
-            
-            print("Aguardando login...")
-            wait.until(EC.presence_of_element_located((By.ID, "i0116"))).send_keys(EMAIL_MRV)
-            click_anti_stale(wait, By.ID, "idSIButton9")
-            wait.until(EC.presence_of_element_located((By.ID, "i0118"))).send_keys(SENHA_MRV)
-            click_anti_stale(wait_longo, By.ID, "idSIButton9")
-            print("!!! APROVE O MFA NO CELULAR !!!")
-            click_anti_stale(wait_longo, By.ID, "idSIButton9") 
-            
-            fechar_mensagem = WebDriverWait(driver, 100).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-icon.btnCancelTest")))
-            fechar_mensagem.click()
-            print("Login concluído.")
+                (
+                    driver,
+                    wait,
+                    wait_rapido,
+                    wait_longo
+                ) = abrir_mrv_pag()
 
         print("Verificando se o documento já foi lançado...")
-        driver.get("https://mrvpag2.mrv.com.br/home")
-        wait_overlays_to_hide(wait)
-        
-        try:
-            dropdown_paginacao = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "mat-select[aria-label='Itens por página:']")))
-            driver.execute_script("arguments[0].scrollIntoView({block:'center'});", dropdown_paginacao)
-            dropdown_paginacao.click()
-            
-            opcao_1000 = wait.until(EC.element_to_be_clickable((By.XPATH, "//mat-option[.//span[contains(text(), '1000')]]")))
-            opcao_1000.click()
-            time.sleep(3) 
-        except Exception as e:
-            print("Aviso: Não foi possível alterar a paginação para 1000.")
 
-        xpath_doc = f"//td[contains(@class, 'cdk-column-documento') and contains(text(), '{num_doc}')]"
-        documento_encontrado = driver.find_elements(By.XPATH, xpath_doc)
-        
-        if len(documento_encontrado) > 0:
-            print(f"⚠️ Documento {num_doc} JÁ ESTÁ LANÇADO no MRV Pag. Pulando lançamento.")
+        documento_encontrado = documento_ja_lancado_mrv_pag(
+                driver=driver,
+                wait=wait,
+                numero_documento=num_doc
+        )
+
+        if documento_encontrado:
+            print(
+                f"⚠️ Documento {num_doc} JÁ ESTÁ LANÇADO "
+                "no MRV Pag. Pulando lançamento."
+            )
         else:
-            print(f"✅ Documento {num_doc} não encontrado. Iniciando lançamento...")
+            print(
+                f"✅ Documento {num_doc} não encontrado. "
+                "Iniciando lançamento..."
+            )
+
             try:
-                _realizar_lancamento_mrvpag(driver, wait, wait_rapido, caminho_boleto_pdf, caminho_rateio_pag, campos, df_regras)
-                print(f"🎉 Lançamento da regional {regional} preenchido com sucesso!")
-                
-                regionais_ja_tratadas.append(regional) # Salva na memória
-                
-                # --- PARADA DE SEGURANÇA ---
-                print("\n🛑 PARADA DE SEGURANÇA: O robô preencheu os dados.")
-                print("Por favor, confira na tela do Chrome e clique em SALVAR/CONFIRMAR manualmente.")
-                print("Para lançar a próxima regional, rode o robô novamente no Hub.")
-                break # <--- ISSO FAZ O ROBÔ PARAR AQUI E DEIXAR A TELA ABERTA PARA VOCÊ
-                
+                _realizar_lancamento_mrvpag(
+                    driver=driver,
+                    wait=wait,
+                    wait_rapido=wait_rapido,
+                    caminho_boleto_pdf=caminho_boleto_pdf,
+                    caminho_planilha_rateio=caminho_rateio_pag,
+                    campos=campos,
+                    df_regras=df_regras
+                )
+
+                print(
+                    f"🎉 Lançamento da regional {regional} "
+                    "preenchido com sucesso!"
+                )
+
+                regionais_ja_tratadas.append(
+                    regional
+                )
+
+                print(
+                        "\n🛑 PARADA DE SEGURANÇA: "
+                    "O robô preencheu os dados."
+                )
+                print(
+                    "Por favor, confira na tela do Chrome e "
+                    "clique em SALVAR/CONFIRMAR manualmente."
+                )
+                print(
+                    "Para lançar a próxima regional, "
+                    "rode o robô novamente no Hub."
+                )
+
+                break
+
             except Exception as e:
-                print(f"❌ Erro ao lançar no MRV Pag: {e}")
+                print(
+                    f"❌ Erro ao lançar no MRV Pag: {e}"
+                )
 
         progresso = 15 + int(((i + 1) / len(emails_processar)) * 85)
         print(f"[PROGRESSO: {progresso}]")
 
     print("[PROGRESSO: 100]")
     print("\nFaturamento Ponta a Ponta finalizado com sucesso!")
+
+def documento_ja_lancado_mrv_pag(
+    driver,
+    wait,
+    numero_documento: str
+) -> bool:
+    """
+    Verifica se o documento já aparece na página
+    inicial do MRV Pag.
+    """
+
+    driver.get(
+        "https://mrvpag2.mrv.com.br/home"
+    )
+
+    wait_overlays_to_hide(
+        wait
+    )
+
+    try:
+        dropdown_paginacao = wait.until(
+            EC.element_to_be_clickable(
+                (
+                    By.CSS_SELECTOR,
+                    "mat-select[aria-label='Itens por página:']"
+                )
+            )
+        )
+
+        driver.execute_script(
+            "arguments[0].scrollIntoView({block:'center'});",
+            dropdown_paginacao
+        )
+
+        dropdown_paginacao.click()
+
+        opcao_1000 = wait.until(
+            EC.element_to_be_clickable(
+                (
+                    By.XPATH,
+                    "//mat-option["
+                    ".//span[contains(text(), '1000')]"
+                    "]"
+                )
+            )
+        )
+
+        opcao_1000.click()
+        time.sleep(3)
+
+    except Exception:
+        print(
+            "Aviso: não foi possível alterar "
+            "a paginação para 1000."
+        )
+
+    xpath_documento = (
+        "//td["
+        "contains(@class, 'cdk-column-documento') "
+        f"and contains(normalize-space(.), '{numero_documento}')"
+        "]"
+    )
+
+    documentos = driver.find_elements(
+        By.XPATH,
+        xpath_documento
+    )
+
+    return len(documentos) > 0
+
+def executar_faturamento_por_pasta(
+    pasta_selecionada: Union[str, Path]
+):
+    """
+    Executa o faturamento usando os arquivos existentes
+    na pasta selecionada manualmente.
+
+    Arquivos esperados:
+    - 1234567.xlsx
+    - Rateio Recebido.xlsx
+    - boleto.pdf
+    """
+
+    print("[PROGRESSO: 5]")
+    print(
+        "Iniciando Faturamento por Pasta..."
+    )
+
+    # --------------------------------------------------------------------------
+    # 1. Localização dos arquivos
+    # --------------------------------------------------------------------------
+
+    arquivos = localizar_arquivos_faturamento_pasta(
+        pasta_selecionada
+    )
+
+    caminho_correios = arquivos[
+        "planilha_correios"
+    ]
+
+    caminho_rr = arquivos[
+        "rateio_recebido"
+    ]
+
+    caminho_boleto_pdf = arquivos[
+        "boleto_pdf"
+    ]
+
+    caminho_rateio_pag = arquivos[
+        "rateio_pag"
+    ]
+
+    print(
+        f"Pasta selecionada: {arquivos['pasta']}"
+    )
+
+    print(
+        "Planilha dos Correios: "
+        f"{Path(caminho_correios).name}"
+    )
+
+    print(
+        "Rateio Recebido: "
+        f"{Path(caminho_rr).name}"
+    )
+
+    print(
+        "Boleto: "
+        f"{Path(caminho_boleto_pdf).name}"
+    )
+
+    print("[PROGRESSO: 15]")
+
+    # --------------------------------------------------------------------------
+    # 2. Carregamento das regras
+    # --------------------------------------------------------------------------
+
+    arquivo_regras = (
+        PASTA_ARQUIVOS_RATEIO
+        / "dados_puxados_preenchimento.xlsx"
+    )
+
+    if not arquivo_regras.exists():
+        raise FileNotFoundError(
+            "A planilha de regras não foi encontrada:\n"
+            f"{arquivo_regras}"
+        )
+
+    df_regras = pd.read_excel(
+        arquivo_regras,
+        engine="openpyxl"
+    )
+
+    # --------------------------------------------------------------------------
+    # 3. Geração do RATEIO PAG
+    # --------------------------------------------------------------------------
+
+    print(
+        "Gerando RATEIO PAG.xlsx..."
+    )
+
+    gerar_rateio_pag(
+        caminho_correios=caminho_correios,
+        caminho_rr=caminho_rr,
+        saida=caminho_rateio_pag,
+        debug=True
+    )
+
+    if not os.path.exists(
+        caminho_rateio_pag
+    ):
+        raise FileNotFoundError(
+            "O RATEIO PAG não foi criado."
+        )
+
+    print(
+        "RATEIO PAG gerado com sucesso."
+    )
+
+    print("[PROGRESSO: 35]")
+
+    # --------------------------------------------------------------------------
+    # 4. Extração dos dados do boleto
+    # --------------------------------------------------------------------------
+
+    print(
+        "Extraindo dados do boleto PDF..."
+    )
+
+    campos = extrair_campos_boleto(
+        caminho_boleto_pdf
+    )
+
+    numero_documento = campos.get(
+        "numero_documento"
+    )
+
+    cnpj_mrv = campos.get(
+        "cnpj_pagador"
+    )
+
+    valor_boleto = campos.get(
+        "valor_total_str"
+    )
+
+    if (
+        not numero_documento
+        or not cnpj_mrv
+        or not valor_boleto
+    ):
+        raise ValueError(
+            "Não foi possível extrair todos os dados "
+            "obrigatórios do boleto.\n"
+            f"Número do documento: {numero_documento}\n"
+            f"CNPJ MRV: {cnpj_mrv}\n"
+            f"Valor: {valor_boleto}"
+        )
+
+    print(
+        f"Documento: {numero_documento}"
+    )
+
+    print(
+        f"CNPJ MRV: {cnpj_mrv}"
+    )
+
+    print(
+        f"Valor do boleto: R$ {valor_boleto}"
+    )
+
+    print("[PROGRESSO: 50]")
+
+    # --------------------------------------------------------------------------
+    # 5. Abertura do MRV Pag
+    # --------------------------------------------------------------------------
+
+    driver = None
+
+    try:
+        (
+            driver,
+            wait,
+            wait_rapido,
+            wait_longo
+        ) = abrir_mrv_pag()
+
+        print("[PROGRESSO: 65]")
+
+        # ----------------------------------------------------------------------
+        # 6. Verificação de duplicidade
+        # ----------------------------------------------------------------------
+
+        print(
+            "Verificando se o documento já foi lançado..."
+        )
+
+        ja_lancado = documento_ja_lancado_mrv_pag(
+            driver=driver,
+            wait=wait,
+            numero_documento=numero_documento
+        )
+
+        if ja_lancado:
+            print(
+                f"Documento {numero_documento} "
+                "já está lançado no MRV Pag."
+            )
+
+            print("[PROGRESSO: 100]")
+            return
+
+        print(
+            f"Documento {numero_documento} não encontrado. "
+            "Iniciando preenchimento..."
+        )
+
+        print("[PROGRESSO: 75]")
+
+        # ----------------------------------------------------------------------
+        # 7. Preenchimento do lançamento
+        # ----------------------------------------------------------------------
+
+        _realizar_lancamento_mrvpag(
+            driver=driver,
+            wait=wait,
+            wait_rapido=wait_rapido,
+            caminho_boleto_pdf=caminho_boleto_pdf,
+            caminho_planilha_rateio=caminho_rateio_pag,
+            campos=campos,
+            df_regras=df_regras
+        )
+
+        print("[PROGRESSO: 95]")
+
+        print(
+            "\n"
+            "PARADA DE SEGURANÇA: o robô preencheu os dados."
+        )
+
+        print(
+            "Confira as informações na tela do Chrome e "
+            "clique em SALVAR/CONFIRMAR manualmente."
+        )
+
+        print(
+            "O navegador permanecerá aberto."
+        )
+
+    except Exception:
+        print(
+            "Erro durante o faturamento por pasta:"
+        )
+
+        traceback.print_exc()
+        raise
+
+    finally:
+        print("[PROGRESSO: 100]")
 
 def _realizar_lancamento_mrvpag(driver, wait, wait_rapido, caminho_boleto_pdf, caminho_planilha_rateio, campos, df_regras):
     """Função interna que executa os cliques do MRV Pag"""

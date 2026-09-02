@@ -101,6 +101,7 @@ try:
     import robos.robo_rateio_AGF
     import robos.robo_rateio_uber_central
     import robos.robo_rateio_uber_tradicional
+    import robos.atualizar_centro_custo_viagens
 
 except ImportError:
     pass
@@ -515,6 +516,35 @@ class CentralAutomacaoMRV:
                 ),
                 "tipo": "direto",
                 "arquivo_ajuda": "robo_rateio_uber_tradicional.md",
+            },
+            {
+                "nome": "Responsáveis Viagens",
+                "titulo": "Atualizar Responsáveis de Viagens",
+                "categoria": "Outros (Uber / SAP / Contratos)",
+                "icone": "🧳",
+                "cor": self.COR_LARANJA,
+                "tempo": "1 a 4 min",
+                "Prioridade": "Média",
+                "requisitos": [
+                    "SAP",
+                    "Excel",
+                    "Base de Ativos",
+                ],
+                "descricao": (
+                    "Atualiza o 1º aprovador e o superior do 1º aprovador "
+                    "nos centros de custo de viagens."
+                ),
+                "comando": (
+                    "import robos.atualizar_centro_custo_viagens as acv; "
+                    "acv.atualizar_centro_custo_viagens()"
+                ),
+                "pasta": os.path.join(
+                    config.PASTA_ARQUIVOS,
+                    "uber",
+                    "Responsaveis Viagens"
+                ),
+                "tipo": "pasta",
+                "arquivo_ajuda": "atualizar_centro_custo_viagens.md",
             },
             {
                 "nome": "Uber 1",

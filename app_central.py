@@ -1147,23 +1147,38 @@ class CentralAutomacaoMRV:
         info = ctk.CTkFrame(linha, fg_color="transparent")
         info.pack(fill=tk.X, padx=12, pady=(0, 8))
 
-        self._criar_chip(info, f"⏱ {robo.get('tempo', 'Variável')}", "#444444").pack(side="left", padx=(0, 5))
+        chips = ctk.CTkFrame(info, fg_color="transparent")
+        chips.pack(fill=tk.X, pady=(0, 6))
+
+        self._criar_chip(
+            chips,
+            f"⏱ {robo.get('tempo', 'Variável')}",
+            "#444444"
+        ).pack(side="left", padx=(0, 5))
 
         requisitos = robo.get("requisitos", [])
         if requisitos:
-            self._criar_chip(info, " • ".join(requisitos[:3]), "#3D4852").pack(side="left", padx=(0, 5))
+            self._criar_chip(
+                chips,
+                " • ".join(requisitos[:3]),
+                "#3D4852"
+            ).pack(
+                side="left",
+                fill=tk.X,
+                expand=True,
+                padx=(0, 5)
+            )
 
         btn = ctk.CTkButton(
             info,
-            text="Executar",
-            width=100,
-            height=30,
+            text="▶  Executar",
+            height=32,
             fg_color=self.COR_MRV,
             hover_color=self.COR_MRV_HOVER,
             font=ctk.CTkFont(size=12, weight="bold"),
             command=lambda r=robo: self._executar_robo(r)
         )
-        btn.pack(side="right")
+        btn.pack(fill=tk.X, expand=True)
         self.todos_botoes.append(btn)
 
     def _limpar_busca_robos(self):

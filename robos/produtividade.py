@@ -104,7 +104,33 @@ def fazer_login_microsoft(driver, wait, email, senha):
 # ==============================================================================
 # FUNÇÃO 1: EXTRAÇÃO WEB E SAP
 # ==============================================================================
-def extrair_dados_sistemas():
+def gerar_posicoes_usuarios_mir5(quantidade):
+    """Gera as posições dos campos de usuário da tela de seleção do MIR5."""
+    if quantidade <= 0:
+        return []
+
+    posicoes_conhecidas = [
+        (3044, 418),
+        (3165, 452),
+        (3216, 485),
+    ]
+
+    while len(posicoes_conhecidas) < quantidade:
+        x_anterior, y_anterior = posicoes_conhecidas[-1]
+        x_penultimo, y_penultimo = posicoes_conhecidas[-2]
+        deslocamento_x = x_anterior - x_penultimo
+        deslocamento_y = y_anterior - y_penultimo
+        posicoes_conhecidas.append(
+            (
+                x_anterior + deslocamento_x,
+                y_anterior + deslocamento_y,
+            )
+        )
+
+    return posicoes_conhecidas[:quantidade]
+
+
+def extrair_dados_sistemas(matriculas_sap=None):
     try:
         driver = webdriver.Chrome()
         driver.maximize_window()
@@ -423,9 +449,6 @@ def extrair_dados_sistemas():
 
         CAMPO_COMANDO = (3050, 77)
         MIR5_BOTAO_MULTIPLO_USER = (3941, 300)
-        MIR5_USER_1 = (3044, 418)
-        MIR5_USER_2 = (3165, 452)
-        MIR5_USER_3 = (3216, 485)
         MIR5_DATA_BTN_1 = (3940, 477)
         MIR5_DATA_BTN_2 = (3354, 315)
         MIR5_INPUT_DATA_INICIO = (3056, 419)
@@ -472,9 +495,13 @@ def extrair_dados_sistemas():
 
 
         clicar(MIR5_BOTAO_MULTIPLO_USER, espera=1)
-        clicar_e_digitar(MIR5_USER_1, 'MS0069532')
-        clicar_e_digitar(MIR5_USER_2, 'MS0073814')
-        clicar_e_digitar(MIR5_USER_3, 'MS0075116')
+        matriculas_sap = matriculas_sap or []
+        posicoes_usuarios = gerar_posicoes_usuarios_mir5(
+            len(matriculas_sap)
+        )
+
+        for matricula, posicao in zip(matriculas_sap, posicoes_usuarios):
+            clicar_e_digitar(posicao, matricula)
         pyautogui.press('f8')
         time.sleep(1)
 
@@ -1396,6 +1423,12 @@ def main(nome_arquivo_base, nome_arquivo_saida):
         PROD_PATH
     )
 
+    matriculas_sap = [
+        colaborador["matricula"].strip()
+        for colaborador in COLABORADORES
+        if colaborador.get("matricula", "").strip()
+    ]
+
     print(
         f"✅ {len(COLABORADORES)} colaboradores carregados."
     )
@@ -1497,12 +1530,22 @@ def executar_robo_produtividade_setor(pular_extracao=False):
         print(f"\n❌ ERRO FATAL: O arquivo base '{nome_arquivo_base}' não foi encontrado!")
         print("Coloque o arquivo do mês retrasado na pasta e tente novamente.")
         sys.exit(1) 
+
+    colaboradores = carregar_cadastro_colaboradores(caminho_base)
+    matriculas_sap = [
+        colaborador["matricula"].strip()
+        for colaborador in colaboradores
+        if colaborador.get("matricula", "").strip()
+    ]
+    print(
+        f"✅ {len(matriculas_sap)} matrículas encontradas para o SAP."
+    )
         
     if not pular_extracao:
         print("[PROGRESSO: 5]")
         print("✅ Pré-requisitos validados! Iniciando extração...\n")
         print("-" * 50)
-        extrair_dados_sistemas()
+        extrair_dados_sistemas(matriculas_sap)
     else:
         print("[PROGRESSO: 60]")
         print("⚠️ Opção 'Pular Extração' ativada. Usando arquivos já existentes na pasta...")
